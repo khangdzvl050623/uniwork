@@ -220,6 +220,161 @@ pnpm dev                                    # web :5173 · api :4000
 | `RESEND_API_KEY` | api | Gửi email |
 | `VITE_API_URL` | web | URL API trên Render |
 
-## 9. Giấy phép
+## 9. Quy trình làm việc với Git
+
+> Mục này dành cho **mọi thành viên trong nhóm**. Đọc hết một lần trước khi commit dòng code đầu tiên.
+
+### 9.1. Cấu trúc nhánh
+
+Dự án dùng 3 tầng nhánh. Code đi từ dưới lên trên, không bao giờ đi ngược lại.
+
+```
+feature/ten-tinh-nang  ──PR──►  dev  ──PR (cuối sprint)──►  main
+```
+
+| Nhánh | Vai trò | Ai được đẩy code vào |
+|---|---|---|
+| `main` | Code **luôn chạy ổn định**, là bản đem đi demo/bảo vệ bất cứ lúc nào. Chỉ merge từ `dev` vào **cuối mỗi sprint**. | Không ai push thẳng. Chỉ merge PR từ `dev`. |
+| `dev` | Nhánh **tích hợp chung**. Mọi tính năng merge vào đây trước để các phần ghép với nhau và test chung. | Không ai push thẳng. Chỉ merge PR từ `feature/*`. |
+| `feature/<ten-tinh-nang>` | Nhánh riêng của từng người cho **từng task**. Xong task thì tạo PR vào `dev` rồi xoá nhánh. | Người phụ trách task đó. |
+
+**Đặt tên nhánh feature theo module**, chữ thường, nối bằng gạch ngang:
+
+```
+feature/auth            feature/job-posting      feature/schedule
+feature/profile         feature/admin-dashboard  feature/notification
+```
+
+Một nhánh = một task. Đừng gom 3 tính năng vào một nhánh — PR sẽ to, khó review, và dễ conflict.
+
+### 9.2. Quy tắc bắt buộc
+
+1. **Không push trực tiếp vào `main` và `dev`.** Repo đã bật branch protection nên bạn sẽ **bị chặn tự động** — nếu thấy lỗi `protected branch hook declined` khi push, nghĩa là bạn đang đứng nhầm nhánh, không phải lỗi máy.
+2. **Mọi thay đổi phải đi qua Pull Request.** Không có ngoại lệ, kể cả sửa một dòng.
+3. **Tự test kỹ trên máy mình trước khi merge.** Chạy được, không lỗi console, không làm hỏng phần người khác đã làm — đây là trách nhiệm của người mở PR.
+4. Không merge PR khi còn conflict hoặc CI đang đỏ.
+
+**Mức duyệt khác nhau giữa hai nhánh:**
+
+| PR vào | Cần approval? | Ai merge |
+|---|---|---|
+| `dev` | **Không bắt buộc** | Tự merge sau khi đã test xong trên máy |
+| `main` (cuối sprint) | **Cần approval của owner** | Owner merge, sau khi cả nhóm đã test trên `dev` |
+
+Nói cách khác: vào `dev` thì nhanh — mở PR rồi tự bấm merge, không phải chờ ai. Đổi lại **bạn chịu trách nhiệm hoàn toàn** cho việc code chạy được. PR ở đây tồn tại để cả nhóm nhìn thấy ai đổi gì và để CI có chỗ chạy, không phải để làm khó nhau.
+
+Còn `main` là bản đem đi demo/bảo vệ, nên cuối sprint mới gộp và **phải có approval của owner**. File [`.github/CODEOWNERS`](.github/CODEOWNERS) chỉ định owner là người duyệt cho toàn bộ repo, nên approval của thành viên khác không thay thế được. Mỗi sprint chỉ làm một lần nên không ai phải chờ lâu.
+
+**Review vẫn nên làm** dù không bắt buộc — nhất là với phần khó hoặc động vào code chung. Cách approve: mở PR → tab **Files changed** → nút **Review changes** (góc trên bên phải) → chọn một trong ba:
+
+| Lựa chọn | Ý nghĩa | Ảnh hưởng tới nút Merge |
+|---|---|---|
+| **Comment** | Góp ý, chưa kết luận gì | Không đổi gì |
+| **Approve** | Đồng ý cho merge | ✅ Bắt buộc với PR vào `main` |
+| **Request changes** | Yêu cầu sửa trước khi merge | ❌ **Khoá cứng** PR cho tới khi chính người đó approve lại |
+
+⚠️ Cẩn thận với **Request changes** — dùng nhầm là PR đứng hình, người khác approve cũng không cứu được. Góp ý bình thường thì chọn **Comment**.
+
+⚠️ **Approve bị gỡ nếu nhánh có commit mới.** Repo bật *dismiss stale reviews*, nên mỗi lần push thêm là approval cũ tự mất. Với PR vào `main`, hãy sync và push xong xuôi **rồi mới** nhờ duyệt — xin duyệt trước rồi mới push thì phải đi xin lại.
+
+Sau khi PR được merge, GitHub **tự xoá nhánh feature trên remote** (repo đã bật *auto-delete head branch*), bạn chỉ cần dọn nhánh dưới máy mình.
+
+### 9.3. Các bước làm việc hàng ngày
+
+Copy nguyên khối lệnh dưới đây và chạy theo thứ tự:
+
+```bash
+# 1. Trước khi bắt đầu code, cập nhật dev mới nhất
+git checkout dev
+git pull origin dev
+
+# 2. Tạo nhánh feature riêng cho task đang làm
+git checkout -b feature/ten-tinh-nang
+
+# 3. Code, sau đó commit theo từng phần nhỏ, rõ ràng
+git add .
+git commit -m "feat: mo ta ngan gon thay doi"
+
+# 4. Trước khi tạo PR, cập nhật lại code mới nhất từ dev để giảm conflict
+git checkout dev
+git pull origin dev
+git checkout feature/ten-tinh-nang
+git merge dev
+
+# 5. Push nhánh lên GitHub
+git push origin feature/ten-tinh-nang
+
+# 6. Vào GitHub, tạo Pull Request từ feature/ten-tinh-nang vào dev
+#    Điền mô tả ngắn gọn: task này làm gì, cách test thử
+#    Chay lai app tren may minh mot lan nua -> chay ok thi tu bam Merge
+#    Phan kho hoac dong vao code chung: tag 1 nguoi xem giup truoc khi merge
+```
+
+Sau khi PR được merge, dọn dẹp nhánh cũ để khỏi rối:
+
+```bash
+git checkout dev
+git pull origin dev
+git fetch --prune                              # dọn tham chiếu tới nhánh đã bị xoá trên GitHub
+git branch -d feature/ten-tinh-nang            # xoá nhánh ở máy mình
+```
+
+Nhánh trên GitHub không cần xoá tay — repo đã bật tự xoá sau khi merge.
+
+### 9.4. Quy ước đặt tên commit
+
+Dùng **Conventional Commits** rút gọn: `<loại>: <mô tả ngắn gọn>`.
+
+| Loại | Dùng khi | Ví dụ |
+|---|---|---|
+| `feat` | Thêm tính năng mới | `feat: them man hinh dang ky sinh vien` |
+| `fix` | Sửa lỗi | `fix: sua loi khong luu duoc CV` |
+| `docs` | Sửa tài liệu/README | `docs: bo sung huong dan cai dat` |
+| `refactor` | Sửa code nhưng **không đổi chức năng** | `refactor: tach logic tinh diem phu hop ra service` |
+| `test` | Thêm/sửa test | `test: them test cho API dang nhap` |
+
+Mẹo viết mô tả: viết ở thì hiện tại, nói **việc gì đã làm**, dưới 72 ký tự, không viết hoa đầu câu, không chấm cuối câu. So sánh:
+
+- ❌ `update` · `fix bug` · `sua lai code`
+- ✅ `feat: them bo loc viec lam theo lich ranh`
+
+### 9.5. Xử lý conflict
+
+Conflict xảy ra khi hai người cùng sửa một chỗ trong một file. Đây là chuyện bình thường, không phải ai làm sai.
+
+**Nguyên tắc: người tạo ra conflict tự resolve trên máy mình, test lại rồi mới push.** Đừng đẩy conflict sang cho người review.
+
+Khi `git merge dev` ở bước 4 báo conflict:
+
+```bash
+git status                     # xem file nào đang conflict
+# Mở từng file, tìm các dấu <<<<<<< ======= >>>>>>>
+# Giữ lại phần đúng, xoá hết dấu phân cách
+git add <file-da-sua>
+git commit                     # hoàn tất merge
+# CHẠY LẠI APP + TEST trước khi push
+```
+
+Nếu rối quá và muốn quay lại trạng thái trước khi merge:
+
+```bash
+git merge --abort
+```
+
+⚠️ **`prisma/schema.prisma` là file dễ conflict nhất** — cả nhóm đều động vào nó và mỗi thay đổi còn sinh ra file migration mới. **Nếu cần đổi schema, báo nhóm trước trong group chat rồi mới sửa.** Một người sửa xong, merge vào `dev`, những người khác `git pull origin dev` rồi chạy `pnpm --filter api prisma migrate dev` trước khi làm tiếp.
+
+### 9.6. Phân công nhánh theo module
+
+| Nhánh | Module | Người phụ trách |
+|---|---|---|
+| `feature/auth` | Đăng ký/đăng nhập, phân quyền | *(điền tên)* |
+| `feature/job-posting` | Đăng tin, tìm kiếm việc làm | *(điền tên)* |
+| `feature/schedule` | Quản lý lịch làm, ứng tuyển | *(điền tên)* |
+| `feature/profile` | Hồ sơ sinh viên & nhà tuyển dụng | *(điền tên)* |
+| `feature/admin-dashboard` | Trang quản trị, duyệt tin | *(điền tên)* |
+
+> Nhóm tự cập nhật bảng này khi nhận task. Nhận task nào thì điền tên vào đó để tránh hai người làm trùng.
+
+## 10. Giấy phép
 
 [MIT](LICENSE) — dự án học tập, dùng lại thoải mái.
