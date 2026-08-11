@@ -1,0 +1,30 @@
+name: Keep API awake
+
+# Lớp DỰ PHÒNG cho việc giữ Render free tier không ngủ.
+# Phương án chính là cron-job.org / UptimeRobot ping mỗi 5 phút, vì:
+#   - lịch cron của GitHub Actions thường bị trễ 5-15 phút khi runner bận
+#   - workflow theo lịch tự bị vô hiệu hoá sau 60 ngày repo không có commit
+# Cấu hình: thêm repository variable API_URL = https://<service>.onrender.com
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping /api/health
+        env:
+          API_URL: ${{ vars.API_URL }}
+        run: |
+          if [ -z "$API_URL" ]; then
+            echo "::notice::Chưa cấu hình biến API_URL — bỏ qua ping."
+            exit 0
+          fi
+          # Render mất tới ~50s để dậy từ trạng thái ngủ, nên timeout phải rộng.
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 90 "$API_URL/api/health" || echo 000)
+          echo "GET $API_URL/api/health -> $code"
+          [ "$code" = "200" ]
