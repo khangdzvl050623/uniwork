@@ -259,11 +259,11 @@ Một nhánh = một task. Đừng gom 3 tính năng vào một nhánh — PR s�
 | PR vào | Cần approval? | Ai merge |
 |---|---|---|
 | `dev` | **Không bắt buộc** | Tự merge sau khi đã test xong trên máy |
-| `main` (cuối sprint) | **Cần 1 approval** | Owner merge, sau khi cả nhóm đã test trên `dev` |
+| `main` (cuối sprint) | **Cần approval của owner** | Owner merge, sau khi cả nhóm đã test trên `dev` |
 
 Nói cách khác: vào `dev` thì nhanh — mở PR rồi tự bấm merge, không phải chờ ai. Đổi lại **bạn chịu trách nhiệm hoàn toàn** cho việc code chạy được. PR ở đây tồn tại để cả nhóm nhìn thấy ai đổi gì và để CI có chỗ chạy, không phải để làm khó nhau.
 
-Còn `main` là bản đem đi demo/bảo vệ, nên cuối sprint mới gộp và phải có người duyệt.
+Còn `main` là bản đem đi demo/bảo vệ, nên cuối sprint mới gộp và **phải có approval của owner**. File [`.github/CODEOWNERS`](.github/CODEOWNERS) chỉ định owner là người duyệt cho toàn bộ repo, nên approval của thành viên khác không thay thế được. Mỗi sprint chỉ làm một lần nên không ai phải chờ lâu.
 
 **Review vẫn nên làm** dù không bắt buộc — nhất là với phần khó hoặc động vào code chung. Cách approve: mở PR → tab **Files changed** → nút **Review changes** (góc trên bên phải) → chọn một trong ba:
 
