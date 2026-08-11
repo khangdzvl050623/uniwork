@@ -122,10 +122,11 @@ erDiagram
     User ||--o| EmployerProfile  : has
     User ||--o{ Notification     : receives
 
-    StudentProfile ||--o{ StudentSkill        : declares
-    StudentProfile ||--o{ StudentAvailability : "rảnh vào"
-    StudentProfile ||--o{ Application         : submits
-    StudentProfile ||--o{ SavedJob            : saves
+    StudentProfile ||--o{ StudentSkill           : declares
+    StudentProfile ||--o{ StudentAvailability    : "rảnh vào"
+    StudentProfile ||--o{ AvailabilityException  : "bận/rảnh đột xuất"
+    StudentProfile ||--o{ Application            : submits
+    StudentProfile ||--o{ SavedJob               : saves
 
     EmployerProfile ||--o{ Job : posts
 
@@ -134,6 +135,8 @@ erDiagram
     Job ||--o{ Application : receives
     Job ||--o{ SavedJob    : "được lưu"
     Job ||--o{ Report      : "bị báo cáo"
+
+    Application ||--o{ ApplicationEvent : "lịch sử trạng thái"
 
     Skill ||--o{ StudentSkill : "được chọn bởi"
     Skill ||--o{ JobSkill     : "được yêu cầu bởi"
@@ -144,17 +147,42 @@ erDiagram
 | Bảng | Trường đáng chú ý |
 |---|---|
 | `User` | `email`, `passwordHash`, `role` (STUDENT / EMPLOYER / ADMIN), `emailVerifiedAt`, `status` |
-| `StudentProfile` | `fullName`, `university`, `major`, `year`, `bio`, `cvUrl`, `expectedHourlyRate` |
+| `StudentProfile` | `fullName`, `university`, `major`, `year`, `bio`, `cvUrl`, `expectedHourlyRate`, `availableFrom`, `availableUntil` |
 | `EmployerProfile` | `companyName`, `logoUrl`, `website`, `address`, `verifiedAt` |
 | `Skill` | `name`, `slug` — danh mục do admin quản lý, tránh tag rác |
 | `StudentSkill` | `level` (BEGINNER / INTERMEDIATE / ADVANCED) |
-| `Job` | `title`, `description`, `jobType`, `salaryMin/Max`, `salaryType`, `district`, `city`, `isRemote`, `quantity`, `deadline`, `status` (DRAFT / PENDING / OPEN / CLOSED) |
+| `Job` | `title`, `description`, `jobType`, `scheduleType`, `startDate`, `endDate`, `eventDate`, `commitmentMonths`, `minShiftsPerWeek`, `salaryMin/Max`, `salaryType`, `district`, `city`, `isRemote`, `quantity`, `deadline`, `status` (DRAFT / PENDING / OPEN / CLOSED) |
 | `JobShift` | `dayOfWeek` (0–6), `startTime`, `endTime` |
-| `StudentAvailability` | `dayOfWeek`, `startTime`, `endTime` |
+| `StudentAvailability` | `dayOfWeek`, `startTime`, `endTime`, `validFrom`, `validTo` |
+| `AvailabilityException` | `date`, `type` (BUSY / FREE), `reason` |
 | `Application` | `coverLetter`, `cvUrl`, `status` (PENDING / VIEWED / SHORTLISTED / ACCEPTED / REJECTED / WITHDRAWN), unique `(jobId, studentId)` |
+| `ApplicationEvent` | `fromStatus`, `toStatus`, `actorId`, `createdAt` |
 | `Report` | `reason`, `handledBy`, `handledAt` |
 
-**Thuật toán ghép lịch.** Một sinh viên khớp ca làm nếu tồn tại khoảng thời gian rảnh cùng `dayOfWeek` và `[avail.start, avail.end]` **bao trọn** `[shift.start, shift.end]`. Truy vấn bằng `EXISTS` trên Postgres, có index `(dayOfWeek, startTime)`. Điểm phù hợp = `w₁ ×` tỉ lệ kỹ năng khớp `+ w₂ ×` tỉ lệ ca khớp.
+**Lịch rảnh có hai tầng.** Khai một lần rồi để đó là không đủ — lịch học đổi theo học kỳ, và sinh viên vẫn có buổi bận đột xuất. Nên tách:
+
+- `StudentAvailability` — **mẫu lặp hàng tuần**, có `validFrom`/`validTo` gắn với học kỳ. Sang kỳ mới thì tạo bộ mới, bộ cũ tự hết hiệu lực chứ không xoá đè, nên vẫn tra ngược được lịch của kỳ trước.
+- `AvailabilityException` — **ngoại lệ theo ngày cụ thể**: ốm, thi, hoặc rảnh thêm ngoài lịch thường. Đây là cách Google Calendar xử lý sự kiện lặp, tránh được cái bẫy "sửa lịch tuần này thì hỏng luôn các tuần sau".
+
+**Ba kiểu bố trí thời gian.** Cột `Job.scheduleType` tách riêng khỏi `jobType` — `jobType` mô tả *tính chất công việc* (part-time / thực tập / freelance), còn cái này mô tả *cách bố trí thời gian*. Một việc vừa là part-time vừa là thời vụ ngắn hạn là chuyện bình thường, gộp một cột sẽ vướng.
+
+| `scheduleType` | Ví dụ | Trường dùng kèm | Ghép lịch bằng |
+|---|---|---|---|
+| `RECURRING` | Phục vụ quán, gia sư, trực shop | `commitmentMonths`, `minShiftsPerWeek` | Mẫu tuần + kiểm tra cam kết |
+| `SEASONAL` | Bán hàng Tết, phụ kho mùa sale | `startDate`, `endDate` | Mẫu tuần, giới hạn trong khoảng ngày |
+| `ONE_TIME` | Chạy bàn tiệc cưới, phát tờ rơi, coi thi | `eventDate` | Ngày cụ thể, **có** tính ngoại lệ |
+
+**Thuật toán ghép lịch.** Một sinh viên khớp ca làm nếu tồn tại khoảng rảnh cùng `dayOfWeek` và `[avail.start, avail.end]` **bao trọn** `[shift.start, shift.end]`, với khoảng rảnh đó còn hiệu lực (`validFrom`/`validTo` phủ thời điểm xét). Truy vấn bằng `EXISTS` trên Postgres, index `(studentId, dayOfWeek, startTime)`.
+
+Với việc `RECURRING`, chỉ nhận sinh viên còn làm đủ lâu: `availableUntil - job.startDate >= commitmentMonths`. Nhà tuyển dụng thật cần người ổn định vài tháng, nên đây là điều kiện lọc quan trọng chứ không phải tuỳ chọn — sinh viên sắp đi thực tập hay sắp về quê nghỉ hè sẽ không thấy các tin đòi cam kết dài, đỡ mất thời gian cả hai bên.
+
+Điểm phù hợp = `w₁ ×` tỉ lệ kỹ năng khớp `+ w₂ ×` tỉ lệ ca khớp `+ w₃ ×` mức đáp ứng cam kết.
+
+⚠️ **Ngoại lệ không ảnh hưởng tới tìm việc định kỳ.** Nếu sinh viên báo bận ngày 12/09 mà hệ thống loại luôn mọi tin có ca hôm đó thì kết quả tìm kiếm sẽ nhiễu vô lý — part-time là cam kết vài tháng, nghỉ một buổi không liên quan gì đến chuyện có hợp việc hay không. `AvailabilityException` chỉ tham gia vào việc `ONE_TIME`, và vào giai đoạn **sau khi đã đi làm**.
+
+**Lịch sử trạng thái đơn.** Cột `Application.status` chỉ cho biết trạng thái *hiện tại*. Để vẽ được timeline "Đã ứng tuyển → NTD đã xem → Kết quả" kèm ngày tháng ở từng bước, cần `ApplicationEvent` ghi lại mỗi lần chuyển trạng thái. Bảng này nhỏ, thêm sớm thì rẻ; để đến lúc làm màn hình theo dõi mới thêm thì phải sửa ngược cả luồng ứng tuyển. Tiện thể có luôn dữ liệu thống kê cho admin: trung bình bao lâu nhà tuyển dụng xem đơn, tỉ lệ đơn bị bỏ quên.
+
+**Che thông tin liên hệ.** Số điện thoại và email của sinh viên **chỉ mở khi đơn đạt `SHORTLISTED` trở lên**. Ở `PENDING` và `VIEWED`, nhà tuyển dụng chỉ thấy hồ sơ, kỹ năng và CV. Không có quy tắc này thì app thành chỗ thu thập số điện thoại sinh viên — đúng cái vấn nạn mà dự án muốn giải quyết. Khi chuyển sang `ACCEPTED`, hệ thống gửi email cho cả hai phía kèm thông tin liên hệ, hai bên tự hẹn nhau sau.
 
 ## 6. Cấu trúc thư mục
 
@@ -188,6 +216,8 @@ uniwork/
 | **6 — Tài liệu** | 1 tuần | Báo cáo, slide, video demo, seed dữ liệu mẫu | Bộ hồ sơ đồ án |
 
 **Nice-to-have** (làm nếu còn thời gian): chat SV ↔ NTD, đánh giá 2 chiều sau khi hoàn thành công việc, gợi ý việc làm cá nhân hoá, PWA, bản đồ việc làm gần trường.
+
+**Cố tình để ngoài phạm vi đồ án:** quản lý ca sau khi nhận việc — lịch làm thực tế, đơn xin nghỉ buổi, đổi ca giữa các bạn cùng chỗ làm, chấm công. Đây là một sản phẩm riêng, to ngang phần tuyển dụng hiện tại; nhét vào 11 tuần là hỏng cả hai. Ghi nhận ở đây như hướng phát triển tiếp theo.
 
 ## 8. Bắt đầu
 
