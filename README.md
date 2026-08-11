@@ -249,22 +249,33 @@ Một nhánh = một task. Đừng gom 3 tính năng vào một nhánh — PR s�
 
 ### 9.2. Quy tắc bắt buộc
 
-1. **Không push trực tiếp vào `main` và `dev`.** Repo đã bật branch protection nên thành viên thường sẽ **bị chặn tự động** — nếu bạn thấy lỗi `protected branch hook declined` khi push, nghĩa là bạn đang đứng nhầm nhánh, không phải lỗi máy.
-2. **Mọi thay đổi phải đi qua Pull Request** vào `dev`.
-3. **Cần ít nhất 1 người review + approve** trước khi PR được merge. Tự approve PR của chính mình là không hợp lệ.
+1. **Không push trực tiếp vào `main` và `dev`.** Repo đã bật branch protection nên bạn sẽ **bị chặn tự động** — nếu thấy lỗi `protected branch hook declined` khi push, nghĩa là bạn đang đứng nhầm nhánh, không phải lỗi máy.
+2. **Mọi thay đổi phải đi qua Pull Request.** Không có ngoại lệ, kể cả sửa một dòng.
+3. **Tự test kỹ trên máy mình trước khi merge.** Chạy được, không lỗi console, không làm hỏng phần người khác đã làm — đây là trách nhiệm của người mở PR.
 4. Không merge PR khi còn conflict hoặc CI đang đỏ.
 
-**Approve ở đâu?** Mở PR trên GitHub → tab **Files changed** → nút **Review changes** (góc trên bên phải) → chọn **Approve** → **Submit review**. Ba lựa chọn ở đó khác nhau:
+**Mức duyệt khác nhau giữa hai nhánh:**
+
+| PR vào | Cần approval? | Ai merge |
+|---|---|---|
+| `dev` | **Không bắt buộc** | Tự merge sau khi đã test xong trên máy |
+| `main` (cuối sprint) | **Cần 1 approval** | Owner merge, sau khi cả nhóm đã test trên `dev` |
+
+Nói cách khác: vào `dev` thì nhanh — mở PR rồi tự bấm merge, không phải chờ ai. Đổi lại **bạn chịu trách nhiệm hoàn toàn** cho việc code chạy được. PR ở đây tồn tại để cả nhóm nhìn thấy ai đổi gì và để CI có chỗ chạy, không phải để làm khó nhau.
+
+Còn `main` là bản đem đi demo/bảo vệ, nên cuối sprint mới gộp và phải có người duyệt.
+
+**Review vẫn nên làm** dù không bắt buộc — nhất là với phần khó hoặc động vào code chung. Cách approve: mở PR → tab **Files changed** → nút **Review changes** (góc trên bên phải) → chọn một trong ba:
 
 | Lựa chọn | Ý nghĩa | Ảnh hưởng tới nút Merge |
 |---|---|---|
-| **Comment** | Góp ý, chưa kết luận gì | Không mở khoá |
-| **Approve** | Đồng ý cho merge | ✅ Mở khoá nút Merge |
-| **Request changes** | Yêu cầu sửa trước khi merge | ❌ Khoá cứng cho tới khi người đó approve lại |
+| **Comment** | Góp ý, chưa kết luận gì | Không đổi gì |
+| **Approve** | Đồng ý cho merge | ✅ Bắt buộc với PR vào `main` |
+| **Request changes** | Yêu cầu sửa trước khi merge | ❌ **Khoá cứng** PR cho tới khi chính người đó approve lại |
 
-⚠️ **Approve sẽ bị gỡ nếu nhánh có commit mới.** Repo đã bật *dismiss stale reviews*: mỗi lần bạn push thêm vào nhánh feature, GitHub **tự xoá approval đã có** và PR quay lại trạng thái chờ duyệt. Đây là cơ chế cố ý — approval phải ứng với đúng đoạn code sắp được merge, chứ không phải với phiên bản cũ trước lúc bạn sửa thêm. Nếu thấy dấu tick xanh biến mất thì đó không phải lỗi GitHub.
+⚠️ Cẩn thận với **Request changes** — dùng nhầm là PR đứng hình, người khác approve cũng không cứu được. Góp ý bình thường thì chọn **Comment**.
 
-Vì vậy **thứ tự làm việc rất quan trọng**: làm xong bước 4 (merge `dev` vào nhánh của mình) và bước 5 (push) **rồi mới** tag người review ở bước 6. Xin duyệt trước rồi mới sync với `dev` thì approval vừa nhận sẽ bị gỡ, phải đi xin lại từ đầu.
+⚠️ **Approve bị gỡ nếu nhánh có commit mới.** Repo bật *dismiss stale reviews*, nên mỗi lần push thêm là approval cũ tự mất. Với PR vào `main`, hãy sync và push xong xuôi **rồi mới** nhờ duyệt — xin duyệt trước rồi mới push thì phải đi xin lại.
 
 Sau khi PR được merge, GitHub **tự xoá nhánh feature trên remote** (repo đã bật *auto-delete head branch*), bạn chỉ cần dọn nhánh dưới máy mình.
 
@@ -295,7 +306,8 @@ git push origin feature/ten-tinh-nang
 
 # 6. Vào GitHub, tạo Pull Request từ feature/ten-tinh-nang vào dev
 #    Điền mô tả ngắn gọn: task này làm gì, cách test thử
-#    Gắn tag 1 thành viên khác để review
+#    Chay lai app tren may minh mot lan nua -> chay ok thi tu bam Merge
+#    Phan kho hoac dong vao code chung: tag 1 nguoi xem giup truoc khi merge
 ```
 
 Sau khi PR được merge, dọn dẹp nhánh cũ để khỏi rối:
