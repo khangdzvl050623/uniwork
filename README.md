@@ -254,6 +254,20 @@ Một nhánh = một task. Đừng gom 3 tính năng vào một nhánh — PR s�
 3. **Cần ít nhất 1 người review + approve** trước khi PR được merge. Tự approve PR của chính mình là không hợp lệ.
 4. Không merge PR khi còn conflict hoặc CI đang đỏ.
 
+**Approve ở đâu?** Mở PR trên GitHub → tab **Files changed** → nút **Review changes** (góc trên bên phải) → chọn **Approve** → **Submit review**. Ba lựa chọn ở đó khác nhau:
+
+| Lựa chọn | Ý nghĩa | Ảnh hưởng tới nút Merge |
+|---|---|---|
+| **Comment** | Góp ý, chưa kết luận gì | Không mở khoá |
+| **Approve** | Đồng ý cho merge | ✅ Mở khoá nút Merge |
+| **Request changes** | Yêu cầu sửa trước khi merge | ❌ Khoá cứng cho tới khi người đó approve lại |
+
+⚠️ **Approve sẽ bị gỡ nếu nhánh có commit mới.** Repo đã bật *dismiss stale reviews*: mỗi lần bạn push thêm vào nhánh feature, GitHub **tự xoá approval đã có** và PR quay lại trạng thái chờ duyệt. Đây là cơ chế cố ý — approval phải ứng với đúng đoạn code sắp được merge, chứ không phải với phiên bản cũ trước lúc bạn sửa thêm. Nếu thấy dấu tick xanh biến mất thì đó không phải lỗi GitHub.
+
+Vì vậy **thứ tự làm việc rất quan trọng**: làm xong bước 4 (merge `dev` vào nhánh của mình) và bước 5 (push) **rồi mới** tag người review ở bước 6. Xin duyệt trước rồi mới sync với `dev` thì approval vừa nhận sẽ bị gỡ, phải đi xin lại từ đầu.
+
+Sau khi PR được merge, GitHub **tự xoá nhánh feature trên remote** (repo đã bật *auto-delete head branch*), bạn chỉ cần dọn nhánh dưới máy mình.
+
 ### 9.3. Các bước làm việc hàng ngày
 
 Copy nguyên khối lệnh dưới đây và chạy theo thứ tự:
@@ -289,9 +303,11 @@ Sau khi PR được merge, dọn dẹp nhánh cũ để khỏi rối:
 ```bash
 git checkout dev
 git pull origin dev
+git fetch --prune                              # dọn tham chiếu tới nhánh đã bị xoá trên GitHub
 git branch -d feature/ten-tinh-nang            # xoá nhánh ở máy mình
-git push origin --delete feature/ten-tinh-nang # xoá nhánh trên GitHub
 ```
+
+Nhánh trên GitHub không cần xoá tay — repo đã bật tự xoá sau khi merge.
 
 ### 9.4. Quy ước đặt tên commit
 
