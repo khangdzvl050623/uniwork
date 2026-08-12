@@ -1,171 +1,78 @@
 # Sprint 0 — Nền móng
 
-**Thời lượng:** 6 ngày làm việc · **Nhóm:** 2 người
+**Thời lượng:** 6 ngày · **Nhóm:** 3 người
 
-Mục tiêu: khi kết thúc sprint, nhóm có **một đường ống chạy thông từ máy lập trình tới bản deploy thật**, và **một bộ yêu cầu đủ rõ để code Sprint 1 mà không phải đoán**. Chưa có tính năng nào cho người dùng, và điều đó là đúng ý đồ.
+| Ký hiệu | Vai trò | Tên |
+|---|---|---|
+| **DEV1** | Backend, hạ tầng, database, deploy API | *(điền)* |
+| **DEV2** | Frontend, CI, deploy web | *(điền)* |
+| **BA** | Phân tích nghiệp vụ, viết tài liệu, wireframe | *(điền)* |
 
-| Người | Vai trò trong sprint này |
+## Danh sách công việc
+
+| Mã | Ngày | Người | Công việc | Kết quả cần đạt |
+|---|---|---|---|---|
+| T01 | 1 | DEV1 | Dựng monorepo: pnpm workspaces, Turborepo, `packages/config` (tsconfig, ESLint, Prettier) | `pnpm dev` chạy được từ gốc |
+| T02 | 1 | DEV1 | Khởi tạo `apps/api` — Express + TypeScript | API chạy ở `:4000` |
+| T03 | 1 | DEV2 | Khởi tạo `apps/web` — Vite + React + TypeScript | Web chạy ở `:5173` |
+| T04 | 1 | DEV2 | Tạo `packages/shared`, export type mẫu | Import xuyên workspace hoạt động |
+| T05 | 1–2 | BA | Bảng so sánh 4–5 nền tảng trên Google Sheets: TopCV, VietnamWorks, Việc Làm Tốt, 1–2 group Facebook | Đủ cột: bước đăng ký · trường khi đăng tin · cách tìm và lọc · **có lọc theo lịch làm không** · đánh giá hai chiều |
+| T06 | 1–2 | BA | Đọc 20–30 bài và bình luận gần nhất trong group Facebook việc làm sinh viên | 3–5 lời than phiền lặp lại nhiều nhất, kèm ảnh chụp màn hình |
+| T07 | 1–2 | BA | Viết tóm tắt insight | Đoạn 5–7 dòng nêu phát hiện quan trọng nhất |
+| T08 | 2 | DEV1 | Cấu trúc API: `routes / controllers / services / middlewares / lib`, middleware lỗi tập trung, đọc env qua Zod | Response lỗi chuẩn `{ code, message, details }`; thiếu env thì app dừng ngay lúc khởi động |
+| T09 | 2 | DEV1 | Endpoint `GET /api/health` — không truy vấn database | Trả `{ status: 'ok' }` |
+| T10 | 2 | DEV2 | React Router, layout khung, TanStack Query provider | Điều hướng giữa 2 trang mẫu |
+| T11 | 2 | DEV2 | Cài Tailwind CSS + shadcn/ui | Render được 1 component shadcn |
+| T12 | 2 | DEV2 | Web gọi `/api/health` và hiển thị kết quả | Màn hình hiện trạng thái lấy từ backend thật |
+| T13 | 3 | DEV1 | Tạo project Neon, `prisma init`, schema tối thiểu: `User`, `StudentProfile`, `EmployerProfile`, `Skill` | Migration đầu tiên chạy lên Neon thành công |
+| T14 | 3 | DEV1 | Viết `seed.ts` | 3 tài khoản demo (SV / NTD / admin) + 10 kỹ năng mẫu |
+| T15 | 3 | DEV1 | Endpoint `GET /api/skills` đọc dữ liệu thật | Trả danh sách kỹ năng từ Neon |
+| T16 | 3 | DEV2 | Viết `.env.example` cho cả 2 app, cập nhật README mục 8 | Người mới clone về cài được theo tài liệu |
+| T17 | 3–4 | BA | BRD module **Auth** | 1 trang: trường dữ liệu · luồng chính · lỗi và ngoại lệ |
+| T18 | 3–4 | BA | BRD module **Đăng tin** | 1 trang, có mục giấy tờ nhà tuyển dụng cần nộp để xác minh |
+| T19 | 3–4 | BA | BRD module **Tìm kiếm việc** | 1 trang: trường dữ liệu · luồng chính · lỗi và ngoại lệ |
+| T20 | 4 | DEV1 | Cài Vitest cho API, viết test mẫu | Test chạy xanh |
+| T21 | 4 | DEV2 | Cài Vitest cho web, viết test mẫu | Test chạy xanh |
+| T22 | 4 | DEV2 | Viết `.github/workflows/ci.yml`: install → lint → typecheck → test → build | CI chạy tự động trên mọi PR |
+| T23 | 4 | DEV2 | Mở PR nháp cho CI chạy 1 lần, bật required status checks cho `dev` và `main` | PR có test đỏ thì không merge được |
+| T24 | 5 | DEV1 | Deploy `apps/api` lên Render: root directory, build/start command, biến môi trường, CORS trỏ domain Vercel | API chạy trên domain `.onrender.com` |
+| T25 | 5 | DEV1 | Cấu hình cron-job.org ping `/api/health` mỗi 5 phút, đặt repository variable `API_URL` | Workflow `keep-alive.yml` hoạt động |
+| T26 | 5 | DEV1 | Đo cold start: để API ngủ 20 phút rồi gọi lại | Ghi lại số giây vào tài liệu |
+| T27 | 5 | DEV2 | Deploy `apps/web` lên Vercel: root `apps/web`, biến `VITE_API_URL` | Mở link trên điện thoại dùng 4G thấy dữ liệu từ Neon |
+| T28 | 5–6 | BA | Vẽ 6 frame wireframe trên Figma | Link share được, 6 frame đặt tên theo thứ tự bên dưới |
+| T29 | 6 | DEV1 | Viết schema Prisma đầy đủ theo BRD, chạy migration thứ hai | Schema khớp với tài liệu BA bàn giao |
+| T30 | 6 | DEV1 | Mở rộng seed: tin tuyển dụng mẫu có ca làm và kỹ năng | Sprint 1 có sẵn dữ liệu để phát triển |
+| T31 | 6 | DEV2 | Dựng khung route rỗng cho 6 màn hình theo wireframe | Điều hướng đủ 6 trang, chưa cần giao diện |
+| T32 | 6 | DEV1 | Mời DEV2 và BA vào repo với quyền `write` | Cả nhóm clone và chạy được dự án |
+
+## Sáu frame wireframe (T28)
+
+| Thứ tự | Tên frame |
 |---|---|
-| **A** *(điền tên — owner repo)* | Hạ tầng, khung dự án, CI/CD, cơ sở dữ liệu |
-| **B** *(điền tên)* | Nghiên cứu thị trường, đặc tả yêu cầu, wireframe |
+| 01 | Đăng ký / Đăng nhập (2 vai trò: SV / NTD) |
+| 02 | Danh sách việc làm (lọc: khu vực, lương, giờ làm) |
+| 03 | Chi tiết tin tuyển dụng + nút Ứng tuyển |
+| 04 | NTD đăng tin (form nhập liệu) |
+| 05 | NTD xem danh sách ứng viên |
+| 06 | SV khai báo lịch rảnh (lưới 7 ngày × khung giờ) |
 
-Hai người làm song song, gần như không chặn nhau. Chỉ có **hai mốc đồng bộ** bắt buộc, đánh dấu 🔗 bên dưới.
+## Sản phẩm bàn giao
 
----
+| Sản phẩm | Người | Hạn |
+|---|---|---|
+| Google Sheets so sánh đối thủ + tóm tắt insight | BA | Hết ngày 2 |
+| Google Docs BRD 3 module | BA | **Hết ngày 4** |
+| Link Figma 6 frame | BA | Hết ngày 6 |
+| Repo chạy được: `pnpm install && pnpm dev` | DEV1 + DEV2 | Hết ngày 3 |
+| CI chặn merge khi đỏ | DEV2 | Hết ngày 4 |
+| Web trên Vercel + API trên Render + DB Neon chạy thông | DEV1 + DEV2 | Hết ngày 5 |
+| Schema Prisma đầy đủ + seed | DEV1 | Hết ngày 6 |
 
-## Người A — Hạ tầng & khung dự án
+## Phụ thuộc
 
-### Ngày 1 — Dựng monorepo
-
-- [ ] `pnpm init` ở gốc, cấu hình `pnpm-workspace.yaml` với `apps/*` và `packages/*`
-- [ ] `apps/web` — Vite + React + TypeScript, chạy được ở `:5173`
-- [ ] `apps/api` — Express + TypeScript + tsx watch, chạy được ở `:4000`
-- [ ] `packages/shared` — package rỗng, export một type mẫu để kiểm tra import xuyên workspace
-- [ ] `packages/config` — tsconfig base, ESLint, Prettier dùng chung
-- [ ] Turborepo: `pnpm dev` chạy cả hai app cùng lúc bằng một lệnh
-
-**Xong khi:** clone repo về máy trắng, chạy `pnpm install && pnpm dev`, hai app cùng lên.
-
-### Ngày 2 — Khung API và khung web
-
-- [ ] API: cấu trúc `routes / controllers / services / middlewares / lib`
-- [ ] `GET /api/health` trả `{ status: 'ok' }` — **không chạm database** (xem ghi chú ở mục Rủi ro)
-- [ ] Middleware xử lý lỗi tập trung, chuẩn hoá response lỗi `{ code, message, details }`
-- [ ] Đọc biến môi trường qua Zod, thiếu biến thì app chết ngay lúc khởi động chứ không chạy tiếp
-- [ ] Web: React Router, layout khung, TanStack Query provider, Tailwind + shadcn/ui khởi tạo
-- [ ] Web gọi được `/api/health` và hiện kết quả lên màn hình
-
-**Xong khi:** mở web thấy chữ "API: ok" lấy từ backend thật, không phải hardcode.
-
-### Ngày 3 — Database
-
-- [ ] Tạo project trên Neon, lấy `DATABASE_URL`
-- [ ] `prisma init`, viết schema **tối thiểu**: `User`, `StudentProfile`, `EmployerProfile`, `Skill`
-- [ ] Migration đầu tiên chạy được lên Neon
-- [ ] `seed.ts` tạo 3 tài khoản demo (SV / NTD / admin) + ~10 kỹ năng mẫu
-- [ ] Một endpoint đọc dữ liệu thật từ DB, ví dụ `GET /api/skills`
-- [ ] `.env.example` cho cả hai app, ghi đủ biến, không commit `.env` thật
-
-**Xong khi:** `pnpm --filter api prisma db seed` chạy sạch, gọi `/api/skills` trả về danh sách từ Neon.
-
-> Chỉ dựng schema tối thiểu ở bước này. Schema đầy đủ đợi BRD của B ở ngày 6.
-
-### Ngày 4 — CI
-
-- [ ] Vitest cho cả hai app, mỗi app một test mẫu chạy xanh
-- [ ] `.github/workflows/ci.yml`: cài deps → lint → typecheck → test → build
-- [ ] Mở một PR nháp để CI chạy thật ít nhất một lần
-- [ ] Sau khi CI chạy xong, bật **required status checks** cho `dev` và `main`
-- [ ] Xoá PR nháp
-
-**Xong khi:** PR nào có lỗi lint hoặc test đỏ thì không merge được nữa.
-
-> Required status checks chỉ chọn được tên job **sau khi job đó đã chạy ít nhất một lần** — nên phải mở PR nháp trước, không bật trước được.
-
-### Ngày 5 — Deploy toàn tuyến
-
-- [ ] Vercel: nối repo, root directory `apps/web`, build command cho monorepo, biến `VITE_API_URL`
-- [ ] Render: nối repo, root directory `apps/api`, build + start command, đủ biến môi trường
-- [ ] CORS trên API trỏ đúng domain Vercel thật
-- [ ] cron-job.org ping `/api/health` mỗi 5 phút
-- [ ] Đặt repository variable `API_URL` để workflow `keep-alive.yml` hoạt động
-- [ ] **Đo thử cold start**: để API ngủ 20 phút rồi gọi lại, ghi lại mất bao nhiêu giây
-
-**Xong khi:** mở link Vercel trên điện thoại, dùng 4G (không phải wifi nhà), thấy dữ liệu từ Neon.
-
-### Ngày 6 — Chốt schema & dọn dẹp 🔗
-
-- [ ] Đọc BRD của B, đối chiếu với mô hình dữ liệu ở README mục 5
-- [ ] Viết schema Prisma **đầy đủ** cho toàn bộ bảng, chạy migration thứ hai
-- [ ] Mở rộng seed: vài tin tuyển dụng mẫu có ca làm và kỹ năng, để Sprint 1 có dữ liệu mà nhìn
-- [ ] Mời B vào repo với quyền `write`, hướng dẫn B chạy dự án trên máy
-- [ ] Cập nhật README mục 8 nếu các bước cài đặt thực tế khác với dự kiến
-
-**Xong khi:** B clone repo về máy mình, chạy được, và schema phản ánh đúng những gì BRD mô tả.
-
----
-
-## Người B — Nghiên cứu, yêu cầu, thiết kế
-
-### Ngày 1–2 — Nghiên cứu đối thủ
-
-- [ ] Bảng so sánh trên Google Sheets, 4–5 nền tảng
-- [ ] Mỗi nền tảng ghi rõ: các bước đăng ký · các trường khi đăng tin · cách tìm kiếm và lọc · **có tính năng lịch làm không** · có đánh giá hai chiều không
-- [ ] Vào 1–2 group Facebook việc làm sinh viên, đọc 20–30 bài và bình luận gần nhất
-- [ ] Ghi lại **3–5 lời than phiền lặp lại nhiều nhất** của sinh viên, kèm ảnh chụp màn hình làm bằng chứng
-
-**Nộp:** file Google Sheets + đoạn tóm tắt 5–7 dòng nêu insight quan trọng nhất.
-
-Gợi ý chọn nền tảng: TopCV và VietnamWorks là bắt buộc. **Nên thay ITviec bằng Việc Làm Tốt (Chợ Tốt) hoặc Vieclam24h** — ITviec chuyên tuyển IT toàn thời gian, gần như không có mảng part-time sinh viên nên so sánh sẽ không rút ra được gì. Cộng thêm 1–2 group Facebook lớn.
-
-Cột quan trọng nhất của bảng là **"có lọc theo lịch làm không"**. Nếu không nền tảng nào có, đó chính là luận điểm mở đầu cho báo cáo. Nếu có nền tảng đã làm rồi, nhóm cần biết ngay từ bây giờ chứ không phải lúc bảo vệ.
-
-### Ngày 3–4 — Đặc tả yêu cầu (BRD) 🔗
-
-Ba module, mỗi module một trang, cùng một format:
-
-- [ ] **Auth** — đăng ký, đăng nhập, xác thực email, phân quyền
-- [ ] **Đăng tin** — nhà tuyển dụng tạo và quản lý tin
-- [ ] **Tìm kiếm việc** — sinh viên tìm, lọc, xem chi tiết
-
-Mỗi module viết đủ bốn phần:
-
-1. **Các trường dữ liệu cần thu thập** — tên trường, bắt buộc hay không, ràng buộc (độ dài, định dạng, giá trị hợp lệ)
-2. **Luồng chính (happy path)** — từng bước: người dùng làm gì, hệ thống phản hồi gì
-3. **Trường hợp lỗi và ngoại lệ** — tin hết hạn, ứng tuyển trùng, email đã tồn tại, sai mật khẩu quá 5 lần, tin bị admin gỡ giữa chừng, nhà tuyển dụng chưa được duyệt mà cố đăng tin
-4. **Riêng module Đăng tin:** nhà tuyển dụng cần cung cấp giấy tờ gì để xác minh — đây là hàng rào chống tin lừa đảo, cần quyết định dứt khoát chứ không để mở
-
-**Nộp:** file Google Docs, mỗi module một trang, dùng luôn làm phụ lục báo cáo môn học.
-
-> 🔗 **Đây là mốc đồng bộ quan trọng nhất của sprint.** A sẽ dựng schema Prisma từ chính danh sách trường trong tài liệu này. Trường nào B quên, A sẽ không có trong database, và Sprint 1 phải migration lại. Viết xong ngày 4 thì gửi ngay, đừng đợi tới cuối sprint.
-
-Đối chiếu sẵn với README mục 5 trước khi viết — mô hình dữ liệu đã có phác thảo, việc của B là làm nó chi tiết và bổ sung chỗ thiếu, không phải viết lại từ đầu.
-
-### Ngày 5–6 — Wireframe Figma
-
-Sáu màn hình, không cần đẹp, chỉ cần đủ khối và đúng luồng:
-
-- [ ] `01 - Đăng ký / Đăng nhập` (2 vai trò: SV / NTD)
-- [ ] `02 - Danh sách việc làm` (bộ lọc: khu vực, lương, giờ làm)
-- [ ] `03 - Chi tiết tin tuyển dụng` + nút Ứng tuyển
-- [ ] `04 - NTD đăng tin` (form nhập liệu)
-- [ ] `05 - NTD xem danh sách ứng viên`
-- [ ] `06 - SV khai báo lịch rảnh` (dạng lưới 7 ngày × khung giờ)
-
-**Nộp:** một link Figma share được, 6 frame đặt tên đúng thứ tự trên.
-
-> ⚠️ Màn hình 06 khác với danh sách ban đầu, xem giải thích ở mục dưới.
-
----
-
-## Hai mốc đồng bộ
-
-| Khi nào | Việc gì |
-|---|---|
-| **Hết ngày 2** | B gửi bảng so sánh cho A đọc. Nếu phát hiện tính năng quan trọng chưa có trong thiết kế, sửa README trước khi A dựng schema. |
-| **Hết ngày 4** 🔗 | B gửi BRD. A dựng schema đầy đủ ở ngày 6 dựa trên đó. **Trễ mốc này là trễ cả sprint.** |
-
-Ngoài hai mốc trên, hai người không chặn nhau. B không cần chờ code chạy được mới làm việc của mình.
-
----
-
-## Sprint 0 coi là xong khi
-
-- [ ] Link Vercel mở được trên điện thoại, hiển thị dữ liệu lấy từ Neon
-- [ ] CI chạy trên mọi PR, đỏ thì chặn merge
-- [ ] `pnpm install && pnpm dev` chạy được trên máy cả hai người
-- [ ] Schema Prisma đầy đủ, migration và seed chạy sạch
-- [ ] Bảng so sánh đối thủ + BRD 3 module + 6 wireframe đã nộp
-- [ ] Đã đo và ghi lại thời gian cold start của Render
-
----
-
-## Rủi ro cần canh
-
-**Cold start của Render.** Instance free ngủ sau 15 phút, dậy mất tới ~50 giây. Ping đều là bắt buộc, và `/api/health` phải cực nhẹ — nếu endpoint đó truy vấn database, mỗi lần ping sẽ đánh thức luôn Neon và đốt compute-hour vô ích cả ngày lẫn đêm.
-
-**Migration sau khi đã có dữ liệu.** Sprint 0 còn dễ vì database rỗng. Từ Sprint 1 trở đi, đổi schema mà không cẩn thận là mất dữ liệu seed. Quy ước: ai đổi `schema.prisma` phải báo trước trong group chat (xem README mục 9.5).
-
-**BRD trễ hạn.** Đây là rủi ro thật sự của sprint này. Nếu ngày 4 chưa có BRD, A sẽ dựng schema theo phỏng đoán, và Sprint 1 phải làm lại. Nếu B thấy không kịp, báo sớm và cắt bớt phần nghiên cứu đối thủ chứ **đừng cắt BRD**.
-
-**Nhóm chỉ có 2 người.** Bảng phân công nhánh ở README mục 9.6 đang liệt kê 5 module. Cần chia lại cho khớp thực tế trước khi vào Sprint 1.
+| Việc | Chờ | Ghi chú |
+|---|---|---|
+| T03, T04 | T01 | DEV1 push `pnpm-workspace.yaml` ngay sáng ngày 1 để DEV2 làm song song |
+| T12 | T09 | Web gọi được health sau khi API có endpoint |
+| T29 | T17, T18, T19 | BRD trễ thì schema phải dựng theo phỏng đoán, Sprint 1 làm lại |
+| T31 | T28 | Khung route dựng theo wireframe |
