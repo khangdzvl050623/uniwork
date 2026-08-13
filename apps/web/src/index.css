@@ -1,16 +1,17 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-brand-50: #eef4ff;
-  --color-brand-100: #d9e6ff;
-  --color-brand-200: #bcd2ff;
-  --color-brand-300: #8eb4ff;
-  --color-brand-400: #598bff;
-  --color-brand-500: #3163ff;
-  --color-brand-600: #1a41f5;
-  --color-brand-700: #1531dc;
-  --color-brand-800: #182ab2;
-  --color-brand-900: #1a2b8c;
+  --color-brand-50: #e9f9f0;
+  --color-brand-100: #c9f1dc;
+  --color-brand-200: #95e3ba;
+  --color-brand-300: #5bd395;
+  --color-brand-400: #2ec173;
+  --color-brand-500: #00b14f;
+  --color-brand-600: #009a44;
+  --color-brand-700: #007e37;
+  --color-brand-800: #00612b;
+  --color-brand-900: #01461f;
+  --color-brand-950: #012f15;
 
   --color-accent-50: #fff8eb;
   --color-accent-100: #fef0c7;
@@ -25,5 +26,13 @@ html {
 }
 
 body {
-  @apply bg-slate-50 text-slate-800 antialiased;
+  @apply bg-slate-100 text-slate-800 antialiased;
+}
+
+/* Nền xanh đậm có vệt sáng, dùng cho hero và các dải nhấn */
+.bg-brand-deep {
+  background-color: var(--color-brand-900);
+  background-image:
+    radial-gradient(60% 90% at 15% 0%, rgba(0, 177, 79, 0.45) 0%, transparent 60%),
+    radial-gradient(50% 80% at 90% 20%, rgba(46, 193, 115, 0.3) 0%, transparent 55%);
 }
