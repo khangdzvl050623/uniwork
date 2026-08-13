@@ -2,7 +2,9 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
 type Variant = 'primary' | 'outline' | 'ghost' | 'accent'
-type Size = 'sm' | 'md' | 'lg'
+// icon / icon-sm là nút chỉ chứa một biểu tượng, không có chữ — cần vuông chứ
+// không có padding ngang. Các component của shadcn (dialog, sheet) dùng tới.
+type Size = 'sm' | 'md' | 'lg' | 'icon' | 'icon-sm'
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: Variant
@@ -22,6 +24,8 @@ const sizes: Record<Size, string> = {
   sm: 'h-8 px-3 text-sm',
   md: 'h-10 px-4 text-sm',
   lg: 'h-12 px-6 text-base',
+  icon: 'h-10 w-10',
+  'icon-sm': 'h-8 w-8',
 }
 
 export function Button({
