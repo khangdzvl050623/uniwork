@@ -50,12 +50,42 @@ const HERO_POINTS = [
 const BRAND_TABS = ['Tất cả', 'Quán ăn & cà phê', 'Giáo dục', 'Bán lẻ', 'Sự kiện', 'Công nghệ']
 
 const BRANDS = [
-  { name: 'The Corner Coffee', initial: 'C', color: 'bg-amber-500', tag: 'Chuỗi cà phê · 12 chi nhánh', jobs: 8 },
-  { name: 'Trung tâm Trí Việt', initial: 'T', color: 'bg-brand-600', tag: 'Giáo dục · Gia sư', jobs: 14 },
+  {
+    name: 'The Corner Coffee',
+    initial: 'C',
+    color: 'bg-amber-500',
+    tag: 'Chuỗi cà phê · 12 chi nhánh',
+    jobs: 8,
+  },
+  {
+    name: 'Trung tâm Trí Việt',
+    initial: 'T',
+    color: 'bg-brand-600',
+    tag: 'Giáo dục · Gia sư',
+    jobs: 14,
+  },
   { name: 'Sao Việt Event', initial: 'S', color: 'bg-rose-500', tag: 'Tổ chức sự kiện', jobs: 21 },
-  { name: 'DataLine Việt Nam', initial: 'D', color: 'bg-teal-600', tag: 'Dịch vụ dữ liệu', jobs: 6 },
-  { name: 'Siêu thị Minh Phát', initial: 'M', color: 'bg-emerald-600', tag: 'Bán lẻ · 5 cửa hàng', jobs: 11 },
-  { name: 'Anh ngữ Sunrise', initial: 'A', color: 'bg-indigo-500', tag: 'Trung tâm ngoại ngữ', jobs: 9 },
+  {
+    name: 'DataLine Việt Nam',
+    initial: 'D',
+    color: 'bg-teal-600',
+    tag: 'Dịch vụ dữ liệu',
+    jobs: 6,
+  },
+  {
+    name: 'Siêu thị Minh Phát',
+    initial: 'M',
+    color: 'bg-emerald-600',
+    tag: 'Bán lẻ · 5 cửa hàng',
+    jobs: 11,
+  },
+  {
+    name: 'Anh ngữ Sunrise',
+    initial: 'A',
+    color: 'bg-indigo-500',
+    tag: 'Trung tâm ngoại ngữ',
+    jobs: 9,
+  },
 ]
 
 const CATEGORIES = [
@@ -85,13 +115,36 @@ const AWARDS = [
 ]
 
 const ECOSYSTEM = [
-  { name: 'UniWork Jobs', desc: 'Tìm và ứng tuyển việc bán thời gian', color: 'from-brand-500 to-brand-700' },
-  { name: 'UniWork Schedule', desc: 'Quản lý lịch rảnh theo học kỳ', color: 'from-teal-500 to-teal-700' },
-  { name: 'UniWork CV', desc: 'Mẫu CV dành riêng cho sinh viên', color: 'from-amber-500 to-orange-600' },
-  { name: 'UniWork Employer', desc: 'Đăng tin và sàng lọc ứng viên', color: 'from-indigo-500 to-indigo-700' },
+  {
+    name: 'UniWork Jobs',
+    desc: 'Tìm và ứng tuyển việc bán thời gian',
+    color: 'from-brand-500 to-brand-700',
+  },
+  {
+    name: 'UniWork Schedule',
+    desc: 'Quản lý lịch rảnh theo học kỳ',
+    color: 'from-teal-500 to-teal-700',
+  },
+  {
+    name: 'UniWork CV',
+    desc: 'Mẫu CV dành riêng cho sinh viên',
+    color: 'from-amber-500 to-orange-600',
+  },
+  {
+    name: 'UniWork Employer',
+    desc: 'Đăng tin và sàng lọc ứng viên',
+    color: 'from-indigo-500 to-indigo-700',
+  },
 ]
 
-const PRESS = ['Bản tin Sinh viên', 'Tạp chí Giáo dục', 'Kênh 14 Campus', 'Tuổi Trẻ Online', 'VnExpress Số hoá', 'Báo Thanh Niên']
+const PRESS = [
+  'Bản tin Sinh viên',
+  'Tạp chí Giáo dục',
+  'Kênh 14 Campus',
+  'Tuổi Trẻ Online',
+  'VnExpress Số hoá',
+  'Báo Thanh Niên',
+]
 
 const CHART_BARS = [42, 58, 35, 72, 64, 88, 76, 95, 61, 80, 54, 90]
 
@@ -190,7 +243,8 @@ export function Home() {
                     mình có đi làm được không
                   </h2>
                   <p className="mt-2 max-w-sm text-sm text-white/85">
-                    Lưới lịch rảnh chồng lên ca làm của tin — nhìn một cái là biết trùng giờ học hay không.
+                    Lưới lịch rảnh chồng lên ca làm của tin — nhìn một cái là biết trùng giờ học hay
+                    không.
                   </p>
 
                   <div className="mt-5 grid grid-cols-7 gap-1">
@@ -265,7 +319,10 @@ export function Home() {
             {[0, 1, 2].map((d) => (
               <span
                 key={d}
-                className={cn('h-1.5 rounded-full transition-all', d === 0 ? 'w-6 bg-brand-500' : 'w-1.5 bg-slate-300')}
+                className={cn(
+                  'h-1.5 rounded-full transition-all',
+                  d === 0 ? 'w-6 bg-brand-500' : 'w-1.5 bg-slate-300',
+                )}
               />
             ))}
           </div>
@@ -361,7 +418,9 @@ export function Home() {
                       <I size={18} />
                     </span>
                     <span>
-                      <span className="block text-xl font-extrabold text-white">{value as string}</span>
+                      <span className="block text-xl font-extrabold text-white">
+                        {value as string}
+                      </span>
                       <span className="text-xs text-slate-400">{label as string}</span>
                     </span>
                   </div>
@@ -391,7 +450,9 @@ export function Home() {
                   stroke="#00b14f"
                   strokeWidth="2"
                   strokeLinejoin="round"
-                  points={CHART_BARS.map((v, i) => `${(i * 320) / 11},${80 - (v / 100) * 70}`).join(' ')}
+                  points={CHART_BARS.map((v, i) => `${(i * 320) / 11},${80 - (v / 100) * 70}`).join(
+                    ' ',
+                  )}
                 />
               </svg>
 
@@ -428,19 +489,22 @@ export function Home() {
                 Huy hiệu <span className="text-gradient-gold">Ứng viên uy tín</span>
               </h2>
               <p className="mt-2 max-w-lg text-sm leading-relaxed text-brand-50/85">
-                Hoàn thiện hồ sơ và khai đủ lịch rảnh trước hạn để nhận huy hiệu — hồ sơ có huy hiệu được
-                nhà tuyển dụng xem trước tiên.
+                Hoàn thiện hồ sơ và khai đủ lịch rảnh trước hạn để nhận huy hiệu — hồ sơ có huy hiệu
+                được nhà tuyển dụng xem trước tiên.
               </p>
 
               <ul className="mt-4 grid gap-2 sm:grid-cols-2">
-                {['Ưu tiên hiển thị trong danh sách', 'Tăng 40% tỉ lệ được phản hồi', 'Mở khoá bộ lọc nâng cao', 'Nhận gợi ý việc riêng mỗi tuần'].map(
-                  (b) => (
-                    <li key={b} className="flex items-start gap-2 text-sm text-brand-50/90">
-                      <Star size={15} className="mt-0.5 shrink-0 text-accent-400" />
-                      {b}
-                    </li>
-                  ),
-                )}
+                {[
+                  'Ưu tiên hiển thị trong danh sách',
+                  'Tăng 40% tỉ lệ được phản hồi',
+                  'Mở khoá bộ lọc nâng cao',
+                  'Nhận gợi ý việc riêng mỗi tuần',
+                ].map((b) => (
+                  <li key={b} className="flex items-start gap-2 text-sm text-brand-50/90">
+                    <Star size={15} className="mt-0.5 shrink-0 text-accent-400" />
+                    {b}
+                  </li>
+                ))}
               </ul>
             </div>
 
@@ -450,7 +514,8 @@ export function Home() {
                 <Countdown />
               </div>
               <p className="mt-4 text-sm text-brand-50/85">
-                <strong className="text-white">4.057</strong> sinh viên đã nhận huy hiệu trong đợt này
+                <strong className="text-white">4.057</strong> sinh viên đã nhận huy hiệu trong đợt
+                này
               </p>
               <Link to="/dang-ky" className="mt-4 block">
                 <Button variant="accent" size="lg" className="w-full">
@@ -482,7 +547,9 @@ export function Home() {
                   <c.icon size={20} />
                 </span>
                 <span className="min-w-0">
-                  <span className="block truncate text-sm font-semibold text-slate-800">{c.label}</span>
+                  <span className="block truncate text-sm font-semibold text-slate-800">
+                    {c.label}
+                  </span>
                   <span className="text-xs text-slate-400">{c.count} tin tuyển</span>
                 </span>
               </Link>
@@ -508,7 +575,8 @@ export function Home() {
                 </span>
                 <h3 className="mt-3 text-xl font-bold text-white">Trình tạo CV sinh viên</h3>
                 <p className="mt-2 max-w-md text-sm text-white/85">
-                  Mẫu CV dành cho người chưa có kinh nghiệm — tự động điền kỹ năng và lịch rảnh đã khai.
+                  Mẫu CV dành cho người chưa có kinh nghiệm — tự động điền kỹ năng và lịch rảnh đã
+                  khai.
                 </p>
               </div>
               <div className="mt-6 flex flex-wrap gap-2">
@@ -522,8 +590,16 @@ export function Home() {
           </Reveal>
 
           {[
-            { icon: BarChart3, title: 'Trắc nghiệm định hướng nghề', desc: 'Biết mình hợp nhóm việc nào trước khi ứng tuyển' },
-            { icon: ShieldCheck, title: 'Đánh giá độ an toàn tin', desc: 'Nhận diện dấu hiệu tin lừa đảo, thu phí trước' },
+            {
+              icon: BarChart3,
+              title: 'Trắc nghiệm định hướng nghề',
+              desc: 'Biết mình hợp nhóm việc nào trước khi ứng tuyển',
+            },
+            {
+              icon: ShieldCheck,
+              title: 'Đánh giá độ an toàn tin',
+              desc: 'Nhận diện dấu hiệu tin lừa đảo, thu phí trước',
+            },
           ].map((c, i) => (
             <Reveal key={c.title} delay={(i + 1) * 90} className="h-full">
               <div className="card-lift flex h-full flex-col rounded-2xl bg-white p-6 shadow-sm">
@@ -625,7 +701,10 @@ export function Home() {
                     key={i}
                     className={cn(
                       'h-2.5 w-2.5 rounded-[1px]',
-                      [0, 1, 2, 5, 6, 7, 9, 11, 13, 14, 16, 18, 20, 21, 23, 24, 26, 28, 30, 33, 35, 36, 37, 40, 42, 44, 46, 47, 48].includes(i)
+                      [
+                        0, 1, 2, 5, 6, 7, 9, 11, 13, 14, 16, 18, 20, 21, 23, 24, 26, 28, 30, 33, 35,
+                        36, 37, 40, 42, 44, 46, 47, 48,
+                      ].includes(i)
                         ? 'bg-slate-900'
                         : 'bg-white',
                     )}
@@ -695,7 +774,9 @@ export function Home() {
       <section className="mx-auto mt-12 max-w-[1180px] px-4">
         <Reveal>
           <h2 className="text-center text-xl font-bold text-slate-900">Hệ sinh thái UniWork</h2>
-          <p className="mt-1 text-center text-sm text-slate-500">Bốn sản phẩm phục vụ một vòng tuyển dụng</p>
+          <p className="mt-1 text-center text-sm text-slate-500">
+            Bốn sản phẩm phục vụ một vòng tuyển dụng
+          </p>
         </Reveal>
 
         <div className="mt-6 grid gap-4 sm:grid-cols-2">

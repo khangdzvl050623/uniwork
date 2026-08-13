@@ -12,7 +12,8 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variants: Record<Variant, string> = {
   primary: 'bg-brand-600 text-white hover:bg-brand-700 shadow-sm',
-  outline: 'border border-slate-300 bg-white text-slate-700 hover:border-brand-400 hover:text-brand-700',
+  outline:
+    'border border-slate-300 bg-white text-slate-700 hover:border-brand-400 hover:text-brand-700',
   ghost: 'text-slate-600 hover:bg-slate-100',
   accent: 'bg-accent-500 text-white hover:bg-accent-600 shadow-sm',
 }
@@ -23,7 +24,13 @@ const sizes: Record<Size, string> = {
   lg: 'h-12 px-6 text-base',
 }
 
-export function Button({ variant = 'primary', size = 'md', className, children, ...props }: ButtonProps) {
+export function Button({
+  variant = 'primary',
+  size = 'md',
+  className,
+  children,
+  ...props
+}: ButtonProps) {
   return (
     <button
       className={cn(
