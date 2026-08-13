@@ -83,7 +83,8 @@ export function JobCard({ job }: { job: Job }) {
 /** Điểm phù hợp = kỹ năng khớp + ca khớp + mức đáp ứng cam kết (README mục 5). */
 function MatchBar({ score }: { score: number }) {
   const tone = score >= 85 ? 'bg-emerald-500' : score >= 70 ? 'bg-accent-500' : 'bg-slate-300'
-  const label = score >= 85 ? 'Rất phù hợp lịch của bạn' : score >= 70 ? 'Khá phù hợp' : 'Ít phù hợp'
+  const label =
+    score >= 85 ? 'Rất phù hợp lịch của bạn' : score >= 70 ? 'Khá phù hợp' : 'Ít phù hợp'
 
   return (
     <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-3">

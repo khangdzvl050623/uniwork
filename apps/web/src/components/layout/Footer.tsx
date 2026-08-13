@@ -117,7 +117,11 @@ export function Footer() {
           <h3 className="text-sm font-bold text-slate-900">Tìm kiếm nhiều</h3>
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
             {TAGS.map((tag) => (
-              <Link key={tag} to="/viec-lam" className="text-xs text-slate-400 hover:text-brand-600">
+              <Link
+                key={tag}
+                to="/viec-lam"
+                className="text-xs text-slate-400 hover:text-brand-600"
+              >
                 {tag}
               </Link>
             ))}
@@ -127,7 +131,8 @@ export function Footer() {
 
       <div className="border-t border-slate-100 bg-slate-50 py-4">
         <div className="mx-auto max-w-[1180px] px-4 text-center text-xs text-slate-400">
-          © 2026 UniWork · Đồ án môn học, không phải sản phẩm thương mại · Dữ liệu hiển thị là dữ liệu mẫu
+          © 2026 UniWork · Đồ án môn học, không phải sản phẩm thương mại · Dữ liệu hiển thị là dữ
+          liệu mẫu
         </div>
       </div>
     </footer>

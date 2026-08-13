@@ -34,14 +34,17 @@ export function Availability() {
       <Card className="mt-6">
         <CardHeader
           title="Học kỳ 1 năm học 2026 – 2027"
-          action={<span className="text-xs text-slate-400">Áp dụng từ 01/09/2026 đến 15/01/2027</span>}
+          action={
+            <span className="text-xs text-slate-400">Áp dụng từ 01/09/2026 đến 15/01/2027</span>
+          }
         />
         <div className="px-5 py-5">
           <ScheduleGrid selected={shifts} onToggle={toggle} />
 
           <div className="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center">
             <p className="flex-1 text-sm text-slate-500">
-              Đã chọn <strong className="text-slate-800">{shifts.length}</strong> khung giờ trong tuần
+              Đã chọn <strong className="text-slate-800">{shifts.length}</strong> khung giờ trong
+              tuần
             </p>
             <div className="flex gap-2">
               <Button variant="outline" onClick={() => setShifts([])}>

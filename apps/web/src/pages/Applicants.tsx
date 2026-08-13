@@ -30,8 +30,8 @@ export function Applicants() {
     <div className="mx-auto max-w-6xl px-4 py-8">
       <h1 className="text-2xl font-bold text-slate-900">Ứng viên</h1>
       <p className="mt-1 text-sm text-slate-500">
-        Tin: <strong className="text-slate-700">Phục vụ quán cà phê ca tối</strong> · {APPLICANTS.length}{' '}
-        hồ sơ
+        Tin: <strong className="text-slate-700">Phục vụ quán cà phê ca tối</strong> ·{' '}
+        {APPLICANTS.length} hồ sơ
       </p>
 
       <div className="mt-6 flex flex-wrap items-center gap-2">
@@ -41,7 +41,9 @@ export function Applicants() {
             onClick={() => setTab(t.key)}
             className={cn(
               'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
-              tab === t.key ? 'bg-brand-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-100',
+              tab === t.key
+                ? 'bg-brand-600 text-white'
+                : 'bg-white text-slate-600 hover:bg-slate-100',
             )}
           >
             {t.label}
@@ -133,13 +135,16 @@ export function Applicants() {
         </div>
 
         {list.length === 0 && (
-          <p className="py-14 text-center text-sm text-slate-400">Chưa có hồ sơ nào ở trạng thái này</p>
+          <p className="py-14 text-center text-sm text-slate-400">
+            Chưa có hồ sơ nào ở trạng thái này
+          </p>
         )}
       </Card>
 
       <p className="mt-3 flex items-center gap-2 text-xs text-slate-500">
         <Lock size={13} />
-        Số điện thoại và email của ứng viên chỉ hiển thị sau khi bạn chuyển hồ sơ sang “Vào vòng trong”.
+        Số điện thoại và email của ứng viên chỉ hiển thị sau khi bạn chuyển hồ sơ sang “Vào vòng
+        trong”.
       </p>
 
       <div className="mt-4 flex justify-end gap-2">

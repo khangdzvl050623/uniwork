@@ -111,7 +111,11 @@ export const JOBS: Job[] = [
       'Điểm Toán THPT từ 8.0 trở lên',
       'Cam kết theo hết một khoá 6 tháng',
     ],
-    benefits: ['Giáo trình có sẵn', 'Thưởng theo kết quả học sinh', 'Được hỗ trợ nghiệp vụ sư phạm'],
+    benefits: [
+      'Giáo trình có sẵn',
+      'Thưởng theo kết quả học sinh',
+      'Được hỗ trợ nghiệp vụ sư phạm',
+    ],
   },
   {
     id: 'j3',
@@ -135,7 +139,10 @@ export const JOBS: Job[] = [
     matchScore: 72,
     description:
       'Cần 20 bạn hỗ trợ sự kiện âm nhạc ngoài trời ngày 23/08. Công việc gồm soát vé, hướng dẫn khách, hỗ trợ hậu cần. Thanh toán ngay sau khi kết thúc sự kiện.',
-    requirements: ['Có mặt đúng giờ, làm việc liên tục 6 tiếng', 'Ưu tiên bạn có kinh nghiệm sự kiện'],
+    requirements: [
+      'Có mặt đúng giờ, làm việc liên tục 6 tiếng',
+      'Ưu tiên bạn có kinh nghiệm sự kiện',
+    ],
     benefits: ['Thanh toán ngay trong ngày', 'Có áo đồng phục và nước uống'],
   },
   {
@@ -164,7 +171,11 @@ export const JOBS: Job[] = [
     matchScore: 81,
     description:
       'Nhập liệu hồ sơ khách hàng vào hệ thống nội bộ. Làm online hoàn toàn, giao việc theo tuần, tự sắp xếp giờ miễn hoàn thành đúng hạn.',
-    requirements: ['Có laptop và mạng ổn định', 'Thành thạo Excel cơ bản', 'Cam kết tối thiểu 2 tháng'],
+    requirements: [
+      'Có laptop và mạng ổn định',
+      'Thành thạo Excel cơ bản',
+      'Cam kết tối thiểu 2 tháng',
+    ],
     benefits: ['Làm từ xa 100%', 'Thanh toán theo tháng', 'Có thể tăng khối lượng nếu làm tốt'],
   },
   {

@@ -44,7 +44,9 @@ function RoleTabs({ role, onChange }: { role: Role; onChange: (r: Role) => void 
           onClick={() => onChange(tab.key)}
           className={cn(
             'flex items-center justify-center gap-2 rounded-md py-2 text-sm font-medium transition-colors',
-            role === tab.key ? 'bg-white text-brand-700 shadow-sm' : 'text-slate-500 hover:text-slate-700',
+            role === tab.key
+              ? 'bg-white text-brand-700 shadow-sm'
+              : 'text-slate-500 hover:text-slate-700',
           )}
         >
           <tab.icon size={16} />

@@ -53,7 +53,11 @@ export function JobDetail() {
 
             <dl className="mt-5 grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-3">
               {[
-                { icon: Wallet, label: 'Mức lương', value: formatSalary(job.salaryMin, job.salaryMax, job.salaryUnit) },
+                {
+                  icon: Wallet,
+                  label: 'Mức lương',
+                  value: formatSalary(job.salaryMin, job.salaryMax, job.salaryUnit),
+                },
                 { icon: MapPin, label: 'Khu vực', value: `${job.district}, ${job.city}` },
                 { icon: Users, label: 'Số lượng', value: `${job.quantity} người` },
               ].map((item) => (

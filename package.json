@@ -6,13 +6,18 @@
   "engines": {
     "node": ">=22"
   },
+  "prettier": "@uniwork/config/prettier",
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
+    "@uniwork/config": "workspace:*",
+    "prettier": "^3.4.2",
     "turbo": "^2.0.0"
   }
 }

@@ -46,7 +46,10 @@ export function FilterSidebar({ onlyMatchingSchedule, onToggleMatching }: Props)
       <Section title="Khu vực">
         <div className="space-y-2">
           {DISTRICTS.slice(0, 5).map((d) => (
-            <label key={d} className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+            <label
+              key={d}
+              className="flex cursor-pointer items-center gap-2 text-sm text-slate-600"
+            >
               <input type="checkbox" className="h-4 w-4 accent-brand-600" />
               {d}
             </label>
@@ -57,7 +60,10 @@ export function FilterSidebar({ onlyMatchingSchedule, onToggleMatching }: Props)
       <Section title="Loại thời gian">
         <div className="space-y-2">
           {(Object.keys(SCHEDULE_TYPE_LABELS) as ScheduleType[]).map((key) => (
-            <label key={key} className="flex cursor-pointer items-center gap-2 text-sm text-slate-600">
+            <label
+              key={key}
+              className="flex cursor-pointer items-center gap-2 text-sm text-slate-600"
+            >
               <input type="checkbox" className="h-4 w-4 accent-brand-600" />
               {SCHEDULE_TYPE_LABELS[key]}
             </label>
@@ -66,7 +72,13 @@ export function FilterSidebar({ onlyMatchingSchedule, onToggleMatching }: Props)
       </Section>
 
       <Section title="Mức lương theo giờ">
-        <input type="range" min={15000} max={60000} step={5000} className="w-full accent-brand-600" />
+        <input
+          type="range"
+          min={15000}
+          max={60000}
+          step={5000}
+          className="w-full accent-brand-600"
+        />
         <div className="mt-1 flex justify-between text-xs text-slate-400">
           <span>15.000đ</span>
           <span>60.000đ</span>

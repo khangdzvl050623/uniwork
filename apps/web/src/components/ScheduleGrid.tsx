@@ -85,7 +85,8 @@ export function ScheduleLegend({ withOverlay = false }: { withOverlay?: boolean 
       </span>
       {withOverlay && (
         <span className="flex items-center gap-1.5">
-          <span className="h-3 w-3 rounded-sm border border-emerald-300 bg-emerald-50" /> Bạn đang rảnh
+          <span className="h-3 w-3 rounded-sm border border-emerald-300 bg-emerald-50" /> Bạn đang
+          rảnh
         </span>
       )}
       <span className="flex items-center gap-1.5">

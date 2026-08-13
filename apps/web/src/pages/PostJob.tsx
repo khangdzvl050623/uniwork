@@ -3,10 +3,25 @@ import { ShieldAlert } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { ScheduleGrid } from '@/components/ScheduleGrid'
-import { DISTRICTS, SCHEDULE_TYPE_LABELS, SKILLS, type ScheduleType, type Shift, type SlotId } from '@/data/mock'
+import {
+  DISTRICTS,
+  SCHEDULE_TYPE_LABELS,
+  SKILLS,
+  type ScheduleType,
+  type Shift,
+  type SlotId,
+} from '@/data/mock'
 import { cn } from '@/lib/utils'
 
-function Row({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
+function Row({
+  label,
+  children,
+  hint,
+}: {
+  label: string
+  children: React.ReactNode
+  hint?: string
+}) {
   return (
     <div>
       <label className="text-sm font-medium text-slate-700">{label}</label>
@@ -180,8 +195,8 @@ export function PostJob() {
         <div className="flex items-start gap-3 rounded-xl border border-accent-500/30 bg-accent-50 p-4">
           <ShieldAlert size={18} className="mt-0.5 shrink-0 text-accent-600" />
           <p className="text-sm text-amber-900">
-            Tin đăng phải kèm giấy phép kinh doanh hoặc mã số thuế đã xác minh. Tin có dấu hiệu lừa đảo
-            sẽ bị gỡ và khoá tài khoản vĩnh viễn.
+            Tin đăng phải kèm giấy phép kinh doanh hoặc mã số thuế đã xác minh. Tin có dấu hiệu lừa
+            đảo sẽ bị gỡ và khoá tài khoản vĩnh viễn.
           </p>
         </div>
 
