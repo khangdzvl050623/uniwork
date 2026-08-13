@@ -42,7 +42,7 @@ Tiêu chí lựa chọn: **miễn phí hoàn toàn ở quy mô đồ án**, mộ
          │                                        │
          │                                        ├──► Cloudinary  (ảnh, CV PDF)
          └──────── packages/shared ───────────────┤
-                   types + zod schemas            └──► Resend      (email OTP, thông báo)
+                   types + zod schemas            └──► Brevo       (email OTP, thông báo)
 ```
 
 ### Chi tiết
@@ -61,10 +61,26 @@ Tiêu chí lựa chọn: **miễn phí hoàn toàn ở quy mô đồ án**, mộ
 | **Auth** | JWT tự triển khai (access + refresh) | Access token 15 phút giữ trong memory; refresh token trong cookie `httpOnly` + `SameSite=None; Secure`. Mật khẩu hash bằng `argon2`. |
 | **Validate** | Zod | Validate mọi input ở biên API, suy ra type luôn. |
 | **Upload** | Cloudinary (free 25 GB) | Render free có disk **ephemeral** — file upload lên server sẽ mất khi restart, buộc phải dùng object storage ngoài. |
-| **Email** | Resend (free 3.000 mail/tháng) | Gửi OTP xác thực email và thông báo trạng thái ứng tuyển. |
+| **Email** | Brevo (free 300 mail/ngày) | Gửi OTP xác thực email và thông báo trạng thái ứng tuyển. |
 | **Test** | Vitest + Supertest + Playwright | Unit cho service, integration cho route, E2E cho 2 luồng chính (đăng tin, ứng tuyển). |
 | **CI/CD** | GitHub Actions | Lint + typecheck + test mỗi PR; Vercel/Render tự deploy khi merge vào `main`. |
 | **Monorepo** | pnpm workspaces + Turborepo | pnpm tiết kiệm disk, Turbo cache lại build. Vercel/Render đều cho chọn root directory nên 1 repo deploy được 2 nơi. |
+
+### Kiến trúc: monolith chia module
+
+Backend là **một service duy nhất**, bên trong chia module theo nghiệp vụ:
+
+```
+apps/api/src/modules/
+  auth/          jobs/          applications/
+  profiles/      skills/        notifications/
+```
+
+Mỗi module có `routes → controller → service → repository` riêng. Quy tắc duy nhất cần giữ: **module này không gọi thẳng vào bảng của module kia**, muốn dùng thì gọi qua service. Giữ được ranh giới đó thì sau này muốn tách microservice chỉ là chuyện đổi lời gọi hàm thành lời gọi HTTP.
+
+Lý do không làm microservices ngay: Render free chỉ cho 750 giờ/tháng và mỗi service đều ngủ riêng — 4 service là 4 lần cold start 50 giây chồng lên nhau, một request của người dùng có thể chờ vài phút. Thêm nữa, microservices sinh ra để nhiều đội làm song song trên nhiều codebase; nhóm 2 dev trong 8 tuần thì chi phí vận hành lớn hơn lợi ích rất nhiều.
+
+**Xử lý bất đồng bộ** (gửi email, tạo thông báo) làm bằng **bảng hàng đợi trong Postgres** — ghi việc vào bảng `EmailQueue`, một worker chạy trong cùng process quét và gửi. Đủ cho khối lượng của đồ án, và quan trọng là email hỏng không kéo theo việc đổi trạng thái đơn bị hỏng.
 
 ### Vì sao **không** chọn
 
@@ -72,6 +88,7 @@ Tiêu chí lựa chọn: **miễn phí hoàn toàn ở quy mô đồ án**, mộ
 - **Supabase Auth** — làm hộ gần hết phần xác thực/phân quyền, phần đáng giá nhất để báo cáo lại không do mình viết.
 - **MongoDB** — dữ liệu ở đây quan hệ dày (job ↔ skill ↔ application ↔ shift), join là chuyện thường ngày.
 - **Socket.IO** — Render free ngủ sau 15 phút, kết nối WebSocket đứt liên tục. Giai đoạn đầu dùng polling cho thông báo.
+- **Kafka / RabbitMQ** — không có tầng free tier thực dụng cho message broker, và hệ thống này không có bài toán mà nó giải: chỉ một service tiêu thụ sự kiện, throughput vài chục message mỗi ngày. Bảng hàng đợi trong Postgres làm được đúng việc đó với chi phí bằng không.
 
 ## 3. Hạ tầng miễn phí & bài toán "Render ngủ"
 
@@ -81,7 +98,7 @@ Tiêu chí lựa chọn: **miễn phí hoàn toàn ở quy mô đồ án**, mộ
 | Render | Free Web Service | 512 MB RAM, 750 giờ/tháng | Deploy `apps/api` — **ngủ sau 15 phút không có request** |
 | Neon | Free | 0.5 GB, 1 project | Postgres — cũng tự suspend compute, nhưng tự đánh thức trong ~500 ms |
 | Cloudinary | Free | 25 GB storage/băng thông | Ảnh đại diện, logo công ty, CV PDF |
-| Resend | Free | 3.000 email/tháng | Email OTP & thông báo |
+| Brevo | Free | 300 email/ngày | Email OTP & thông báo |
 | UptimeRobot / cron-job.org | Free | ping mỗi 5–10 phút | Giữ Render không ngủ |
 
 **Xử lý cold start của Render.** Instance free bị suspend sau 15 phút idle và mất **~50 giây** để dậy — người dùng đầu tiên sau giờ nghỉ sẽ thấy app "treo". Cách xử lý theo thứ tự ưu tiên:
@@ -247,7 +264,7 @@ pnpm dev                                    # web :5173 · api :4000
 | `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | api | Khoá ký token, sinh bằng `openssl rand -hex 32` |
 | `CORS_ORIGIN` | api | URL của web app trên Vercel |
 | `CLOUDINARY_URL` | api | Upload ảnh & CV |
-| `RESEND_API_KEY` | api | Gửi email |
+| `BREVO_API_KEY` | api | Gửi email |
 | `VITE_API_URL` | web | URL API trên Render |
 
 ## 9. Quy trình làm việc với Git

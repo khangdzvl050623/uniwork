@@ -12,7 +12,7 @@ BA luôn chạy trước hai dev **một sprint**: trong lúc dev làm sprint hi
 | 2–3 | 1 | Auth & Hồ sơ | JWT access + refresh, phân quyền, xác thực email, API hồ sơ, upload CV | Form đăng ký/đăng nhập 2 vai trò, trang hồ sơ, khai kỹ năng và lịch rảnh | BRD module Ứng tuyển và Admin; thiết kế màn hình Sprint 2; chương 1–2 báo cáo | Đăng nhập được với 3 vai trò, hồ sơ hoàn chỉnh |
 | 4–5 | 2 | Tin tuyển dụng | CRUD tin, kỹ năng, ca làm, `scheduleType`, luồng duyệt tin | Form đăng tin, danh sách tin, chi tiết tin, trang quản lý tin của NTD | Kiểm thử Sprint 1; thiết kế màn hình Sprint 3–4; chương 3 báo cáo | NTD đăng được tin, SV xem được |
 | 6 | 3 | Tìm kiếm & Lọc | Full-text search, lọc đa tiêu chí, thuật toán ghép lịch, điểm phù hợp | Thanh bộ lọc, trang kết quả, hiển thị điểm phù hợp, lưu tin | Viết test case, kiểm thử luồng tìm kiếm; chương 4 báo cáo | **Lọc theo lịch rảnh chạy đúng** — tính năng lõi |
-| 7 | 4 | Ứng tuyển & Thông báo | Nộp đơn, `ApplicationEvent`, đổi trạng thái, che thông tin liên hệ, email Resend | Nút ứng tuyển, timeline theo dõi đơn, NTD xem ứng viên, chuông thông báo | Kiểm thử luồng ứng tuyển hai phía; chương 5; kịch bản demo | Luồng tuyển dụng khép kín |
+| 7 | 4 | Ứng tuyển & Thông báo | Nộp đơn, `ApplicationEvent`, đổi trạng thái, che thông tin liên hệ, email Brevo | Nút ứng tuyển, timeline theo dõi đơn, NTD xem ứng viên, chuông thông báo | Kiểm thử luồng ứng tuyển hai phía; chương 5; kịch bản demo | Luồng tuyển dụng khép kín |
 | 8 | 5 | Admin & Bảo vệ | API admin (duyệt NTD, duyệt tin, quản lý kỹ năng), sửa lỗi | Trang admin, responsive, E2E 2 luồng chính, sửa lỗi | Hoàn thiện báo cáo, slide, video demo, dữ liệu trình bày | Sẵn sàng bảo vệ |
 
 ## Mốc quan trọng
