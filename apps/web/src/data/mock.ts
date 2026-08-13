@@ -3,7 +3,11 @@
  * Cấu trúc bám theo mô hình dữ liệu ở README mục 5 để sau đổi sang API ít phải sửa.
  */
 
-export type ScheduleType = 'RECURRING' | 'SEASONAL' | 'ONE_TIME'
+// Lấy từ packages/shared thay vì khai lại — api và web dùng chung một định
+// nghĩa, sửa một chỗ là cả hai phía cùng đổi theo.
+import type { ScheduleType } from '@uniwork/shared'
+
+export type { ScheduleType }
 export type SalaryUnit = 'HOUR' | 'SHIFT' | 'MONTH'
 
 /** 0 = Chủ nhật, 1 = Thứ 2, ... 6 = Thứ 7 */
