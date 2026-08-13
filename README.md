@@ -101,6 +101,15 @@ Lý do không làm microservices ngay: Render free chỉ cho 750 giờ/tháng v�
 | Brevo | Free | 300 email/ngày | Email OTP & thông báo |
 | UptimeRobot / cron-job.org | Free | ping mỗi 5–10 phút | Giữ Render không ngủ |
 
+**Local dùng Docker, production dùng Neon.** Hai thứ này giải hai bài toán khác nhau chứ không thay thế nhau:
+
+| | Chạy ở đâu | Vì sao |
+|---|---|---|
+| `docker-compose.yml` | Máy lập trình viên | Không cần tài khoản, không đụng hạn mức, cả nhóm có cùng phiên bản Postgres bằng một lệnh |
+| Neon | Production | Render free có **disk ephemeral** — dữ liệu ghi xuống ổ đĩa mất sạch mỗi lần restart, nên không thể chạy container database ở đó |
+
+Prisma không phân biệt hai môi trường vì cả hai đều là Postgres — chỉ đổi `DATABASE_URL`. Redis khai sẵn trong compose nhưng nằm dưới profile `cache`, không tự khởi động: hàng đợi đã dùng bảng Postgres, session dùng JWT stateless, nên hiện chưa có nhu cầu thật.
+
 **Xử lý cold start của Render.** Instance free bị suspend sau 15 phút idle và mất **~50 giây** để dậy — người dùng đầu tiên sau giờ nghỉ sẽ thấy app "treo". Cách xử lý theo thứ tự ưu tiên:
 
 1. **cron-job.org hoặc UptimeRobot** ping `GET /api/health` mỗi 5 phút — đây là cách chính, vì là dịch vụ giám sát chuyên dụng, chạy đúng giờ.
@@ -261,7 +270,7 @@ Ranh giới cuối cùng là thứ đáng giữ nhất: service không đụng t
 
 ## 8. Bắt đầu
 
-**Yêu cầu:** Node.js ≥ 22, pnpm ≥ 9.
+**Yêu cầu:** Node.js ≥ 22, pnpm ≥ 9, Docker Desktop (cho database local).
 
 ```bash
 git clone https://github.com/khangdzvl050623/uniwork.git
@@ -271,8 +280,21 @@ pnpm install
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
 
+pnpm db:up          # dựng Postgres trong Docker, cổng 5432
 pnpm dev            # chạy cùng lúc: web :5173 · api :4000
 ```
+
+**Lệnh database**
+
+| Lệnh | Việc |
+|---|---|
+| `pnpm db:up` | Dựng Postgres |
+| `pnpm db:down` | Dừng, **giữ nguyên dữ liệu** |
+| `pnpm db:reset` | Dừng và **xoá sạch dữ liệu**, dựng lại từ đầu |
+| `pnpm db:logs` | Xem log Postgres |
+| `pnpm cache:up` | Dựng thêm Redis (chỉ khi cần) |
+
+Nếu máy đã cài sẵn Postgres và cổng 5432 bị chiếm, sửa vế trái của `ports` trong `docker-compose.yml` thành cổng khác rồi đổi `DATABASE_URL` cho khớp.
 
 Chạy riêng một app khi cần tập trung vào một phía:
 

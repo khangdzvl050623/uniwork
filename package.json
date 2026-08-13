@@ -13,7 +13,12 @@
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down -v && docker compose up -d",
+    "db:logs": "docker compose logs -f postgres",
+    "cache:up": "docker compose --profile cache up -d"
   },
   "devDependencies": {
     "@uniwork/config": "workspace:*",
