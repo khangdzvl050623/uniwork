@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { Briefcase, Facebook, Mail, MapPin, Phone, Youtube } from 'lucide-react'
+import { ApiStatus } from '@/components/ApiStatus'
 
 const COLUMNS = [
   {
@@ -130,9 +131,12 @@ export function Footer() {
       </div>
 
       <div className="border-t border-slate-100 bg-slate-50 py-4">
-        <div className="mx-auto max-w-[1180px] px-4 text-center text-xs text-slate-400">
-          © 2026 UniWork · Đồ án môn học, không phải sản phẩm thương mại · Dữ liệu hiển thị là dữ
-          liệu mẫu
+        <div className="mx-auto flex max-w-[1180px] flex-col items-center gap-2 px-4 text-center text-xs text-slate-400 sm:flex-row sm:justify-between sm:text-left">
+          <span>
+            © 2026 UniWork · Đồ án môn học, không phải sản phẩm thương mại · Dữ liệu hiển thị là dữ
+            liệu mẫu
+          </span>
+          <ApiStatus />
         </div>
       </div>
     </footer>
