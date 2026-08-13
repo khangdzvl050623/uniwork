@@ -206,19 +206,42 @@ Với việc `RECURRING`, chỉ nhận sinh viên còn làm đủ lâu: `availab
 ```
 uniwork/
 ├── apps/
-│   ├── web/                    # React + Vite  →  Vercel
-│   │   └── src/{pages,components,features,lib,hooks}
-│   └── api/                    # Express + Prisma  →  Render
-│       ├── prisma/{schema.prisma,migrations,seed.ts}
-│       └── src/{routes,controllers,services,middlewares,lib}
+│   ├── web/                        # React + Vite  →  Vercel
+│   │   └── src/
+│   │       ├── pages/              # một file một màn hình
+│   │       ├── components/ui/      # Button, Badge, Card + component shadcn
+│   │       ├── components/layout/  # Header, Footer, Layout
+│   │       ├── lib/                # cn, queryClient, hàm định dạng
+│   │       └── data/               # dữ liệu giả, sẽ bỏ khi nối API
+│   └── api/                        # Express + Prisma  →  Render
+│       ├── prisma/                 # schema.prisma, migrations, seed.ts
+│       └── src/
+│           ├── config/env.ts       # đọc & kiểm biến môi trường bằng Zod
+│           ├── lib/                # logger, errors, respond
+│           ├── middlewares/        # xử lý lỗi, 404, ghi log request
+│           ├── modules/            # chia theo nghiệp vụ, xem mục 2
+│           │   └── health/         # health.routes / .controller / .service
+│           ├── routes.ts           # gom router các module dưới /api
+│           ├── app.ts              # tạo Express app, không listen
+│           └── index.ts            # listen + tắt server có trật tự
 ├── packages/
-│   ├── shared/                 # Zod schema + type dùng chung FE/BE
-│   └── config/                 # eslint / tsconfig / tailwind preset
+│   ├── shared/                     # hợp đồng API + giá trị nghiệp vụ dùng chung
+│   └── config/                     # tsconfig / eslint / prettier dùng chung
 ├── .github/workflows/
-│   ├── ci.yml                  # lint + typecheck + test
-│   └── keep-alive.yml          # ping Render (dự phòng)
-└── docs/                       # ERD, use case, báo cáo
+│   ├── ci.yml                      # lint + typecheck + test
+│   └── keep-alive.yml              # ping Render (dự phòng)
+└── docs/                           # kế hoạch sprint, timeline, giới thiệu
 ```
+
+Mỗi module trong `src/modules/` gồm ba lớp, tách theo trách nhiệm:
+
+| Lớp | Làm gì | Không làm gì |
+|---|---|---|
+| `*.routes.ts` | Khai đường dẫn, gắn middleware | Không chứa logic |
+| `*.controller.ts` | Đọc request, gọi service, trả response | Không truy vấn database |
+| `*.service.ts` | Toàn bộ logic nghiệp vụ | Không biết tới `req`/`res` |
+
+Ranh giới cuối cùng là thứ đáng giữ nhất: service không đụng tới `req`/`res` nên **test được mà không cần dựng request giả**, và sau này gọi lại từ worker hay lệnh dòng lệnh cũng dùng được.
 
 ## 7. Lộ trình
 
