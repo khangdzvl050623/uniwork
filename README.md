@@ -238,23 +238,39 @@ uniwork/
 
 ## 8. Bắt đầu
 
-> Sprint 0 chưa hoàn tất — phần code sẽ được scaffold ở bước tiếp theo. Mục này mô tả quy trình dự kiến.
-
-**Yêu cầu:** Node.js ≥ 22, pnpm ≥ 9, một tài khoản [Neon](https://neon.tech) miễn phí.
+**Yêu cầu:** Node.js ≥ 22, pnpm ≥ 9.
 
 ```bash
 git clone https://github.com/khangdzvl050623/uniwork.git
 cd uniwork
 pnpm install
 
-cp apps/api/.env.example apps/api/.env      # điền DATABASE_URL của Neon
+cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
 
-pnpm --filter api prisma migrate dev        # tạo bảng
-pnpm --filter api prisma db seed            # dữ liệu mẫu + tài khoản demo
-
-pnpm dev                                    # web :5173 · api :4000
+pnpm dev            # chạy cùng lúc: web :5173 · api :4000
 ```
+
+Chạy riêng một app khi cần tập trung vào một phía:
+
+```bash
+pnpm --filter @uniwork/web dev
+pnpm --filter @uniwork/api dev
+```
+
+**Các lệnh khác**
+
+| Lệnh | Việc |
+|---|---|
+| `pnpm exec turbo run typecheck` | Kiểm kiểu toàn bộ workspace |
+| `pnpm exec turbo run lint` | ESLint toàn bộ workspace |
+| `pnpm exec turbo run build` | Build production |
+| `pnpm format` | Prettier ghi đè toàn repo |
+| `pnpm format:check` | Kiểm định dạng, không sửa file |
+
+> Dùng `pnpm exec turbo run lint` thay vì `pnpm lint` nếu máy bạn có cài RTK — công cụ này bắt lấy chữ `lint` rồi chạy ESLint ở thư mục gốc, nơi không có binary.
+
+**Chưa có ở bước này:** database chưa nối (Neon + Prisma nằm ở T13–T15), nên chưa có lệnh `migrate` hay `seed`. Web hiện chạy bằng dữ liệu giả trong `apps/web/src/data/mock.ts`.
 
 **Biến môi trường**
 
