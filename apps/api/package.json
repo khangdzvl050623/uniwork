@@ -12,6 +12,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "db:migrate": "prisma migrate dev",
+    "db:seed": "prisma db seed",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
     "db:deploy": "prisma migrate deploy"
@@ -37,5 +38,8 @@
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^4.1.10"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   }
 }
