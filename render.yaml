@@ -42,10 +42,20 @@ services:
     #
     # Phiên bản dưới đây phải khớp với trường `packageManager` ở package.json
     # gốc. Lệch phiên bản thì lockfile có thể bị diễn giải khác đi.
+    # Bước `db seed` chạy mỗi lần deploy, và điều đó là an toàn:
+    #
+    # - Seed dùng `upsert` nên chạy lại không nhân đôi dữ liệu.
+    # - Nó chỉ nạp danh mục kỹ năng ở đây. Ba tài khoản demo bị bỏ qua vì
+    #   DATABASE_URL trỏ tới Neon chứ không phải localhost — chốt chặn nằm
+    #   trong prisma/seed.ts, không phụ thuộc vào biến NODE_ENV.
+    #
+    # Nhờ vậy danh mục kỹ năng trên production luôn khớp với thứ khai trong
+    # code, không cần ai nhớ chạy tay sau mỗi lần thêm kỹ năng mới.
     buildCommand: >-
       npx --yes pnpm@10.33.0 install --frozen-lockfile &&
       npx --yes pnpm@10.33.0 --filter @uniwork/api exec prisma generate &&
-      npx --yes pnpm@10.33.0 --filter @uniwork/api exec prisma migrate deploy
+      npx --yes pnpm@10.33.0 --filter @uniwork/api exec prisma migrate deploy &&
+      npx --yes pnpm@10.33.0 --filter @uniwork/api exec prisma db seed
 
     startCommand: npx --yes pnpm@10.33.0 --filter @uniwork/api start
 
