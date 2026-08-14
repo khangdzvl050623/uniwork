@@ -1,0 +1,66 @@
+# Cấu hình deploy API lên Render, dạng Blueprint.
+#
+# Để file này trong repo thay vì bấm tay trên dashboard vì hai lý do: ai cũng
+# đọc được cấu hình thật đang chạy, và dựng lại service khi lỡ xoá chỉ mất vài
+# phút thay vì mò lại từng ô nhập.
+#
+# Cách dùng: Render Dashboard → New → Blueprint → chọn repo này.
+#
+# Web (apps/web) KHÔNG nằm ở đây — nó deploy lên Vercel, xem T27.
+
+services:
+  - type: web
+    name: uniwork-api
+    runtime: node
+    plan: free
+
+    # Singapore là vùng gần Việt Nam nhất mà gói free có. Chọn Oregon hay
+    # Frankfurt thì mỗi request phải đi vòng nửa vòng trái đất, cộng thêm
+    # 200–300ms cho mọi lời gọi.
+    region: singapore
+
+    branch: main
+
+    # KHÔNG đặt rootDir thành apps/api. Đây là monorepo pnpm: lockfile và khai
+    # báo workspace nằm ở gốc, cắt gốc đi thì pnpm không nối được @uniwork/shared
+    # và cài đặt sẽ hỏng. Thay vào đó dùng --filter để chỉ đúng app cần chạy.
+    buildCommand: >-
+      corepack enable &&
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @uniwork/api exec prisma generate &&
+      pnpm --filter @uniwork/api exec prisma migrate deploy
+
+    startCommand: pnpm --filter @uniwork/api start
+
+    # Render gọi đường dẫn này để biết bản deploy mới đã sống chưa. Trỏ vào
+    # /api/health được vì endpoint đó cố ý không chạm database — nếu nó truy vấn,
+    # mỗi lần kiểm tra sẽ đánh thức compute của Neon và đốt hạn mức free.
+    #
+    # Lưu ý: cái này KHÔNG giữ cho service khỏi ngủ. Gói free ngủ khi không có
+    # lưu lượng từ bên ngoài, nên vẫn cần cron-job.org ở T25.
+    healthCheckPath: /api/health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+
+      # Render tự cấp PORT và bắt buộc app phải nghe đúng cổng đó. Không hardcode.
+      - key: HOST
+        value: 0.0.0.0
+
+      # sync: false nghĩa là giá trị KHÔNG nằm trong file này — phải tự nhập
+      # trên dashboard. Đây là chuỗi kết nối có mật khẩu database thật; vào git
+      # một lần là lộ vĩnh viễn, kể cả sau khi xoá, vì còn trong lịch sử commit.
+      #
+      # DATABASE_URL: chuỗi Neon CÓ `-pooler`.
+      # DIRECT_URL:   chuỗi Neon KHÔNG có `-pooler`, chỉ dùng lúc migrate.
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+
+      # Domain thật của web trên Vercel. Sai giá trị này thì trình duyệt chặn
+      # mọi request và console báo lỗi CORS, dù API vẫn chạy hoàn toàn bình thường.
+      # Nhiều origin thì ngăn cách bằng dấu phẩy, không có khoảng trắng thừa.
+      - key: CORS_ORIGIN
+        sync: false

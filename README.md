@@ -42,7 +42,7 @@ Tiêu chí lựa chọn: **miễn phí hoàn toàn ở quy mô đồ án**, mộ
          │                                        │
          │                                        ├──► Cloudinary  (ảnh, CV PDF)
          └──────── packages/shared ───────────────┤
-                   types + zod schemas            └──► Resend      (email OTP, thông báo)
+                   types + zod schemas            └──► Brevo       (email OTP, thông báo)
 ```
 
 ### Chi tiết
@@ -61,10 +61,26 @@ Tiêu chí lựa chọn: **miễn phí hoàn toàn ở quy mô đồ án**, mộ
 | **Auth** | JWT tự triển khai (access + refresh) | Access token 15 phút giữ trong memory; refresh token trong cookie `httpOnly` + `SameSite=None; Secure`. Mật khẩu hash bằng `argon2`. |
 | **Validate** | Zod | Validate mọi input ở biên API, suy ra type luôn. |
 | **Upload** | Cloudinary (free 25 GB) | Render free có disk **ephemeral** — file upload lên server sẽ mất khi restart, buộc phải dùng object storage ngoài. |
-| **Email** | Resend (free 3.000 mail/tháng) | Gửi OTP xác thực email và thông báo trạng thái ứng tuyển. |
+| **Email** | Brevo (free 300 mail/ngày) | Gửi OTP xác thực email và thông báo trạng thái ứng tuyển. |
 | **Test** | Vitest + Supertest + Playwright | Unit cho service, integration cho route, E2E cho 2 luồng chính (đăng tin, ứng tuyển). |
 | **CI/CD** | GitHub Actions | Lint + typecheck + test mỗi PR; Vercel/Render tự deploy khi merge vào `main`. |
 | **Monorepo** | pnpm workspaces + Turborepo | pnpm tiết kiệm disk, Turbo cache lại build. Vercel/Render đều cho chọn root directory nên 1 repo deploy được 2 nơi. |
+
+### Kiến trúc: monolith chia module
+
+Backend là **một service duy nhất**, bên trong chia module theo nghiệp vụ:
+
+```
+apps/api/src/modules/
+  auth/          jobs/          applications/
+  profiles/      skills/        notifications/
+```
+
+Mỗi module có `routes → controller → service → repository` riêng. Quy tắc duy nhất cần giữ: **module này không gọi thẳng vào bảng của module kia**, muốn dùng thì gọi qua service. Giữ được ranh giới đó thì sau này muốn tách microservice chỉ là chuyện đổi lời gọi hàm thành lời gọi HTTP.
+
+Lý do không làm microservices ngay: Render free chỉ cho 750 giờ/tháng và mỗi service đều ngủ riêng — 4 service là 4 lần cold start 50 giây chồng lên nhau, một request của người dùng có thể chờ vài phút. Thêm nữa, microservices sinh ra để nhiều đội làm song song trên nhiều codebase; nhóm 2 dev trong 8 tuần thì chi phí vận hành lớn hơn lợi ích rất nhiều.
+
+**Xử lý bất đồng bộ** (gửi email, tạo thông báo) làm bằng **bảng hàng đợi trong Postgres** — ghi việc vào bảng `EmailQueue`, một worker chạy trong cùng process quét và gửi. Đủ cho khối lượng của đồ án, và quan trọng là email hỏng không kéo theo việc đổi trạng thái đơn bị hỏng.
 
 ### Vì sao **không** chọn
 
@@ -72,6 +88,7 @@ Tiêu chí lựa chọn: **miễn phí hoàn toàn ở quy mô đồ án**, mộ
 - **Supabase Auth** — làm hộ gần hết phần xác thực/phân quyền, phần đáng giá nhất để báo cáo lại không do mình viết.
 - **MongoDB** — dữ liệu ở đây quan hệ dày (job ↔ skill ↔ application ↔ shift), join là chuyện thường ngày.
 - **Socket.IO** — Render free ngủ sau 15 phút, kết nối WebSocket đứt liên tục. Giai đoạn đầu dùng polling cho thông báo.
+- **Kafka / RabbitMQ** — không có tầng free tier thực dụng cho message broker, và hệ thống này không có bài toán mà nó giải: chỉ một service tiêu thụ sự kiện, throughput vài chục message mỗi ngày. Bảng hàng đợi trong Postgres làm được đúng việc đó với chi phí bằng không.
 
 ## 3. Hạ tầng miễn phí & bài toán "Render ngủ"
 
@@ -81,8 +98,17 @@ Tiêu chí lựa chọn: **miễn phí hoàn toàn ở quy mô đồ án**, mộ
 | Render | Free Web Service | 512 MB RAM, 750 giờ/tháng | Deploy `apps/api` — **ngủ sau 15 phút không có request** |
 | Neon | Free | 0.5 GB, 1 project | Postgres — cũng tự suspend compute, nhưng tự đánh thức trong ~500 ms |
 | Cloudinary | Free | 25 GB storage/băng thông | Ảnh đại diện, logo công ty, CV PDF |
-| Resend | Free | 3.000 email/tháng | Email OTP & thông báo |
+| Brevo | Free | 300 email/ngày | Email OTP & thông báo |
 | UptimeRobot / cron-job.org | Free | ping mỗi 5–10 phút | Giữ Render không ngủ |
+
+**Local dùng Docker, production dùng Neon.** Hai thứ này giải hai bài toán khác nhau chứ không thay thế nhau:
+
+| | Chạy ở đâu | Vì sao |
+|---|---|---|
+| `docker-compose.yml` | Máy lập trình viên | Không cần tài khoản, không đụng hạn mức, cả nhóm có cùng phiên bản Postgres bằng một lệnh |
+| Neon | Production | Render free có **disk ephemeral** — dữ liệu ghi xuống ổ đĩa mất sạch mỗi lần restart, nên không thể chạy container database ở đó |
+
+Prisma không phân biệt hai môi trường vì cả hai đều là Postgres — chỉ đổi `DATABASE_URL`. Redis khai sẵn trong compose nhưng nằm dưới profile `cache`, không tự khởi động: hàng đợi đã dùng bảng Postgres, session dùng JWT stateless, nên hiện chưa có nhu cầu thật.
 
 **Xử lý cold start của Render.** Instance free bị suspend sau 15 phút idle và mất **~50 giây** để dậy — người dùng đầu tiên sau giờ nghỉ sẽ thấy app "treo". Cách xử lý theo thứ tự ưu tiên:
 
@@ -189,19 +215,42 @@ Với việc `RECURRING`, chỉ nhận sinh viên còn làm đủ lâu: `availab
 ```
 uniwork/
 ├── apps/
-│   ├── web/                    # React + Vite  →  Vercel
-│   │   └── src/{pages,components,features,lib,hooks}
-│   └── api/                    # Express + Prisma  →  Render
-│       ├── prisma/{schema.prisma,migrations,seed.ts}
-│       └── src/{routes,controllers,services,middlewares,lib}
+│   ├── web/                        # React + Vite  →  Vercel
+│   │   └── src/
+│   │       ├── pages/              # một file một màn hình
+│   │       ├── components/ui/      # Button, Badge, Card + component shadcn
+│   │       ├── components/layout/  # Header, Footer, Layout
+│   │       ├── lib/                # cn, queryClient, hàm định dạng
+│   │       └── data/               # dữ liệu giả, sẽ bỏ khi nối API
+│   └── api/                        # Express + Prisma  →  Render
+│       ├── prisma/                 # schema.prisma, migrations, seed.ts
+│       └── src/
+│           ├── config/env.ts       # đọc & kiểm biến môi trường bằng Zod
+│           ├── lib/                # logger, errors, respond
+│           ├── middlewares/        # xử lý lỗi, 404, ghi log request
+│           ├── modules/            # chia theo nghiệp vụ, xem mục 2
+│           │   └── health/         # health.routes / .controller / .service
+│           ├── routes.ts           # gom router các module dưới /api
+│           ├── app.ts              # tạo Express app, không listen
+│           └── index.ts            # listen + tắt server có trật tự
 ├── packages/
-│   ├── shared/                 # Zod schema + type dùng chung FE/BE
-│   └── config/                 # eslint / tsconfig / tailwind preset
+│   ├── shared/                     # hợp đồng API + giá trị nghiệp vụ dùng chung
+│   └── config/                     # tsconfig / eslint / prettier dùng chung
 ├── .github/workflows/
-│   ├── ci.yml                  # lint + typecheck + test
-│   └── keep-alive.yml          # ping Render (dự phòng)
-└── docs/                       # ERD, use case, báo cáo
+│   ├── ci.yml                      # lint + typecheck + test
+│   └── keep-alive.yml              # ping Render (dự phòng)
+└── docs/                           # kế hoạch sprint, timeline, giới thiệu
 ```
+
+Mỗi module trong `src/modules/` gồm ba lớp, tách theo trách nhiệm:
+
+| Lớp | Làm gì | Không làm gì |
+|---|---|---|
+| `*.routes.ts` | Khai đường dẫn, gắn middleware | Không chứa logic |
+| `*.controller.ts` | Đọc request, gọi service, trả response | Không truy vấn database |
+| `*.service.ts` | Toàn bộ logic nghiệp vụ | Không biết tới `req`/`res` |
+
+Ranh giới cuối cùng là thứ đáng giữ nhất: service không đụng tới `req`/`res` nên **test được mà không cần dựng request giả**, và sau này gọi lại từ worker hay lệnh dòng lệnh cũng dùng được.
 
 ## 7. Lộ trình
 
@@ -221,23 +270,52 @@ uniwork/
 
 ## 8. Bắt đầu
 
-> Sprint 0 chưa hoàn tất — phần code sẽ được scaffold ở bước tiếp theo. Mục này mô tả quy trình dự kiến.
-
-**Yêu cầu:** Node.js ≥ 22, pnpm ≥ 9, một tài khoản [Neon](https://neon.tech) miễn phí.
+**Yêu cầu:** Node.js ≥ 22, pnpm ≥ 9, Docker Desktop (cho database local).
 
 ```bash
 git clone https://github.com/khangdzvl050623/uniwork.git
 cd uniwork
 pnpm install
 
-cp apps/api/.env.example apps/api/.env      # điền DATABASE_URL của Neon
+cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
 
-pnpm --filter api prisma migrate dev        # tạo bảng
-pnpm --filter api prisma db seed            # dữ liệu mẫu + tài khoản demo
-
-pnpm dev                                    # web :5173 · api :4000
+pnpm db:up          # dựng Postgres trong Docker, cổng 5432
+pnpm dev            # chạy cùng lúc: web :5173 · api :4000
 ```
+
+**Lệnh database**
+
+| Lệnh | Việc |
+|---|---|
+| `pnpm db:up` | Dựng Postgres |
+| `pnpm db:down` | Dừng, **giữ nguyên dữ liệu** |
+| `pnpm db:reset` | Dừng và **xoá sạch dữ liệu**, dựng lại từ đầu |
+| `pnpm db:logs` | Xem log Postgres |
+| `pnpm cache:up` | Dựng thêm Redis (chỉ khi cần) |
+
+Nếu máy đã cài sẵn Postgres và cổng 5432 bị chiếm, sửa vế trái của `ports` trong `docker-compose.yml` thành cổng khác rồi đổi `DATABASE_URL` cho khớp.
+
+Chạy riêng một app khi cần tập trung vào một phía:
+
+```bash
+pnpm --filter @uniwork/web dev
+pnpm --filter @uniwork/api dev
+```
+
+**Các lệnh khác**
+
+| Lệnh | Việc |
+|---|---|
+| `pnpm exec turbo run typecheck` | Kiểm kiểu toàn bộ workspace |
+| `pnpm exec turbo run lint` | ESLint toàn bộ workspace |
+| `pnpm exec turbo run build` | Build production |
+| `pnpm format` | Prettier ghi đè toàn repo |
+| `pnpm format:check` | Kiểm định dạng, không sửa file |
+
+> Dùng `pnpm exec turbo run lint` thay vì `pnpm lint` nếu máy bạn có cài RTK — công cụ này bắt lấy chữ `lint` rồi chạy ESLint ở thư mục gốc, nơi không có binary.
+
+**Chưa có ở bước này:** database chưa nối (Neon + Prisma nằm ở T13–T15), nên chưa có lệnh `migrate` hay `seed`. Web hiện chạy bằng dữ liệu giả trong `apps/web/src/data/mock.ts`.
 
 **Biến môi trường**
 
@@ -247,7 +325,7 @@ pnpm dev                                    # web :5173 · api :4000
 | `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | api | Khoá ký token, sinh bằng `openssl rand -hex 32` |
 | `CORS_ORIGIN` | api | URL của web app trên Vercel |
 | `CLOUDINARY_URL` | api | Upload ảnh & CV |
-| `RESEND_API_KEY` | api | Gửi email |
+| `BREVO_API_KEY` | api | Gửi email |
 | `VITE_API_URL` | web | URL API trên Render |
 
 ## 9. Quy trình làm việc với Git

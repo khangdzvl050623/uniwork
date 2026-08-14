@@ -1,0 +1,122 @@
+// Schema tối thiểu cho Sprint 0 — chỉ đủ để chứng minh đường ống chạy thông
+// từ code tới database. Schema đầy đủ (Job, Application, Shift, Availability...)
+// dựng ở T29 sau khi BA bàn giao BRD, xem README mục 5.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+
+  // Chuỗi app dùng hằng ngày. Trên Neon đây là chuỗi CÓ chữ `-pooler` trong
+  // hostname: nó đi qua PgBouncer, cho phép nhiều request dùng chung một nắm
+  // kết nối nhỏ. Thiếu nó thì mỗi request mở một kết nối riêng và gói free của
+  // Neon hết hạn mức rất nhanh.
+  url = env("DATABASE_URL")
+
+  // Chuỗi dành riêng cho migration — chuỗi KHÔNG có `-pooler`.
+  //
+  // PgBouncer ở chế độ transaction không chạy được lệnh đổi cấu trúc bảng, nên
+  // migrate qua chuỗi pooled sẽ lỗi rất khó đoán. Prisma tự dùng directUrl cho
+  // `migrate` và `db push`, còn app lúc chạy vẫn dùng `url` ở trên.
+  //
+  // Ở máy local cả hai trỏ cùng một container, không có PgBouncer nào cả.
+  directUrl = env("DIRECT_URL")
+}
+
+// Ba vai trò khớp đúng ROLES khai trong packages/shared. Đây là điểm dễ lệch
+// nhất giữa hai phía: đổi ở đây phải đổi luôn bên shared, và ngược lại.
+enum Role {
+  STUDENT
+  EMPLOYER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+/// Tài khoản đăng nhập. Thông tin riêng của từng vai trò nằm ở bảng profile
+/// tương ứng, không nhét chung vào đây — sinh viên và nhà tuyển dụng gần như
+/// không dùng chung trường nào.
+model User {
+  id String @id @default(cuid())
+
+  email        String @unique
+  passwordHash String
+
+  role   Role
+  status UserStatus @default(ACTIVE)
+
+  /// null nghĩa là chưa xác thực email. Dùng mốc thời gian thay cho cờ boolean
+  /// vì nó trả lời được cả "đã xác thực chưa" lẫn "xác thực lúc nào".
+  emailVerifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  studentProfile  StudentProfile?
+  employerProfile EmployerProfile?
+
+  @@map("users")
+}
+
+model StudentProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  fullName   String
+  university String?
+  major      String?
+  year       Int?
+  bio        String?
+  cvUrl      String?
+
+  /// Mức lương mong muốn theo giờ, đơn vị đồng.
+  expectedHourlyRate Int?
+
+  /// Khoảng thời gian sinh viên còn đi làm được. Dùng để lọc tin có yêu cầu
+  /// cam kết dài — sinh viên sắp về quê nghỉ hè sẽ không thấy tin đòi 6 tháng.
+  availableFrom  DateTime?
+  availableUntil DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("student_profiles")
+}
+
+model EmployerProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  companyName String
+  logoUrl     String?
+  website     String?
+  address     String?
+
+  /// null nghĩa là chưa được admin duyệt giấy tờ. Tin của nhà tuyển dụng chưa
+  /// duyệt không được hiển thị công khai.
+  verifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("employer_profiles")
+}
+
+/// Danh mục kỹ năng do admin quản lý. Không cho nhập tự do để tránh "Giao tiếp",
+/// "giao tiếp", "Kỹ năng giao tiếp" thành ba tag khác nhau, làm hỏng bộ lọc.
+model Skill {
+  id   String @id @default(cuid())
+  name String @unique
+  slug String @unique
+
+  createdAt DateTime @default(now())
+
+  @@map("skills")
+}

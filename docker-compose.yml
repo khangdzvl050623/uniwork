@@ -1,0 +1,64 @@
+# Môi trường phát triển trên máy. KHÔNG dùng cho production.
+#
+# Production dùng Neon (Postgres đám mây) vì gói free của Render có disk
+# ephemeral — mọi thứ ghi xuống ổ đĩa mất sạch mỗi lần restart, nên không thể
+# chạy container database ở đó.
+#
+#   docker compose up -d                  # chỉ Postgres
+#   docker compose --profile cache up -d  # kèm Redis
+#   docker compose down                   # dừng, giữ dữ liệu
+#   docker compose down -v                # dừng và xoá sạch dữ liệu
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: uniwork-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: uniwork
+      # Mật khẩu chỉ dùng ở máy local, không phải bí mật gì.
+      POSTGRES_PASSWORD: uniwork_dev
+      POSTGRES_DB: uniwork
+      # Bỏ qua bước so sánh locale khi tạo database, khởi động nhanh hơn.
+      POSTGRES_INITDB_ARGS: '--encoding=UTF8'
+    ports:
+      # Vế trái là cổng trên máy bạn, vế phải là cổng trong container.
+      #
+      # Dùng 5433 vì máy dev đã có sẵn PostgreSQL 18 cài thẳng lên Windows đang
+      # giữ cổng 5432. Để nguyên 5432 thì client nối vào bản cài sẵn đó và báo
+      # "Authentication failed" — trông như sai mật khẩu, thực chất là nhầm máy chủ.
+      - '5433:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # Prisma migrate chạy quá sớm sẽ lỗi "connection refused". Healthcheck
+      # để biết container đã thật sự sẵn sàng nhận truy vấn, chứ không chỉ là
+      # đã khởi động.
+      test: ['CMD-SHELL', 'pg_isready -U uniwork -d uniwork']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    container_name: uniwork-redis
+    restart: unless-stopped
+    # Nằm dưới profile nên KHÔNG khởi động cùng `docker compose up`.
+    # Hiện chưa có nhu cầu thật: hàng đợi dùng bảng Postgres, session dùng JWT
+    # stateless. Chỗ Redis đáng dùng là rate limiting khi có nhiều instance —
+    # mà Render free chỉ chạy một. Để sẵn đây cho lúc cần.
+    profiles: ['cache']
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  postgres_data:
+  redis_data:

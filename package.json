@@ -1,0 +1,32 @@
+{
+  "name": "uniwork",
+  "version": "0.0.0",
+  "private": true,
+  "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "prettier": "@uniwork/config/prettier",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "db:reset": "docker compose down -v && docker compose up -d",
+    "db:logs": "docker compose logs -f postgres",
+    "cache:up": "docker compose --profile cache up -d"
+  },
+  "devDependencies": {
+    "@uniwork/config": "workspace:*",
+    "prettier": "^3.4.2",
+    "turbo": "^2.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["@node-rs/argon2", "@prisma/client", "@prisma/engines", "esbuild", "prisma"]
+  }
+}
