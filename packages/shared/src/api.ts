@@ -50,3 +50,17 @@ export interface HealthResponse {
   uptime: number
   version: string
 }
+
+/**
+ * Một kỹ năng trong danh mục do admin quản lý.
+ *
+ * Cố tình KHÔNG phải là kiểu Skill mà Prisma sinh ra. Kiểu của Prisma phản ánh
+ * cột trong database, gồm cả những thứ người dùng không cần biết như createdAt.
+ * Tách riêng ở đây để thêm cột mới vào bảng không vô tình lộ ra ngoài API.
+ */
+export interface SkillResponse {
+  id: string
+  name: string
+  /** Dạng không dấu, dùng cho URL lọc: /viec-lam?skill=pha-che */
+  slug: string
+}

@@ -2,6 +2,7 @@ import { createServer } from 'node:http'
 import { createApp } from './app.js'
 import { env } from './config/env.js'
 import { logger } from './lib/logger.js'
+import { prisma } from './lib/prisma.js'
 
 const server = createServer(createApp())
 
@@ -29,8 +30,14 @@ function shutdown(signal: NodeJS.Signals) {
   logger.info('Nhận tín hiệu dừng, đang đóng server', { signal })
 
   server.close(() => {
-    logger.info('Đã đóng server sạch sẽ')
-    process.exit(0)
+    // Trả kết nối database về trước khi thoát. Không làm bước này thì mỗi lần
+    // Render deploy lại bỏ lại một nắm kết nối treo, phải chờ Neon tự dọn —
+    // mà gói free của Neon giới hạn số kết nối rất chặt, vài lần deploy liên
+    // tiếp là đủ để lần khởi động sau không xin nổi kết nối nào.
+    void prisma.$disconnect().finally(() => {
+      logger.info('Đã đóng server và ngắt kết nối database')
+      process.exit(0)
+    })
   })
 
   setTimeout(() => {

@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { healthRoutes } from './modules/health/health.routes.js'
+import { skillsRoutes } from './modules/skills/skills.routes.js'
 
 /**
  * Gom router của tất cả module lại, gắn dưới tiền tố /api.
@@ -10,3 +11,4 @@ import { healthRoutes } from './modules/health/health.routes.js'
 export const apiRouter = Router()
 
 apiRouter.use('/health', healthRoutes)
+apiRouter.use('/skills', skillsRoutes)
