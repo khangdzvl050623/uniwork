@@ -21,16 +21,33 @@ services:
 
     branch: main
 
+    # Phiên bản Node lấy từ file .node-version ở gốc repo, ghim vào dòng 22 LTS.
+    #
+    # Trước đây package.json khai `engines: ">=22"` và Render hiểu đúng nghĩa
+    # đen: nó chọn Node 26 vừa phát hành. Vấn đề là @node-rs/argon2 phân phối
+    # bản biên dịch sẵn theo từng phiên bản Node — gặp phiên bản chưa có bản
+    # dựng thì app chết lúc khởi động, với thông báo chẳng liên quan gì tới Node.
+    #
+    # Ghim số cụ thể cũng có nghĩa là bản deploy hôm nay và bản deploy tháng sau
+    # chạy trên cùng một runtime, không tự đổi sau lưng.
+
     # KHÔNG đặt rootDir thành apps/api. Đây là monorepo pnpm: lockfile và khai
     # báo workspace nằm ở gốc, cắt gốc đi thì pnpm không nối được @uniwork/shared
     # và cài đặt sẽ hỏng. Thay vào đó dùng --filter để chỉ đúng app cần chạy.
+    # Dùng `npx pnpm@<phiên bản>` chứ KHÔNG dùng `corepack enable`.
+    #
+    # `corepack enable` tạo symlink vào /usr/bin, mà thư mục đó trên máy build
+    # của Render là chỉ đọc — lỗi `EROFS: read-only file system`. npx tải pnpm
+    # về thư mục cache trong $HOME nên không đụng tới vùng bị khoá.
+    #
+    # Phiên bản dưới đây phải khớp với trường `packageManager` ở package.json
+    # gốc. Lệch phiên bản thì lockfile có thể bị diễn giải khác đi.
     buildCommand: >-
-      corepack enable &&
-      pnpm install --frozen-lockfile &&
-      pnpm --filter @uniwork/api exec prisma generate &&
-      pnpm --filter @uniwork/api exec prisma migrate deploy
+      npx --yes pnpm@10.33.0 install --frozen-lockfile &&
+      npx --yes pnpm@10.33.0 --filter @uniwork/api exec prisma generate &&
+      npx --yes pnpm@10.33.0 --filter @uniwork/api exec prisma migrate deploy
 
-    startCommand: pnpm --filter @uniwork/api start
+    startCommand: npx --yes pnpm@10.33.0 --filter @uniwork/api start
 
     # Render gọi đường dẫn này để biết bản deploy mới đã sống chưa. Trỏ vào
     # /api/health được vì endpoint đó cố ý không chạm database — nếu nó truy vấn,
