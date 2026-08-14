@@ -1,13 +1,25 @@
 /**
- * Dữ liệu mẫu cho môi trường phát triển.
+ * Nạp dữ liệu ban đầu cho database.
  *
  * Chạy: `pnpm db:seed` (trong apps/api)
  *
- * File này CHẠY LẠI ĐƯỢC NHIỀU LẦN mà không hỏng. Mọi thao tác đều dùng
- * `upsert` thay vì `create`, nên chạy lần thứ hai chỉ cập nhật chứ không ném
- * lỗi trùng khoá. Điều này quan trọng hơn vẻ ngoài của nó: seed mà chạy một
- * lần là chết sẽ khiến cả nhóm ngại chạy, rồi mỗi người ôm một bộ dữ liệu khác
- * nhau và bắt đầu cãi nhau xem lỗi là do code hay do dữ liệu.
+ * File này xử lý HAI LOẠI DỮ LIỆU KHÁC HẲN NHAU, và phân biệt được chúng là
+ * điều quan trọng nhất ở đây:
+ *
+ * 1. DỮ LIỆU THAM CHIẾU — danh mục kỹ năng. Đây là dữ liệu vận hành thật, mọi
+ *    môi trường đều cần. Thiếu nó thì bộ lọc tìm việc trống trơn.
+ *
+ * 2. DỮ LIỆU DEMO — ba tài khoản dùng chung một mật khẩu ai cũng biết. Chỉ
+ *    dành cho máy lập trình viên. Đẩy lên production là tạo sẵn ba cửa hậu.
+ *
+ * Trước đây cả hai nằm chung dưới một chốt chặn `NODE_ENV=production`, nên
+ * production không có kỹ năng nào — chặn đúng thứ cần chặn nhưng chặn nhầm cả
+ * thứ cần giữ. Giờ tách ra: dữ liệu tham chiếu chạy ở mọi nơi, dữ liệu demo bị
+ * bỏ qua khi chạy production.
+ *
+ * File CHẠY LẠI ĐƯỢC NHIỀU LẦN. Mọi thao tác dùng `upsert` thay vì `create`,
+ * nên chạy lần thứ hai chỉ cập nhật chứ không ném lỗi trùng khoá. Nhờ vậy nó
+ * nằm được trong lệnh build của Render, chạy lại mỗi lần deploy mà không hỏng.
  */
 
 import { PrismaClient, Role } from '@prisma/client'
@@ -19,7 +31,8 @@ const prisma = new PrismaClient()
  * Mật khẩu chung cho cả ba tài khoản demo.
  *
  * Để lộ thiên ở đây là CỐ Ý — đây là dữ liệu dev, cả nhóm cần đăng nhập thử
- * được. Seed không bao giờ chạy trên production; chốt chặn nằm ở cuối file.
+ * được. Chốt chặn nằm ở `main()`: phần tạo tài khoản bị bỏ qua khi chạy
+ * production, nên chuỗi này không bao giờ thành mật khẩu thật của ai.
  */
 const DEMO_PASSWORD = 'Uniwork@123'
 
@@ -70,7 +83,7 @@ async function seedSkills() {
   return SKILLS.length
 }
 
-async function seedUsers(passwordHash: string) {
+async function seedDemoUsers(passwordHash: string) {
   // Sinh viên — có hồ sơ đầy đủ để màn hình tìm việc ở Sprint 1 có dữ liệu thật
   // mà render, không phải bịa tạm trong component.
   await prisma.user.upsert({
@@ -132,23 +145,61 @@ async function seedUsers(passwordHash: string) {
   return 3
 }
 
+/** Máy chủ database được coi là chạy trên máy lập trình viên. */
+const HOST_NOI_BO = ['localhost', '127.0.0.1', '::1', 'host.docker.internal']
+
+/**
+ * Tài khoản demo chỉ được tạo khi database nằm ngay trên máy này.
+ *
+ * Canh theo `DATABASE_URL` chứ KHÔNG canh theo `NODE_ENV`, vì mối nguy thật
+ * nằm ở chỗ khác với chỗ ta hay nhìn.
+ *
+ * Kịch bản hỏng điển hình: lập trình viên sửa DATABASE_URL trong .env trỏ sang
+ * Neon để xem dữ liệu thật, quên đổi lại, rồi chạy `pnpm db:seed`. Lúc đó
+ * NODE_ENV vẫn là 'development' — chốt chặn theo NODE_ENV sẽ cho qua, và ba
+ * tài khoản mật khẩu công khai đi thẳng vào database production.
+ *
+ * Tên máy chủ trong chuỗi kết nối thì không nói dối được: `localhost` là máy
+ * mình, `...neon.tech` thì không. Gặp chuỗi không đọc được cũng từ chối luôn —
+ * sai thì sai về phía an toàn.
+ */
+function laDatabaseNoiBo(): boolean {
+  const url = process.env.DATABASE_URL
+  if (!url) return false
+
+  try {
+    return HOST_NOI_BO.includes(new URL(url).hostname)
+  } catch {
+    return false
+  }
+}
+
 async function main() {
-  // Chốt chặn. Seed ghi tài khoản có mật khẩu ai cũng biết; chạy nhầm lên
-  // database thật là tạo sẵn ba cửa hậu. Biến môi trường rất dễ trỏ nhầm khi
-  // đang chuyển qua lại giữa local và Neon, nên chặn bằng code thay vì bằng
-  // trí nhớ.
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('Seed không được phép chạy khi NODE_ENV=production')
+  const choPhepDemo = laDatabaseNoiBo()
+
+  // Dữ liệu tham chiếu: luôn nạp, mọi môi trường.
+  const skillCount = await seedSkills()
+  console.log(`Đã nạp ${skillCount} kỹ năng.`)
+
+  // Dữ liệu demo: chỉ ở máy lập trình viên.
+  //
+  // Chặn bằng code chứ không bằng trí nhớ. Biến DATABASE_URL rất dễ trỏ nhầm
+  // khi đang chuyển qua lại giữa Docker local và Neon — chỉ cần một lần chạy
+  // nhầm là ba tài khoản mật khẩu công khai nằm sẵn trong database thật.
+  //
+  // Khi Sprint 1 có màn hình đăng ký, tài khoản để demo trên bản deploy nên
+  // được tạo qua chính form đăng ký đó, không phải bằng seed.
+  if (!choPhepDemo) {
+    console.log('DATABASE_URL không trỏ tới máy này — bỏ qua tài khoản demo.')
+    return
   }
 
   console.log('Đang băm mật khẩu demo...')
   const passwordHash = await hash(DEMO_PASSWORD, ARGON2_OPTIONS)
+  const userCount = await seedDemoUsers(passwordHash)
 
-  const skillCount = await seedSkills()
-  const userCount = await seedUsers(passwordHash)
-
-  console.log(`Xong: ${userCount} tài khoản, ${skillCount} kỹ năng.`)
-  console.log(`Mật khẩu chung cho cả ba tài khoản: ${DEMO_PASSWORD}`)
+  console.log(`Đã nạp ${userCount} tài khoản demo.`)
+  console.log(`Mật khẩu chung cho cả ba: ${DEMO_PASSWORD}`)
 }
 
 main()
