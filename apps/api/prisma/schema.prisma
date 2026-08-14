@@ -8,7 +8,21 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+
+  // Chuỗi app dùng hằng ngày. Trên Neon đây là chuỗi CÓ chữ `-pooler` trong
+  // hostname: nó đi qua PgBouncer, cho phép nhiều request dùng chung một nắm
+  // kết nối nhỏ. Thiếu nó thì mỗi request mở một kết nối riêng và gói free của
+  // Neon hết hạn mức rất nhanh.
+  url = env("DATABASE_URL")
+
+  // Chuỗi dành riêng cho migration — chuỗi KHÔNG có `-pooler`.
+  //
+  // PgBouncer ở chế độ transaction không chạy được lệnh đổi cấu trúc bảng, nên
+  // migrate qua chuỗi pooled sẽ lỗi rất khó đoán. Prisma tự dùng directUrl cho
+  // `migrate` và `db push`, còn app lúc chạy vẫn dùng `url` ở trên.
+  //
+  // Ở máy local cả hai trỏ cùng một container, không có PgBouncer nào cả.
+  directUrl = env("DIRECT_URL")
 }
 
 // Ba vai trò khớp đúng ROLES khai trong packages/shared. Đây là điểm dễ lệch
