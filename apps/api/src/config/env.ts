@@ -24,6 +24,18 @@ const schema = z.object({
 
   // Danh sách origin được phép gọi API, ngăn cách bằng dấu phẩy.
   CORS_ORIGIN: z.string().min(1).default('http://localhost:5173'),
+
+  // Chuỗi kết nối Postgres. CỐ TÌNH không có giá trị mặc định.
+  //
+  // Đặt mặc định trỏ localhost là cái bẫy: deploy lên Render mà quên khai biến
+  // này thì app vẫn khởi động ngon lành, log deploy vẫn xanh, rồi mới sập lúc
+  // người dùng thật bấm vào. Không mặc định thì Render báo lỗi ngay lúc build.
+  DATABASE_URL: z
+    .string()
+    .min(1)
+    .refine((v) => v.startsWith('postgresql://') || v.startsWith('postgres://'), {
+      message: 'phải là chuỗi kết nối Postgres, bắt đầu bằng postgresql://',
+    }),
 })
 
 const parsed = schema.safeParse(process.env)

@@ -10,9 +10,15 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio",
+    "db:deploy": "prisma migrate deploy"
   },
   "dependencies": {
+    "@node-rs/argon2": "^2.0.2",
+    "@prisma/client": "^6.19.3",
     "@uniwork/shared": "workspace:*",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
@@ -26,6 +32,7 @@
     "@types/supertest": "^7.2.1",
     "@uniwork/config": "workspace:*",
     "eslint": "^9.17.0",
+    "prisma": "^6.19.3",
     "supertest": "^7.2.2",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",

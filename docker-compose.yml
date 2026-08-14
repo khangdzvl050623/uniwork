@@ -22,8 +22,12 @@ services:
       # Bỏ qua bước so sánh locale khi tạo database, khởi động nhanh hơn.
       POSTGRES_INITDB_ARGS: '--encoding=UTF8'
     ports:
-      # Đổi vế trái nếu máy bạn đã cài sẵn Postgres và cổng 5432 bị chiếm.
-      - '5432:5432'
+      # Vế trái là cổng trên máy bạn, vế phải là cổng trong container.
+      #
+      # Dùng 5433 vì máy dev đã có sẵn PostgreSQL 18 cài thẳng lên Windows đang
+      # giữ cổng 5432. Để nguyên 5432 thì client nối vào bản cài sẵn đó và báo
+      # "Authentication failed" — trông như sai mật khẩu, thực chất là nhầm máy chủ.
+      - '5433:5432'
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
