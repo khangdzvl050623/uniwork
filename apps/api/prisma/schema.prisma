@@ -54,9 +54,14 @@ enum UserStatus {
 /// Xác thực email và đặt lại mật khẩu dùng chung một bảng, phân biệt bằng cột
 /// này. Hai luồng giống hệt nhau về cơ chế: sinh chuỗi ngẫu nhiên, gửi mail,
 /// hết hạn, dùng một lần.
-enum AuthTokenType {
+enum OneTimeTokenType {
   EMAIL_VERIFICATION
   PASSWORD_RESET
+}
+
+/// Nhà cung cấp danh tính ngoài. Thêm Facebook sau chỉ là thêm một giá trị.
+enum AuthProvider {
+  GOOGLE
 }
 
 enum ScheduleType {
@@ -117,8 +122,15 @@ enum ReviewStatus {
 model User {
   id String @id @default(cuid())
 
-  email        String @unique
-  passwordHash String
+  email String @unique
+
+  /// null nghĩa là tài khoản KHÔNG có mật khẩu — chỉ đăng nhập qua Google.
+  ///
+  /// Bắt buộc phải cho phép null. Nếu ép NOT NULL thì tài khoản Google buộc
+  /// phải mang một chuỗi băm rác, và luồng "quên mật khẩu" sẽ trông như chạy
+  /// được với họ: gửi mail, đặt mật khẩu mới, và tài khoản Google bỗng có thêm
+  /// một mật khẩu chẳng ai định tạo. Có null thì luồng đó từ chối ngay từ đầu.
+  passwordHash String?
 
   role   Role
   status UserStatus @default(ACTIVE)
@@ -133,10 +145,42 @@ model User {
   studentProfile  StudentProfile?
   employerProfile EmployerProfile?
 
-  refreshTokens RefreshToken[]
-  authTokens    AuthToken[]
+  refreshTokens  RefreshToken[]
+  oneTimeTokens  OneTimeToken[]
+  linkedAccounts UserAccount[]
 
   @@map("users")
+}
+
+/// Danh tính từ nhà cung cấp ngoài, hiện chỉ có Google.
+///
+/// Bảng riêng chứ không phải cột `googleId` trên `users`, vì một người có thể
+/// vừa có mật khẩu vừa liên kết Google, và sau này có thể thêm Facebook. Mỗi
+/// liên kết một hàng.
+model UserAccount {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider AuthProvider
+
+  /// Trường `sub` của Google — mã định danh ổn định, KHÔNG đổi kể cả khi người
+  /// dùng đổi địa chỉ Gmail. Đây mới là thứ nhận diện người dùng, không phải
+  /// email.
+  ///
+  /// Ghép tài khoản chỉ bằng email là lỗ hổng chiếm tài khoản: kẻ xấu đăng ký
+  /// trước bằng email không phải của nó, chủ thật đăng nhập Google rồi rơi vào
+  /// đúng tài khoản kẻ xấu đang giữ mật khẩu. Luật: chỉ ghép khi Google khẳng
+  /// định `email_verified`, và khi đó tài khoản cũ bị thu hồi về chủ thật.
+  providerAccountId String
+
+  createdAt DateTime @default(now())
+
+  /// CỐ Ý không lưu access token / refresh token của Google. Ta chỉ cần biết
+  /// "người này là ai", không gọi API nào thay mặt họ — không lưu thì không lộ.
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("user_accounts")
 }
 
 /// Một hàng cho mỗi phiên đăng nhập còn hiệu lực.
@@ -177,13 +221,17 @@ model RefreshToken {
 }
 
 /// Token dùng một lần gửi qua email: xác thực tài khoản và đặt lại mật khẩu.
-model AuthToken {
+///
+/// Tên bảng nói rõ "một lần" là có lý do. Bản đầu đặt là `auth_tokens`, và cái
+/// tên đó mơ hồ tới mức người đọc tưởng đây là chỗ lưu access token — trong khi
+/// access token là JWT, cố tình KHÔNG lưu ở đâu cả.
+model OneTimeToken {
   id     String @id @default(cuid())
   userId String
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  tokenHash String        @unique
-  type      AuthTokenType
+  tokenHash String           @unique
+  type      OneTimeTokenType
 
   expiresAt DateTime
 
@@ -194,7 +242,7 @@ model AuthToken {
   createdAt DateTime @default(now())
 
   @@index([userId, type])
-  @@map("auth_tokens")
+  @@map("one_time_tokens")
 }
 
 // ---------------------------------------------------------------------------
@@ -411,26 +459,58 @@ model Job {
   /// Số người cần tuyển.
   quantity Int @default(1)
 
-  salaryMin  Int
-  salaryMax  Int
+  /// true = "Thoả thuận", và khi đó `salaryMin`/`salaryMax` BẮT BUỘC null.
+  ///
+  /// Dùng cờ tường minh thay vì để null mang nghĩa "thoả thuận". Null một mình
+  /// thì mơ hồ: không phân biệt được "nhà tuyển dụng cố ý không ghi số" với
+  /// "nhà tuyển dụng quên điền". Có cờ thì truy vấn lọc lương cũng đọc rõ ràng:
+  /// sinh viên đặt sàn 25k thì lọc `salaryNegotiable = false AND salaryMin >=
+  /// 25000` — tin không ghi giá bị loại, đúng ý người lọc.
+  ///
+  /// Ràng buộc chéo giữa ba cột này do CHECK `jobs_salary_check` canh ở
+  /// database, không chỉ ở tầng service.
+  salaryNegotiable Boolean @default(false)
+
+  salaryMin Int?
+  salaryMax Int?
+
+  /// Vẫn bắt buộc kể cả khi thoả thuận — "thoả thuận theo giờ" khác "thoả thuận
+  /// theo tháng", và sinh viên cần biết mình đang mặc cả trên đơn vị nào.
   salaryUnit SalaryUnit
 
   scheduleType ScheduleType
 
-  /// Chỉ có nghĩa với RECURRING — form đăng tin chỉ hiện hai ô này ở loại đó.
+  /// Cam kết tối thiểu bao nhiêu tháng. CHỈ dùng cho RECURRING.
+  ///
+  /// Không dùng chung với SEASONAL là quyết định của BA, và đúng: tin Tết có
+  /// `startDate`/`endDate` gói gọn 10 ngày mà lại mang `commitmentMonths = 1`
+  /// thì hai trường nói hai chuyện khác nhau, người viết giao diện không biết
+  /// tin cái nào.
   commitmentMonths Int?
+
+  /// Số ca tối thiểu mỗi tuần. Dùng được cho cả RECURRING và SEASONAL — đây là
+  /// cách diễn đạt "cường độ" của đợt thời vụ, thay cho việc mượn tạm
+  /// `commitmentMonths`. Vô nghĩa với ONE_TIME.
   minShiftsPerWeek Int?
 
-  /// Chỉ có nghĩa với SEASONAL.
+  /// RECURRING: ngày bắt đầu làm, có thể bỏ trống (tuyển là đi làm ngay).
+  /// SEASONAL: bắt buộc.
   startDate DateTime?
-  endDate   DateTime?
 
-  /// Chỉ có nghĩa với ONE_TIME.
+  /// CHỈ SEASONAL, và bắt buộc. RECURRING không có điểm kết thúc xác định.
+  endDate DateTime?
+
+  /// CHỈ ONE_TIME, và bắt buộc.
   workDate DateTime?
 
-  /// Ba nhóm ngày trên loại trừ nhau theo `scheduleType`, nhưng ở đây đều để
-  /// null được. Ràng buộc "thời vụ thì bắt buộc có ngày bắt đầu" nằm ở Zod tầng
-  /// service, vì đó là luật nghiệp vụ có thể đổi, không phải bất biến cấu trúc.
+  /// Bốn cột thời gian trên loại trừ nhau theo `scheduleType`. Ở đây đều
+  /// nullable vì Prisma không diễn đạt được ràng buộc có điều kiện, nên luật
+  /// thật nằm ở CHECK `jobs_schedule_fields_check` viết tay trong migration.
+  ///
+  /// Vì sao chặn ở database chứ không chỉ ở Zod: quy ước "để trống thì hiểu là
+  /// không áp dụng" sẽ mục. Một script sửa dữ liệu, một lệnh SQL vá tay lúc
+  /// gấp, hay một endpoint viết vội ở sprint sau đều đi vòng qua Zod được.
+  /// CHECK thì không đường nào lách.
   deadline DateTime
 
   status JobStatus @default(DRAFT)

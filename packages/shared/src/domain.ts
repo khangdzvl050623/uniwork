@@ -63,6 +63,25 @@ export const REVIEW_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'] as const
 export type ReviewStatus = (typeof REVIEW_STATUSES)[number]
 
 /**
+ * Nhà cung cấp danh tính ngoài.
+ *
+ * Mới có Google. Facebook thêm sau thì chỉ là một giá trị nữa ở đây — bảng
+ * `user_accounts` không cần đổi cấu trúc.
+ */
+export const AUTH_PROVIDERS = ['GOOGLE'] as const
+export type AuthProvider = (typeof AUTH_PROVIDERS)[number]
+
+/**
+ * Token dùng một lần gửi qua email.
+ *
+ * KHÔNG liên quan gì tới access token hay refresh token. Access token là JWT
+ * không lưu ở đâu cả; refresh token nằm ở bảng riêng. Hai giá trị dưới đây chỉ
+ * là chuỗi nhét trong link email, bấm một lần rồi hết hiệu lực.
+ */
+export const ONE_TIME_TOKEN_TYPES = ['EMAIL_VERIFICATION', 'PASSWORD_RESET'] as const
+export type OneTimeTokenType = (typeof ONE_TIME_TOKEN_TYPES)[number]
+
+/**
  * 0 = Chủ nhật ... 6 = Thứ 7.
  *
  * Theo đúng quy ước của `Date.prototype.getDay()` trong JavaScript, để không
