@@ -1,8 +1,10 @@
 # BRD ước lượng — bản dựng tạm cho T29
 
-**Trạng thái:** bản nháp do DEV1 tự dựng, **chưa qua BA**.
+**Trạng thái:** DEV1 dựng phỏng đoán → **BA đã rà soát và trả lời hết**. Không còn điểm treo. Schema T29 và seed T30 đang khớp với tài liệu này.
 
-Bảng phụ thuộc trong [sprint-0.md](sprint-0.md) đã lường trước tình huống này: *"T29 chờ T17, T18, T19 — BRD trễ thì schema phải dựng theo phỏng đoán, Sprint 1 làm lại"*. Tài liệu này là phần "phỏng đoán" đó, viết ra thành văn bản thay vì để trong đầu, để khi BA bàn giao BRD thật thì có thứ cụ thể mà đối chiếu — lệch chỗ nào sửa chỗ đó, chứ không phải đọc lại toàn bộ schema để đoán xem mình đã nghĩ gì.
+Bảng phụ thuộc trong [sprint-0.md](sprint-0.md) đã lường trước tình huống này: *"T29 chờ T17, T18, T19 — BRD trễ thì schema phải dựng theo phỏng đoán, Sprint 1 làm lại"*. Tài liệu này là phần "phỏng đoán" đó, viết ra thành văn bản thay vì để trong đầu — và nhờ vậy BA rà được từng điểm thay vì phải đọc schema để đoán DEV1 đã nghĩ gì. Phần "Sprint 1 làm lại" không xảy ra: bảy điểm phỏng đoán ban đầu, BA chốt cả bảy, không điểm nào phải dựng lại.
+
+Khi BRD chính thức (T17–T19) được bàn giao, đối chiếu với tài liệu này trước — lệch chỗ nào sửa chỗ đó.
 
 ## Suy ra từ đâu
 
@@ -182,17 +184,17 @@ Nếu sau này BA khẳng định phải có học kỳ thật, đó vẫn là m
 
 ---
 
-## Còn chờ BA xác nhận
+## BA đã trả lời — năm quyết định
 
-Một điểm duy nhất còn treo:
+Không còn điểm nào treo. Phần dưới ghi lại kết luận cùng chỗ DEV1 siết thêm.
 
-1. **Loại giấy tờ xác minh** — ba loại đang đặt (giấy phép kinh doanh, mã số thuế, CCCD người đại diện) có đúng và có đủ không?
+### Giấy tờ xác minh — giữ ba loại
 
----
+Giấy phép kinh doanh, mã số thuế, CCCD người đại diện. BA xác nhận đủ để chứng minh danh tính đơn vị tuyển dụng.
 
-## BA đã trả lời — bốn quyết định
+Đây là **danh sách loại giấy tờ được chấp nhận**, không phải danh sách bắt buộc nộp đủ ba. Bảng `employer_documents` cho mỗi giấy tờ một hàng, nên hộ kinh doanh cá thể nộp CCCD, công ty nộp giấy phép kinh doanh — admin xét theo từng hồ sơ. Kết luận cuối vẫn nằm ở `employer_profiles.verifiedAt`.
 
-BA đã phản hồi bốn trong năm câu. Phần dưới ghi lại kết luận cùng chỗ DEV1 siết thêm.
+Thêm loại thứ tư sau này chỉ là thêm một giá trị vào enum `DocumentType`, không đụng cấu trúc bảng.
 
 ### `SEASONAL` không dùng chung `commitmentMonths` với `RECURRING`
 
