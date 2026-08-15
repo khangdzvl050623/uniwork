@@ -25,6 +25,7 @@
 
 import {
   ApplicationStatus,
+  AuthProvider,
   DocumentType,
   JobStatus,
   PrismaClient,
@@ -144,6 +145,18 @@ interface DemoStudent {
   skills: string[]
   /** Lưới lịch rảnh sinh viên tự khai. 0 = Chủ nhật ... 6 = Thứ 7. */
   availability: ShiftSpec[]
+
+  /** Giả lập trường `sub` của Google. Có giá trị = tài khoản đã liên kết Google. */
+  googleSub?: string
+
+  /**
+   * true = KHÔNG có mật khẩu, chỉ đăng nhập được qua Google.
+   *
+   * Cần đúng một tài khoản như vậy trong dữ liệu mẫu, để nhánh `passwordHash =
+   * null` thật sự có người đi qua. Không có mẫu nào thì cột nullable chỉ là lý
+   * thuyết, và lỗi đầu tiên sẽ xuất hiện lúc đấu Google thật ở Sprint 1.
+   */
+  chiDangNhapGoogle?: boolean
 }
 
 /**
@@ -192,6 +205,29 @@ const DEMO_STUDENTS: DemoStudent[] = [
       [3, TimeSlot.EVENING],
       [5, TimeSlot.EVENING],
     ],
+    // Vừa có mật khẩu vừa liên kết Google — trạng thái phổ biến nhất ngoài đời:
+    // đăng ký bằng form trước, sau đó bấm "Đăng nhập bằng Google" cho nhanh.
+    googleSub: '108140977225174093871',
+  },
+  {
+    key: 'nam',
+    email: 'sinhvien3@uniwork.dev',
+    fullName: 'Lê Hoàng Nam',
+    university: 'Đại học Kinh tế TP.HCM',
+    major: 'Marketing',
+    year: 1,
+    bio: 'Năm nhất, muốn tìm việc cuối tuần để làm quen môi trường.',
+    expectedHourlyRate: 28_000,
+    skills: ['giao-tiep', 'ban-hang', 'lam-viec-nhom'],
+    availability: [
+      [6, TimeSlot.MORNING],
+      [6, TimeSlot.AFTERNOON],
+      [0, TimeSlot.AFTERNOON],
+    ],
+    // KHÔNG có mật khẩu. Đăng nhập bằng form với tài khoản này phải thất bại —
+    // đó là hành vi đúng, không phải lỗi seed.
+    googleSub: '117702384195028461330',
+    chiDangNhapGoogle: true,
   },
 ]
 
@@ -289,8 +325,14 @@ interface DemoJob {
   city: string
   district: string
   quantity: number
-  salaryMin: number
-  salaryMax: number
+
+  /**
+   * Bỏ trống cả hai khi `salaryNegotiable`. Nửa vời — vừa thoả thuận vừa ghi số
+   * — bị CHECK `jobs_salary_check` chặn ngay ở database.
+   */
+  salaryMin?: number
+  salaryMax?: number
+  salaryNegotiable?: boolean
   salaryUnit: SalaryUnit
   scheduleType: ScheduleType
   commitmentMonths?: number
@@ -551,6 +593,34 @@ const DEMO_JOBS: DemoJob[] = [
     ],
     skills: ['phuc-vu-ban'],
   },
+  {
+    id: 'demo-job-noi-dung-fanpage',
+    employer: 'triviet',
+    title: 'Cộng tác viên nội dung fanpage',
+    description:
+      'Viết bài và dựng ảnh cho fanpage trung tâm, mỗi tuần 3 bài. Lương thoả thuận theo năng lực và khối lượng thực tế, trao đổi trong buổi phỏng vấn.',
+    requirements: ['Viết tiếng Việt tốt', 'Biết Canva hoặc Photoshop cơ bản'],
+    benefits: ['Làm từ xa', 'Được góp ý và chỉnh sửa bài viết'],
+    city: 'Toàn quốc',
+    district: 'Làm từ xa',
+    quantity: 2,
+    // Tin duy nhất để lương thoả thuận — mẫu để thử bộ lọc theo mức lương. Sinh
+    // viên đặt sàn 25k thì tin này phải BIẾN MẤT khỏi kết quả, vì không có số
+    // nào để so. Không có mẫu như vậy thì nhánh đó không bao giờ được chạy thử.
+    salaryNegotiable: true,
+    salaryUnit: SalaryUnit.MONTH,
+    scheduleType: ScheduleType.RECURRING,
+    minShiftsPerWeek: 2,
+    deadline: d('2026-10-15'),
+    status: JobStatus.OPEN,
+    publishedAt: d('2026-08-14'),
+    viewCount: 45,
+    shifts: [
+      [6, TimeSlot.AFTERNOON],
+      [0, TimeSlot.AFTERNOON],
+    ],
+    skills: ['thiet-ke-do-hoa', 'tin-hoc-van-phong'],
+  },
 ]
 
 /**
@@ -615,7 +685,7 @@ const DEMO_SAVED_JOBS = [
  * trạng thái xác thực của tài khoản đã có. Riêng phần hồ sơ bên dưới thì có cập
  * nhật, vì đó mới là chỗ sửa dữ liệu mẫu cho đẹp hơn.
  */
-async function upsertUser(email: string, role: Role, passwordHash: string) {
+async function upsertUser(email: string, role: Role, passwordHash: string | null) {
   const user = await prisma.user.upsert({
     where: { email },
     update: {},
@@ -625,11 +695,37 @@ async function upsertUser(email: string, role: Role, passwordHash: string) {
   return user.id
 }
 
+/**
+ * Gắn danh tính Google vào tài khoản.
+ *
+ * Khoá tra là cặp `(provider, providerAccountId)` chứ không phải `userId`: một
+ * `sub` của Google chỉ được thuộc về đúng một tài khoản UniWork, và ràng buộc
+ * unique đó là thứ chặn hai người cùng nhận một danh tính Google.
+ */
+async function lienKetGoogle(userId: string, sub: string) {
+  await prisma.userAccount.upsert({
+    where: {
+      provider_providerAccountId: {
+        provider: AuthProvider.GOOGLE,
+        providerAccountId: sub,
+      },
+    },
+    update: { userId },
+    create: { userId, provider: AuthProvider.GOOGLE, providerAccountId: sub },
+  })
+}
+
 async function seedStudents(passwordHash: string, skillIds: Map<string, string>) {
   const idTheoKey = new Map<Key, string>()
 
   for (const sv of DEMO_STUDENTS) {
-    const userId = await upsertUser(sv.email, Role.STUDENT, passwordHash)
+    const userId = await upsertUser(
+      sv.email,
+      Role.STUDENT,
+      sv.chiDangNhapGoogle ? null : passwordHash,
+    )
+
+    if (sv.googleSub) await lienKetGoogle(userId, sv.googleSub)
 
     const thongTin = {
       fullName: sv.fullName,
@@ -730,6 +826,9 @@ async function seedJobs(employerIds: Map<Key, string>, skillIds: Map<string, str
     const noiDung = {
       ...truong,
       employerProfileId: employerIds.get(employer)!,
+      salaryNegotiable: truong.salaryNegotiable ?? false,
+      salaryMin: truong.salaryMin ?? null,
+      salaryMax: truong.salaryMax ?? null,
       commitmentMonths: truong.commitmentMonths ?? null,
       minShiftsPerWeek: truong.minShiftsPerWeek ?? null,
       startDate: truong.startDate ?? null,
@@ -874,7 +973,12 @@ async function main() {
     `Đã nạp ${studentIds.size} sinh viên, ${employerIds.size} nhà tuyển dụng, 1 admin, ` +
       `${soTin} tin tuyển dụng, ${soDon} đơn ứng tuyển.`,
   )
-  console.log(`Mật khẩu chung cho mọi tài khoản demo: ${DEMO_PASSWORD}`)
+  const chiGoogle = DEMO_STUDENTS.filter((sv) => sv.chiDangNhapGoogle).map((sv) => sv.email)
+
+  console.log(`Mật khẩu chung: ${DEMO_PASSWORD}`)
+  if (chiGoogle.length) {
+    console.log(`Trừ ${chiGoogle.join(', ')} — không có mật khẩu, chỉ đăng nhập qua Google.`)
+  }
 }
 
 main()

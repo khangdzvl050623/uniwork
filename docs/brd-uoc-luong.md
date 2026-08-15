@@ -1,8 +1,10 @@
 # BRD ước lượng — bản dựng tạm cho T29
 
-**Trạng thái:** bản nháp do DEV1 tự dựng, **chưa qua BA**.
+**Trạng thái:** DEV1 dựng phỏng đoán → **BA đã rà soát và trả lời hết**. Không còn điểm treo. Schema T29 và seed T30 đang khớp với tài liệu này.
 
-Bảng phụ thuộc trong [sprint-0.md](sprint-0.md) đã lường trước tình huống này: *"T29 chờ T17, T18, T19 — BRD trễ thì schema phải dựng theo phỏng đoán, Sprint 1 làm lại"*. Tài liệu này là phần "phỏng đoán" đó, viết ra thành văn bản thay vì để trong đầu, để khi BA bàn giao BRD thật thì có thứ cụ thể mà đối chiếu — lệch chỗ nào sửa chỗ đó, chứ không phải đọc lại toàn bộ schema để đoán xem mình đã nghĩ gì.
+Bảng phụ thuộc trong [sprint-0.md](sprint-0.md) đã lường trước tình huống này: *"T29 chờ T17, T18, T19 — BRD trễ thì schema phải dựng theo phỏng đoán, Sprint 1 làm lại"*. Tài liệu này là phần "phỏng đoán" đó, viết ra thành văn bản thay vì để trong đầu — và nhờ vậy BA rà được từng điểm thay vì phải đọc schema để đoán DEV1 đã nghĩ gì. Phần "Sprint 1 làm lại" không xảy ra: bảy điểm phỏng đoán ban đầu, BA chốt cả bảy, không điểm nào phải dựng lại.
+
+Khi BRD chính thức (T17–T19) được bàn giao, đối chiếu với tài liệu này trước — lệch chỗ nào sửa chỗ đó.
 
 ## Suy ra từ đâu
 
@@ -182,12 +184,66 @@ Nếu sau này BA khẳng định phải có học kỳ thật, đó vẫn là m
 
 ---
 
-## Còn chờ BA xác nhận
+## BA đã trả lời — năm quyết định
 
-Năm điểm dưới đây vẫn là phán đoán. Đây là danh sách đem ra đối chiếu khi BRD thật về:
+Không còn điểm nào treo. Phần dưới ghi lại kết luận cùng chỗ DEV1 siết thêm.
 
-1. **`SEASONAL` khác `RECURRING` ở điểm nào về nghiệp vụ**, ngoài chuyện có ngày bắt đầu và kết thúc?
-2. **Tin có cần duyệt lại sau mỗi lần sửa không**, hay chỉ khi sửa các trường trọng yếu (lương, địa điểm)?
-3. **Sinh viên rút đơn được không?** Tôi có để `WITHDRAWN` trong `APPLICATION_STATUSES` — giá trị này BA đã chốt từ trước hay chỉ là dự phòng?
-4. **Loại giấy tờ xác minh** — ba loại tôi đặt (giấy phép kinh doanh, mã số thuế, CCCD) có đúng và có đủ không?
-5. **Lương thoả thuận** — có tin nào không ghi số cụ thể không? Hiện `salaryMin`/`salaryMax` bắt buộc.
+### Giấy tờ xác minh — giữ ba loại
+
+Giấy phép kinh doanh, mã số thuế, CCCD người đại diện. BA xác nhận đủ để chứng minh danh tính đơn vị tuyển dụng.
+
+Đây là **danh sách loại giấy tờ được chấp nhận**, không phải danh sách bắt buộc nộp đủ ba. Bảng `employer_documents` cho mỗi giấy tờ một hàng, nên hộ kinh doanh cá thể nộp CCCD, công ty nộp giấy phép kinh doanh — admin xét theo từng hồ sơ. Kết luận cuối vẫn nằm ở `employer_profiles.verifiedAt`.
+
+Thêm loại thứ tư sau này chỉ là thêm một giá trị vào enum `DocumentType`, không đụng cấu trúc bảng.
+
+### `SEASONAL` không dùng chung `commitmentMonths` với `RECURRING`
+
+BA đúng, và lý do BA nêu là lý do đúng: tin Tết có `startDate`/`endDate` gói gọn 10 ngày mà lại mang `commitmentMonths = 1` thì hai trường nói hai chuyện khác nhau, người viết giao diện không biết tin cái nào.
+
+Phân công cuối cùng:
+
+| | `commitmentMonths` | `startDate` | `endDate` | `workDate` | `minShiftsPerWeek` |
+|---|---|---|---|---|---|
+| `RECURRING` | dùng, có thể trống | có thể trống | **cấm** | **cấm** | dùng |
+| `SEASONAL` | **cấm** | **bắt buộc** | **bắt buộc** | **cấm** | dùng |
+| `ONE_TIME` | **cấm** | **cấm** | **cấm** | **bắt buộc** | **cấm** |
+
+Hai chỗ DEV1 điều chỉnh so với đề xuất gốc:
+
+**Không ép `commitmentMonths` bắt buộc với `RECURRING`.** Có việc định kỳ không đòi cam kết gì cả — "rảnh buổi nào làm buổi đó". Nguyên tắc: chỉ cấm cái **mâu thuẫn**, không cấm cái **chưa khai**.
+
+**Cấm `minShiftsPerWeek` với `ONE_TIME`.** BA không nhắc, nhưng việc chỉ diễn ra một buổi thì "số ca tối thiểu mỗi tuần" vô nghĩa.
+
+**Và quan trọng nhất: luật này được canh ở database, không chỉ ở form.** BA viết "để trống/null, không hiển thị field trên form". Ẩn ô trên form là trải nghiệm người dùng, không phải ràng buộc — một script sửa dữ liệu, một câu SQL vá tay lúc gấp, hay một endpoint viết vội ở sprint sau đều đi vòng qua form được. Luật thật nằm ở CHECK `jobs_schedule_fields_check`.
+
+### Duyệt lại sau khi sửa tin
+
+BA đề xuất: chỉ bắt duyệt lại khi sửa **lương, địa điểm, ca làm**; sửa mô tả và yêu cầu thì không, để giảm tải cho admin.
+
+Mục tiêu giảm tải là đúng, nhưng **danh sách trường đang thiếu đúng chỗ nguy hiểm nhất**. Lý do tồn tại của khâu duyệt là chặn tin lừa đảo, mà tin lừa đảo không đổi lương — nó đổi **mô tả**. Đăng "Nhân viên văn phòng 30k/giờ" cho qua duyệt, rồi sửa mô tả thành "đóng 500k phí đồng phục trước khi nhận việc". Bỏ `description` khỏi danh sách là mở đúng cánh cửa mà khâu duyệt sinh ra để đóng.
+
+Danh sách chốt lại — sửa các trường sau thì tin quay về `PENDING`:
+
+**`title` · `description` · `salaryMin` · `salaryMax` · `salaryNegotiable` · `city` · `district` · ca làm · `quantity`**
+
+Không cần duyệt lại: `benefits`, `requirements`, `skills`. Đây là phần bổ sung chi tiết, rủi ro thấp.
+
+Ghi thêm cho Sprint 6: cách làm chuẩn của các trang lớn là **giữ bản cũ vẫn hiển thị trong lúc bản sửa chờ duyệt**, thay vì gỡ tin xuống. Cần thêm bảng phiên bản tin, chưa làm bây giờ.
+
+Luật này thuần tầng service, không đụng schema.
+
+### Sinh viên rút đơn — làm
+
+Đồng ý, chi phí gần bằng không: `WITHDRAWN` đã có sẵn trong enum.
+
+Một chi tiết nghiệp vụ cần chốt kèm: rút rồi **nộp lại được không**. Ràng buộc `@@unique([jobId, studentProfileId])` không cho tạo đơn thứ hai, nên nộp lại phải là **đổi trạng thái hàng cũ** về `PENDING` chứ không tạo hàng mới. Cách này còn tốt hơn: nhà tuyển dụng không bị nhìn thấy hai đơn trùng của cùng một người.
+
+### Lương thoả thuận — bổ sung
+
+BA đúng: ép ghi số thì nhà tuyển dụng bịa số, và dữ liệu bịa còn tệ hơn dữ liệu trống.
+
+Cách thực hiện có siết thêm. Không để `salaryMin = null` một mình mang nghĩa "thoả thuận" — null như vậy mơ hồ, không phân biệt được **cố ý không ghi** với **quên điền**. Thay vào đó có cờ tường minh `salaryNegotiable`, và CHECK `jobs_salary_check` bắt ba cột này luôn nhất quán: hoặc thoả thuận và không có số nào, hoặc có đủ hai số với `min <= max`.
+
+`salaryUnit` **vẫn bắt buộc** kể cả khi thoả thuận — "thoả thuận theo giờ" khác "thoả thuận theo tháng", sinh viên cần biết đang mặc cả trên đơn vị nào.
+
+Kéo theo một luật lọc cần BA xác nhận lại: khi sinh viên đặt mức lương sàn, tin thoả thuận **bị loại khỏi kết quả**. Lý do: không có số thì không so được, mà hiện lên thì hỏng ý nghĩa của bộ lọc. Khi không lọc lương thì tin vẫn hiện bình thường.
