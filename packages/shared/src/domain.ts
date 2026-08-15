@@ -27,6 +27,60 @@ export const APPLICATION_STATUSES = [
 ] as const
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number]
 
+/** Cách quy đổi con số lương của tin tuyển dụng. */
+export const SALARY_UNITS = ['HOUR', 'SHIFT', 'MONTH'] as const
+export type SalaryUnit = (typeof SALARY_UNITS)[number]
+
+/**
+ * Ba khung giờ trong ngày.
+ *
+ * Chia sẵn thành ba khung thay vì cho nhập giờ tự do là quyết định có chủ đích:
+ * nhờ đó lịch rảnh của sinh viên và ca làm của tin cùng một tập giá trị rời rạc,
+ * và việc ghép hai bên trở thành phép giao tập hợp — một câu JOIN, không phải
+ * bài toán so khoảng thời gian chồng lấn.
+ */
+export const TIME_SLOTS = ['MORNING', 'AFTERNOON', 'EVENING'] as const
+export type TimeSlot = (typeof TIME_SLOTS)[number]
+
+export const TIME_SLOT_LABELS: Record<TimeSlot, { label: string; range: string }> = {
+  MORNING: { label: 'Sáng', range: '06:00 – 12:00' },
+  AFTERNOON: { label: 'Chiều', range: '12:00 – 18:00' },
+  EVENING: { label: 'Tối', range: '18:00 – 22:00' },
+}
+
+/** Giấy tờ nhà tuyển dụng nộp để được xác minh (BRD Đăng tin). */
+export const DOCUMENT_TYPES = ['BUSINESS_LICENSE', 'TAX_CODE', 'ID_CARD'] as const
+export type DocumentType = (typeof DOCUMENT_TYPES)[number]
+
+export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
+  BUSINESS_LICENSE: 'Giấy phép kinh doanh',
+  TAX_CODE: 'Mã số thuế',
+  ID_CARD: 'CCCD người đại diện',
+}
+
+/** Kết quả admin xét duyệt một giấy tờ. */
+export const REVIEW_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'] as const
+export type ReviewStatus = (typeof REVIEW_STATUSES)[number]
+
+/**
+ * Nhà cung cấp danh tính ngoài.
+ *
+ * Mới có Google. Facebook thêm sau thì chỉ là một giá trị nữa ở đây — bảng
+ * `user_accounts` không cần đổi cấu trúc.
+ */
+export const AUTH_PROVIDERS = ['GOOGLE'] as const
+export type AuthProvider = (typeof AUTH_PROVIDERS)[number]
+
+/**
+ * Token dùng một lần gửi qua email.
+ *
+ * KHÔNG liên quan gì tới access token hay refresh token. Access token là JWT
+ * không lưu ở đâu cả; refresh token nằm ở bảng riêng. Hai giá trị dưới đây chỉ
+ * là chuỗi nhét trong link email, bấm một lần rồi hết hiệu lực.
+ */
+export const ONE_TIME_TOKEN_TYPES = ['EMAIL_VERIFICATION', 'PASSWORD_RESET'] as const
+export type OneTimeTokenType = (typeof ONE_TIME_TOKEN_TYPES)[number]
+
 /**
  * 0 = Chủ nhật ... 6 = Thứ 7.
  *
