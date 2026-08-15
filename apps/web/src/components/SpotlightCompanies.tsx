@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Briefcase, Check, ChevronLeft, ChevronRight, Plus, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -56,6 +56,28 @@ export function SpotlightCompanies({ brands, tabs }: { brands: Brand[]; tabs: st
 
   const go = (delta: number) => setActive((i) => (i + delta + brands.length) % brands.length)
 
+  /**
+   * Vuốt để đổi thẻ trên điện thoại.
+   *
+   * Chỉ đo điểm đầu và điểm cuối chứ không kéo thẻ chạy theo ngón tay. Kéo theo
+   * ngón cần xử lý thêm quán tính và bật lại khi thả giữa chừng — nhiều việc mà
+   * người dùng gần như không phân biệt được với cách này.
+   *
+   * Ngưỡng 50px để một cú chạm hơi lệch tay không bị hiểu nhầm thành vuốt.
+   */
+  const dragFrom = useRef<number | null>(null)
+
+  const onDragStart = (e: React.PointerEvent) => {
+    dragFrom.current = e.clientX
+  }
+
+  const onDragEnd = (e: React.PointerEvent) => {
+    if (dragFrom.current === null) return
+    const delta = e.clientX - dragFrom.current
+    dragFrom.current = null
+    if (Math.abs(delta) > 50) go(delta < 0 ? 1 : -1)
+  }
+
   const toggleFollow = (name: string) =>
     setFollowed((prev) => {
       const next = new Set(prev)
@@ -104,7 +126,12 @@ export function SpotlightCompanies({ brands, tabs }: { brands: Brand[]; tabs: st
               Cách này hơn kiểu mờ-dần-tại-chỗ ở một điểm: chuyển động có hướng,
               người xem hiểu ngay là đang sang thẻ kế tiếp chứ không phải nội
               dung tự nhiên đổi. */}
-          <div className="relative overflow-hidden rounded-xl">
+          <div
+            className="slide-viewport relative overflow-hidden rounded-xl"
+            onPointerDown={onDragStart}
+            onPointerUp={onDragEnd}
+            onPointerCancel={() => (dragFrom.current = null)}
+          >
             <div
               className="slide-track flex"
               style={{ transform: `translate3d(-${active * 100}%, 0, 0)` }}

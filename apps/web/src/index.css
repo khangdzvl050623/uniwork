@@ -122,6 +122,19 @@ body {
   will-change: transform;
 }
 
+/* Khung nhìn của track. Ba dòng dưới đây chỉ cần khi có vuốt tay:
+
+   - touch-action: pan-y — nhường cử chỉ vuốt DỌC lại cho trang cuộn như bình
+     thường, chỉ giữ phần vuốt ngang. Thiếu nó thì người dùng vuốt dọc qua khối
+     này sẽ bị kẹt, tưởng trang treo.
+   - user-select: none — vuốt ngang qua chữ mà không bị bôi đen cả đoạn.
+   - tap-highlight-color — bỏ mảng xám nhấp nháy khi chạm trên Android. */
+.slide-viewport {
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* Nội dung trong thẻ hiện lần lượt chứ không ập ra cùng lúc. Mắt người đọc đi
    theo đúng thứ tự: logo, rồi tên, rồi nút bấm. */
 @keyframes stagger-up {
