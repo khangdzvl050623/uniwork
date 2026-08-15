@@ -148,14 +148,46 @@ Nguyên tắc: bảng nào chưa có luồng nghiệp vụ ghi vào thì chưa t
 
 ---
 
-## Cần BA xác nhận
+## Đã chốt
 
-Bảy điểm dưới đây tôi chọn theo phán đoán. Đây là danh sách đem ra đối chiếu khi BRD thật về:
+Hai điểm dưới đây DEV1 đã quyết, không chờ BA nữa. Ghi lại lý do ở đây để sau không ai mở lại tranh luận từ đầu.
 
-1. **Ba khung giờ (sáng / chiều / tối) có đủ không**, hay cần chia nhỏ hơn? Giao diện đang dựng theo ba khung. Đổi sang khung giờ tự do là đổi cả kiểu dữ liệu, không phải thêm giá trị enum.
-2. **Lịch rảnh có cần hiệu lực theo học kỳ không?** Hiện tôi để phẳng — một sinh viên một bộ lịch. `availableFrom`/`availableUntil` trên hồ sơ đã che được phần lớn nhu cầu.
-3. **`SEASONAL` khác `RECURRING` ở điểm nào về nghiệp vụ**, ngoài chuyện có ngày bắt đầu và kết thúc?
-4. **Tin có cần duyệt lại sau mỗi lần sửa không**, hay chỉ khi sửa các trường trọng yếu (lương, địa điểm)?
-5. **Sinh viên rút đơn được không?** Tôi có để `WITHDRAWN` trong `APPLICATION_STATUSES` — giá trị này BA đã chốt từ trước hay chỉ là dự phòng?
-6. **Loại giấy tờ xác minh** — ba loại tôi đặt (giấy phép kinh doanh, mã số thuế, CCCD) có đúng và có đủ không?
-7. **Lương thoả thuận** — có tin nào không ghi số cụ thể không? Hiện `salaryMin`/`salaryMax` bắt buộc.
+### Giữ ba khung giờ cố định, không cho nhập giờ tự do
+
+Khung giờ tự do nghe linh hoạt hơn nhưng kéo theo cả bài toán so khoảng thời gian chồng lấn, trong khi lợi ích thực tế gần như không có: ca làm của quán cà phê và lịch học của sinh viên vốn đã theo buổi.
+
+Ba khung rời rạc là thứ làm phép ghép lịch trở thành một câu JOIN. Bỏ nó đi là bỏ luôn thiết kế của toàn bộ tính năng lõi.
+
+### Lịch rảnh để phẳng, không chia theo học kỳ
+
+Hai thứ này hay bị lẫn, nên nói rõ: chúng trả lời hai câu khác nhau.
+
+| | `availableFrom` / `availableUntil` | Lịch rảnh theo học kỳ |
+|---|---|---|
+| Trả lời | Còn đi làm được **tới bao giờ** | Rảnh **giờ nào**, trong **giai đoạn nào** |
+| Số lượng | Một khoảng trên hồ sơ | Nhiều lưới, mỗi lưới một thời hạn |
+| Phục vụ | Lọc tin đòi cam kết dài | Lọc tin khớp khung giờ |
+
+Cặp `availableFrom`/`availableUntil` **không** thay thế được lịch theo học kỳ — nó không biết gì về giờ giấc. Nó chỉ trả lời "sinh viên này còn ở lại đủ lâu cho tin cam kết 6 tháng không".
+
+Vẫn chọn để phẳng, vì ba lý do:
+
+1. Thời khoá biểu đổi hai lần một năm và sinh viên sửa lưới mất 30 giây. Lưu lịch sử của thứ tự sửa được trong nửa phút là đổi rất nhiều phức tạp lấy rất ít giá trị.
+2. Không ai tìm việc cho học kỳ sau. Sinh viên tìm việc làm **bây giờ**.
+3. Chi phí nằm ở truy vấn: có học kỳ thì mọi câu ghép lịch phải kèm điều kiện ngày, cộng đống ca biên — hai lưới chồng ngày, khoảng trống giữa hai học kỳ, lưới tương lai khai rồi bỏ quên lưới hiện tại.
+
+Điểm yếu duy nhất — lưới cũ âm thầm sai khi qua học kỳ mới — chữa được **không cần đổi schema**: `availabilities.createdAt` chính là mốc sửa lưới lần cuối, vì luồng sửa lưới xoá rồi tạo lại cả bộ. Quá 3 tháng thì nhắc sinh viên xem lại.
+
+Nếu sau này BA khẳng định phải có học kỳ thật, đó vẫn là migration **bổ sung** (thêm `validFrom`/`validUntil` vào `availabilities`), không phải viết lại.
+
+---
+
+## Còn chờ BA xác nhận
+
+Năm điểm dưới đây vẫn là phán đoán. Đây là danh sách đem ra đối chiếu khi BRD thật về:
+
+1. **`SEASONAL` khác `RECURRING` ở điểm nào về nghiệp vụ**, ngoài chuyện có ngày bắt đầu và kết thúc?
+2. **Tin có cần duyệt lại sau mỗi lần sửa không**, hay chỉ khi sửa các trường trọng yếu (lương, địa điểm)?
+3. **Sinh viên rút đơn được không?** Tôi có để `WITHDRAWN` trong `APPLICATION_STATUSES` — giá trị này BA đã chốt từ trước hay chỉ là dự phòng?
+4. **Loại giấy tờ xác minh** — ba loại tôi đặt (giấy phép kinh doanh, mã số thuế, CCCD) có đúng và có đủ không?
+5. **Lương thoả thuận** — có tin nào không ghi số cụ thể không? Hiện `salaryMin`/`salaryMax` bắt buộc.
