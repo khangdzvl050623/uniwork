@@ -23,6 +23,14 @@ export interface Brand {
 const ROTATE_MS = 8000
 
 /**
+ * Số hàng tối đa mà thẻ hero được trải.
+ *
+ * 3 là con số TopCV dùng, và nó hợp lý: cao hơn nữa thì thẻ hero dài quá khung
+ * nhìn, người dùng phải cuộn mới thấy hết một thẻ quảng cáo — phản tác dụng.
+ */
+const HERO_MAX_ROWS = 3
+
+/**
  * Khối "Thương hiệu tiêu biểu": một thẻ lớn bên trái, lưới thẻ nhỏ bên phải.
  *
  * Vị trí thẻ lớn về sau là chỗ bán — doanh nghiệp trả phí để được đưa lên đây.
@@ -137,15 +145,26 @@ export function SpotlightCompanies({ brands, tabs }: { brands: Brand[]; tabs: st
             {brands.map((featured, pageIndex) => {
               const others = brands.filter((b) => b.name !== featured.name)
 
-              // Thẻ hero nằm cột 1 và trải bao nhiêu hàng thì vừa đủ chứa hết
-              // thẻ nhỏ ở hai cột còn lại. Tính ra thay vì ghi cứng, để thêm
-              // hay bớt thương hiệu thì lưới tự khớp lại.
-              const heroRows = Math.max(1, Math.ceil(others.length / 2))
+              // Lưới 3 cột. Thẻ hero nằm cột 1 và trải tối đa HERO_MAX_ROWS
+              // hàng; thẻ nhỏ lấp hai cột còn lại rồi tràn xuống dưới chiếm
+              // hết bề ngang.
+              //
+              // Phải có trần: không chặn thì thêm thương hiệu là hero cao vống
+              // lên theo, tới 20 thương hiệu là nó thành một cột dài ngoẵng.
+              const heroRows = Math.min(HERO_MAX_ROWS, Math.max(1, Math.ceil(others.length / 2)))
 
-              // Số thẻ lẻ thì hàng cuối hụt mất một ô. Cho thẻ cuối giãn ra
-              // chiếm hai cột — đó là cách lấp kín mà không phải bịa thêm dữ
-              // liệu hay chừa một ô trống nhìn như lỗi.
-              const lastFillsRow = others.length % 2 === 1
+              // Số ô nằm cạnh hero, và số thẻ phải tràn xuống dưới.
+              const beside = heroRows * 2
+              const overflow = Math.max(0, others.length - beside)
+
+              // Tổng số ô của lưới, trừ đi phần hero chiếm, ra số ô dành cho
+              // thẻ nhỏ. Chênh lệch với số thẻ thật chính là chỗ trống cuối.
+              const totalRows = heroRows + Math.ceil(overflow / 3)
+              const gap = totalRows * 3 - heroRows - others.length
+
+              // Cho thẻ cuối giãn ra lấp đúng chỗ trống đó. Lấp kín mà không
+              // phải bịa thêm dữ liệu hay chừa một ô trắng nhìn như lỗi.
+              const lastSpan = gap > 0 ? Math.min(3, gap + 1) : 1
 
               return (
                 <div key={featured.name} className="w-full shrink-0">
@@ -164,9 +183,11 @@ export function SpotlightCompanies({ brands, tabs }: { brands: Brand[]; tabs: st
                     {others.map((b, i) => (
                       <div
                         key={b.name}
-                        className={cn(
-                          lastFillsRow && i === others.length - 1 && 'lg:col-span-2',
-                        )}
+                        style={
+                          i === others.length - 1 && lastSpan > 1
+                            ? { gridColumn: `span ${lastSpan}` }
+                            : undefined
+                        }
                       >
                         <BrandCard
                           brand={b}
