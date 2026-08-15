@@ -134,39 +134,55 @@ export function SpotlightCompanies({ brands, tabs }: { brands: Brand[]; tabs: st
             className="slide-track flex"
             style={{ transform: `translate3d(-${active * 100}%, 0, 0)` }}
           >
-            {brands.map((featured, pageIndex) => (
-              <div key={featured.name} className="w-full shrink-0">
-                <div className="grid gap-4 pr-px lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
-                  <div className="overflow-hidden rounded-xl">
-                    <SpotlightCard
-                      brand={featured}
-                      following={followed.has(featured.name)}
-                      onFollow={() => toggleFollow(featured.name)}
-                    />
-                  </div>
+            {brands.map((featured, pageIndex) => {
+              const others = brands.filter((b) => b.name !== featured.name)
 
-                  {/* content-start để các thẻ bám mép trên thay vì giãn đều cho
-                      kín chiều cao thẻ hero — trang nào ít thương hiệu hơn cũng
-                      không bị kéo giãn méo mó. */}
-                  <div className="grid content-start gap-3 sm:grid-cols-2">
-                    {brands
-                      .filter((b) => b.name !== featured.name)
-                      .map((b) => (
+              // Thẻ hero nằm cột 1 và trải bao nhiêu hàng thì vừa đủ chứa hết
+              // thẻ nhỏ ở hai cột còn lại. Tính ra thay vì ghi cứng, để thêm
+              // hay bớt thương hiệu thì lưới tự khớp lại.
+              const heroRows = Math.max(1, Math.ceil(others.length / 2))
+
+              // Số thẻ lẻ thì hàng cuối hụt mất một ô. Cho thẻ cuối giãn ra
+              // chiếm hai cột — đó là cách lấp kín mà không phải bịa thêm dữ
+              // liệu hay chừa một ô trống nhìn như lỗi.
+              const lastFillsRow = others.length % 2 === 1
+
+              return (
+                <div key={featured.name} className="w-full shrink-0">
+                  <div className="grid gap-3 pr-px lg:grid-cols-3">
+                    <div
+                      className="overflow-hidden rounded-xl lg:col-start-1"
+                      style={{ gridRow: `span ${heroRows}` }}
+                    >
+                      <SpotlightCard
+                        brand={featured}
+                        following={followed.has(featured.name)}
+                        onFollow={() => toggleFollow(featured.name)}
+                      />
+                    </div>
+
+                    {others.map((b, i) => (
+                      <div
+                        key={b.name}
+                        className={cn(
+                          lastFillsRow && i === others.length - 1 && 'lg:col-span-2',
+                        )}
+                      >
                         <BrandCard
-                          key={b.name}
                           brand={b}
                           following={followed.has(b.name)}
                           onSelect={() => setActive(brands.indexOf(b))}
                           onFollow={() => toggleFollow(b.name)}
                         />
-                      ))}
+                      </div>
+                    ))}
                   </div>
+                  <span className="sr-only">
+                    Trang {pageIndex + 1} trên {brands.length}
+                  </span>
                 </div>
-                <span className="sr-only">
-                  Trang {pageIndex + 1} trên {brands.length}
-                </span>
-              </div>
-            ))}
+              )
+            })}
           </div>
         </div>
 
@@ -304,7 +320,7 @@ function SpotlightCard({
   onFollow: () => void
 }) {
   return (
-    <div className="relative flex min-h-[500px] flex-col items-center justify-center overflow-hidden p-6 text-center text-white">
+    <div className="relative flex h-full min-h-[420px] flex-col items-center justify-center overflow-hidden p-6 text-center text-white">
       {/* Nền nâu sepia CỐ ĐỊNH cho mọi thương hiệu, không đổi màu theo từng bên.
           Lý do: logo mỗi công ty một màu, nền cũng đổi màu theo thì hai thứ đá
           nhau và cả khối trông chắp vá. Nền tối đứng yên làm logo nổi lên. */}
@@ -370,7 +386,9 @@ function BrandCard({
       className={cn(
         // Viền vàng nhạt thay vì xám: cả khối này thuộc gói Pro, viền vàng buộc
         // chúng thành một nhóm và tách khỏi các thẻ thường ở phần trên trang.
-        'card-lift cursor-pointer rounded-xl border border-accent-100 p-3 transition-colors',
+        // h-full để thẻ giãn kín ô lưới. Thiếu nó thì thẻ chỉ cao bằng nội dung
+        // và hàng nào có tên công ty dài hai dòng sẽ cao hơn hẳn hàng bên cạnh.
+        'card-lift flex h-full cursor-pointer flex-col justify-between rounded-xl border border-accent-100 p-3 transition-colors',
         'hover:border-accent-400',
       )}
     >
