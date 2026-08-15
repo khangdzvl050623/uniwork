@@ -43,6 +43,60 @@ body {
 /* ---------------------------------------------------------------- nền ---- */
 
 /* Xanh đậm phủ hai vệt sáng — dùng cho hero và các dải nhấn */
+/* Nền khối hero: hai lớp gradient chồng lên nhau.
+   Lớp dưới đi ngang từ xanh đậm sang xanh tươi, lớp trên phủ tối dần từ trên
+   xuống. Một gradient đơn không tạo được chiều sâu này — chồng hai lớp mới cho
+   cảm giác ánh sáng hắt từ dưới lên. */
+.hero-bg {
+  background:
+    linear-gradient(180deg, var(--color-brand-950), rgb(1 47 21 / 0.25)),
+    linear-gradient(90deg, var(--color-brand-800) 22%, var(--color-brand-500) 78%);
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+}
+
+/* Lưới hero, cùng cấu trúc vùng với TopCV.
+   Đặt tên vùng thay vì đếm cột: đọc phát hiểu ngay khối nào nằm đâu, và đổi bố
+   cục ở màn hình nhỏ chỉ là viết lại mấy dòng tên vùng. */
+.hero-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-areas:
+    'search'
+    'keyword'
+    'category'
+    'banner'
+    'jobs';
+}
+
+@media (min-width: 1024px) {
+  .hero-grid {
+    grid-template-areas:
+      'search search'
+      'keyword keyword'
+      'category banner'
+      'category jobs';
+    grid-template-columns: 1fr 3fr;
+    grid-template-rows: auto auto 1fr auto;
+  }
+}
+
+.area-search {
+  grid-area: search;
+}
+.area-keyword {
+  grid-area: keyword;
+}
+.area-category {
+  grid-area: category;
+}
+.area-banner {
+  grid-area: banner;
+}
+.area-jobs {
+  grid-area: jobs;
+}
+
 .bg-brand-deep {
   background-color: var(--color-brand-950);
   background-image:
@@ -93,6 +147,92 @@ body {
   animation: reveal-up 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
+@keyframes spotlight-in {
+  from {
+    opacity: 0;
+    transform: scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Chuyển cảnh khi thẻ nổi bật đổi sang thương hiệu khác. */
+.spotlight-in {
+  animation: spotlight-in 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Hàng thẻ trượt ngang, cùng nguyên lý với slick-slider: mọi thẻ nằm cạnh nhau
+   trên một hàng dài, đổi thẻ là dịch cả hàng.
+
+   Dùng transform chứ không phải `left`: transform chạy trên GPU nên mượt kể cả
+   trên máy yếu, còn đổi `left` bắt trình duyệt tính lại bố cục từng khung hình.
+
+   0.7 giây với đường cong chậm dần ở cuối — đủ chậm để mắt bám theo được hướng
+   trượt, đủ nhanh để không ai phải chờ. */
+.slide-track {
+  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
+/* Khung nhìn của track. Ba dòng dưới đây chỉ cần khi có vuốt tay:
+
+   - touch-action: pan-y — nhường cử chỉ vuốt DỌC lại cho trang cuộn như bình
+     thường, chỉ giữ phần vuốt ngang. Thiếu nó thì người dùng vuốt dọc qua khối
+     này sẽ bị kẹt, tưởng trang treo.
+   - user-select: none — vuốt ngang qua chữ mà không bị bôi đen cả đoạn.
+   - tap-highlight-color — bỏ mảng xám nhấp nháy khi chạm trên Android. */
+.slide-viewport {
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Nội dung trong thẻ hiện lần lượt chứ không ập ra cùng lúc. Mắt người đọc đi
+   theo đúng thứ tự: logo, rồi tên, rồi nút bấm. */
+@keyframes stagger-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.stagger-1,
+.stagger-2,
+.stagger-3 {
+  animation: stagger-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.stagger-1 {
+  animation-delay: 0.1s;
+}
+.stagger-2 {
+  animation-delay: 0.2s;
+}
+.stagger-3 {
+  animation-delay: 0.32s;
+}
+
+/* Nền phóng rất chậm. Khối đứng yên hoàn toàn trong 8 giây trông như ảnh tĩnh;
+   chuyển động nhỏ này đủ để thấy nó còn "sống" mà không ai để ý là đang chạy. */
+@keyframes ken-burns {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.12);
+  }
+}
+
+.ken-burns {
+  animation: ken-burns 9s ease-out forwards;
+}
+
+
 @media (prefers-reduced-motion: reduce) {
   .reveal,
   .reveal.is-visible {
@@ -101,6 +241,18 @@ body {
   }
   .card-lift:hover {
     transform: none;
+  }
+  .spotlight-in,
+  .stagger-1,
+  .stagger-2,
+  .stagger-3,
+  .ken-burns {
+    animation: none;
+  }
+
+  /* Track vẫn dịch sang thẻ đúng, chỉ bỏ phần trượt — nhảy thẳng tới nơi. */
+  .slide-track {
+    transition: none;
   }
 }
 
