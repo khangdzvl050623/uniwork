@@ -183,9 +183,15 @@ body {
   .stagger-1,
   .stagger-2,
   .stagger-3,
-  .ken-burns,
-  .progress-fill {
+  .ken-burns {
     animation: none;
+  }
+
+  /* Thanh tiến trình chỉ có nghĩa khi nó chạy. Để nguyên với animation:none
+     thì nó về bề rộng tự nhiên là 100% và đứng im — trông y như một thanh
+     đang treo. Ẩn hẳn còn hơn. */
+  .progress-fill {
+    display: none;
   }
 }
 
