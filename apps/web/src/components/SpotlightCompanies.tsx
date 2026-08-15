@@ -223,17 +223,6 @@ export function SpotlightCompanies({ brands, tabs }: { brands: Brand[]; tabs: st
             ))}
           </div>
 
-          {/* Thanh tiến trình cho biết còn bao lâu nữa sang trang. Không có nó,
-              việc khối tự đổi trông như trang bị lỗi. key={active} ép dựng lại
-              mỗi lần sang trang để hoạt ảnh chạy lại từ 0. */}
-          <div className="mx-2 h-1 flex-1 overflow-hidden rounded-full bg-slate-100">
-            <div
-              key={active}
-              className={cn('progress-fill h-full bg-accent-400', paused && 'is-paused')}
-              style={{ animationDuration: `${ROTATE_MS}ms` }}
-            />
-          </div>
-
           <div className="flex gap-2">
             <ArrowButton label="Trang trước" onClick={() => go(-1)}>
               <ChevronLeft size={16} />

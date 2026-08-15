@@ -232,23 +232,6 @@ body {
   animation: ken-burns 9s ease-out forwards;
 }
 
-/* Thanh chạy cho biết còn bao lâu nữa đổi thẻ. Thời lượng do JS truyền vào để
-   luôn khớp với chu kỳ xoay thật, không phải chép tay hai chỗ. */
-@keyframes progress-fill {
-  from {
-    width: 0%;
-  }
-  to {
-    width: 100%;
-  }
-}
-
-.progress-fill {
-  animation: progress-fill linear forwards;
-}
-.progress-fill.is-paused {
-  animation-play-state: paused;
-}
 
 @media (prefers-reduced-motion: reduce) {
   .reveal,
@@ -270,13 +253,6 @@ body {
   /* Track vẫn dịch sang thẻ đúng, chỉ bỏ phần trượt — nhảy thẳng tới nơi. */
   .slide-track {
     transition: none;
-  }
-
-  /* Thanh tiến trình chỉ có nghĩa khi nó chạy. Để nguyên với animation:none
-     thì nó về bề rộng tự nhiên là 100% và đứng im — trông y như một thanh
-     đang treo. Ẩn hẳn còn hơn. */
-  .progress-fill {
-    display: none;
   }
 }
 
