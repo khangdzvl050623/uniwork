@@ -218,23 +218,23 @@ export function SpotlightCompanies({ brands, tabs }: { brands: Brand[]; tabs: st
  */
 function BannerHeader({ brands }: { brands: Brand[] }) {
   return (
-    <div className="relative overflow-hidden rounded-t-2xl bg-gradient-to-r from-[#f7e7b8] via-[#f0d488] to-[#e6bd5c] px-6 py-6">
-      {/* Collage logo mờ dần về bên phải, nhắc tới ý "hàng trăm thương hiệu". */}
+    <div className="relative overflow-hidden rounded-t-2xl bg-[#2b2119] px-6 py-7">
+      {/* Collage logo phủ nửa phải, làm mờ để không tranh chỗ với chữ. */}
       <div
-        className="absolute inset-y-0 right-0 hidden w-1/2 items-center gap-3 overflow-hidden pl-8 md:flex"
+        className="absolute inset-y-0 right-0 hidden w-3/5 flex-wrap content-center items-center gap-3 overflow-hidden pl-10 md:flex"
         aria-hidden
       >
-        {[...brands, ...brands].slice(0, 9).map((b, i) => (
+        {[...brands, ...brands, ...brands].slice(0, 14).map((b, i) => (
           <span
             key={`${b.name}-${i}`}
             className={cn(
-              'grid h-14 w-14 shrink-0 place-items-center rounded-xl text-lg font-bold text-white/90 opacity-35 shadow-lg',
+              'grid h-16 w-16 shrink-0 place-items-center rounded-2xl text-xl font-bold text-white opacity-45 shadow-xl',
               b.color,
             )}
             style={{
-              // Nghiêng và lệch dọc xen kẽ để trông như ảnh chụp một chồng thẻ,
-              // thay vì một hàng đều tăm tắp.
-              transform: `rotate(${i % 2 ? 6 : -5}deg) translateY(${i % 3 === 0 ? -10 : 8}px)`,
+              // Nghiêng và lệch dọc xen kẽ để trông như một chồng thẻ chụp
+              // nghiêng, thay vì một hàng xếp đều tăm tắp.
+              transform: `rotate(${i % 2 ? 7 : -6}deg) translateY(${i % 3 === 0 ? -12 : 10}px)`,
             }}
           >
             {b.initial}
@@ -242,23 +242,27 @@ function BannerHeader({ brands }: { brands: Brand[] }) {
         ))}
       </div>
 
-      {/* Lớp phủ kéo từ trái sang, giữ nền phía sau chữ đủ sáng và đều màu để
-          chữ xanh đậm luôn đọc rõ, kể cả khi collage phía sau đổi theo dữ liệu. */}
-      <div className="absolute inset-0 bg-gradient-to-r from-[#f7e7b8] via-[#f7e7b8]/90 to-transparent" />
+      {/* Vệt sáng chéo cắt ngang giữa băng — chi tiết làm nền bớt phẳng. */}
+      <div className="absolute inset-y-[-40%] left-[38%] w-24 rotate-12 bg-gradient-to-r from-transparent via-white/25 to-transparent blur-md" />
 
-      <div className="relative">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <h2 className="text-xl font-extrabold text-[#0e4a2c] md:text-2xl">
+      {/* Lớp phủ tối kéo từ trái sang, giữ vùng sau chữ đủ tối để chữ luôn đọc
+          được dù collage phía sau đổi theo dữ liệu. */}
+      <div className="absolute inset-0 bg-gradient-to-r from-[#2b2119] via-[#2b2119]/92 to-transparent" />
+
+      <div className="relative flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-extrabold tracking-tight text-[#0e4a2c] md:text-[28px]">
             Thương hiệu lớn tiêu biểu
           </h2>
-          <span className="inline-flex items-center gap-1 rounded-full bg-[#0e4a2c] px-3 py-1 text-sm font-bold text-[#f0d488] shadow-sm">
-            <Sparkles size={13} />
-            Pro Company
-          </span>
+          <p className="mt-2 max-w-xl text-sm font-semibold text-white md:text-[15px]">
+            Hàng trăm thương hiệu lớn tiêu biểu đang tuyển dụng trên UniWork Pro
+          </p>
         </div>
-        <p className="mt-2 max-w-xl text-sm font-semibold text-[#0e4a2c]/75">
-          Hàng trăm thương hiệu lớn tiêu biểu đang tuyển dụng trên UniWork Pro
-        </p>
+
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-b from-[#fbd46a] to-[#e0a52e] px-6 py-3 text-base font-bold text-[#2b2119] shadow-lg">
+          <Sparkles size={16} />
+          Pro Company
+        </span>
       </div>
     </div>
   )
