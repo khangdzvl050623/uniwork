@@ -70,24 +70,7 @@ export function SpotlightCompanies({ brands, tabs }: { brands: Brand[]; tabs: st
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
     >
-      {/* ---------------------------------------------------------- BĂNG ĐẦU */}
-      <div className="relative overflow-hidden rounded-t-2xl bg-gradient-to-r from-accent-600 via-accent-500 to-accent-400 px-6 py-5">
-        <div className="pattern-hex absolute inset-0 opacity-20" />
-        <div className="relative flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-extrabold text-white drop-shadow-sm">
-              Thương hiệu tiêu biểu
-            </h2>
-            <p className="mt-1 text-sm text-white/85">
-              Doanh nghiệp đã xác minh giấy tờ, đang tuyển sinh viên
-            </p>
-          </div>
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-sm font-bold text-accent-600 shadow-sm">
-            <Sparkles size={14} />
-            Nổi bật
-          </span>
-        </div>
-      </div>
+      <BannerHeader brands={brands} />
 
       <div className="rounded-b-2xl border border-t-0 border-slate-200 bg-white p-4">
         {/* ------------------------------------------------------ TAB NGÀNH */}
@@ -157,6 +140,64 @@ export function SpotlightCompanies({ brands, tabs }: { brands: Brand[]; tabs: st
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Băng đầu khối.
+ *
+ * Nền dựng hoàn toàn bằng CSS chứ không dùng file ảnh: nhẹ hơn, không thêm một
+ * request mạng, và tự co giãn đúng ở mọi bề rộng màn hình thay vì bị cắt cụt
+ * như ảnh có tỉ lệ cố định.
+ *
+ * Phần trang trí bên phải là chính các thương hiệu trong dữ liệu, xếp nghiêng
+ * và làm mờ. Nhờ vậy băng này luôn phản ánh nội dung thật bên dưới — thêm một
+ * thương hiệu vào danh sách là băng tự đổi theo.
+ */
+function BannerHeader({ brands }: { brands: Brand[] }) {
+  return (
+    <div className="relative overflow-hidden rounded-t-2xl bg-gradient-to-r from-[#2a1f07] via-[#4a3510] to-[#7a5a16] px-6 py-6">
+      {/* Collage logo mờ dần về bên phải, nhắc tới ý "hàng trăm thương hiệu". */}
+      <div
+        className="absolute inset-y-0 right-0 hidden w-1/2 items-center gap-3 overflow-hidden pl-8 md:flex"
+        aria-hidden
+      >
+        {[...brands, ...brands].slice(0, 9).map((b, i) => (
+          <span
+            key={`${b.name}-${i}`}
+            className={cn(
+              'grid h-14 w-14 shrink-0 place-items-center rounded-xl text-lg font-bold text-white/90 opacity-35 shadow-lg',
+              b.color,
+            )}
+            style={{
+              // Nghiêng và lệch dọc xen kẽ để trông như ảnh chụp một chồng thẻ,
+              // thay vì một hàng đều tăm tắp.
+              transform: `rotate(${i % 2 ? 6 : -5}deg) translateY(${i % 3 === 0 ? -10 : 8}px)`,
+            }}
+          >
+            {b.initial}
+          </span>
+        ))}
+      </div>
+
+      {/* Lớp phủ kéo từ trái sang, giữ cho chữ luôn nằm trên nền tối và đọc rõ. */}
+      <div className="absolute inset-0 bg-gradient-to-r from-[#2a1f07] via-[#2a1f07]/85 to-transparent" />
+
+      <div className="relative">
+        <div className="flex flex-wrap items-center gap-2.5">
+          <h2 className="text-xl font-extrabold text-brand-400 md:text-2xl">
+            Thương hiệu lớn tiêu biểu
+          </h2>
+          <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-accent-400 to-accent-500 px-3 py-1 text-sm font-bold text-[#2a1f07] shadow-sm">
+            <Sparkles size={13} />
+            Pro Company
+          </span>
+        </div>
+        <p className="mt-2 max-w-xl text-sm font-medium text-white/90">
+          Hàng trăm thương hiệu lớn tiêu biểu đang tuyển dụng trên UniWork Pro
+        </p>
       </div>
     </div>
   )
