@@ -109,6 +109,19 @@ body {
   animation: spotlight-in 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+/* Hàng thẻ trượt ngang, cùng nguyên lý với slick-slider: mọi thẻ nằm cạnh nhau
+   trên một hàng dài, đổi thẻ là dịch cả hàng.
+
+   Dùng transform chứ không phải `left`: transform chạy trên GPU nên mượt kể cả
+   trên máy yếu, còn đổi `left` bắt trình duyệt tính lại bố cục từng khung hình.
+
+   0.7 giây với đường cong chậm dần ở cuối — đủ chậm để mắt bám theo được hướng
+   trượt, đủ nhanh để không ai phải chờ. */
+.slide-track {
+  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+
 /* Nội dung trong thẻ hiện lần lượt chứ không ập ra cùng lúc. Mắt người đọc đi
    theo đúng thứ tự: logo, rồi tên, rồi nút bấm. */
 @keyframes stagger-up {
@@ -185,6 +198,11 @@ body {
   .stagger-3,
   .ken-burns {
     animation: none;
+  }
+
+  /* Track vẫn dịch sang thẻ đúng, chỉ bỏ phần trượt — nhảy thẳng tới nơi. */
+  .slide-track {
+    transition: none;
   }
 
   /* Thanh tiến trình chỉ có nghĩa khi nó chạy. Để nguyên với animation:none

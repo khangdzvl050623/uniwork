@@ -96,16 +96,41 @@ export function SpotlightCompanies({ brands, tabs }: { brands: Brand[]; tabs: st
         </div>
 
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
-          <SpotlightCard
-            // key nằm ở đây chứ không phải trên thẻ div bên trong component.
-            // Đặt ở đúng chỗ này thì React chắc chắn dựng lại cả component mỗi
-            // lần đổi thương hiệu, nhờ vậy mọi animation chạy lại từ đầu.
-            key={spotlight.name}
-            brand={spotlight}
-            following={followed.has(spotlight.name)}
-            onFollow={() => toggleFollow(spotlight.name)}
-            paused={paused}
-          />
+          {/* Track trượt ngang, cùng nguyên lý với slick-slider.
+              Mọi thẻ nằm cạnh nhau trên một hàng dài; đổi thương hiệu là dịch
+              cả hàng sang trái đúng một bề rộng thẻ. Khung ngoài overflow-hidden
+              nên chỉ thấy đúng một thẻ tại mỗi thời điểm.
+
+              Cách này hơn kiểu mờ-dần-tại-chỗ ở một điểm: chuyển động có hướng,
+              người xem hiểu ngay là đang sang thẻ kế tiếp chứ không phải nội
+              dung tự nhiên đổi. */}
+          <div className="relative overflow-hidden rounded-xl">
+            <div
+              className="slide-track flex"
+              style={{ transform: `translate3d(-${active * 100}%, 0, 0)` }}
+            >
+              {brands.map((b) => (
+                <div key={b.name} className="w-full shrink-0">
+                  <SpotlightCard
+                    brand={b}
+                    following={followed.has(b.name)}
+                    onFollow={() => toggleFollow(b.name)}
+                  />
+                </div>
+              ))}
+            </div>
+
+            {/* Thanh tiến trình nằm NGOÀI track nên nó đứng yên khi track trượt.
+                key={active} ép React dựng lại mỗi lần đổi thẻ, nhờ vậy hoạt ảnh
+                chạy lại từ 0 thay vì tiếp tục từ chỗ dở. */}
+            <div className="absolute inset-x-0 bottom-0 h-1 bg-white/20">
+              <div
+                key={active}
+                className={cn('progress-fill h-full bg-accent-400', paused && 'is-paused')}
+                style={{ animationDuration: `${ROTATE_MS}ms` }}
+              />
+            </div>
+          </div>
 
           <div className="flex flex-col">
             <div className="grid gap-3 sm:grid-cols-2">
@@ -166,7 +191,7 @@ export function SpotlightCompanies({ brands, tabs }: { brands: Brand[]; tabs: st
  */
 function BannerHeader({ brands }: { brands: Brand[] }) {
   return (
-    <div className="relative overflow-hidden rounded-t-2xl bg-gradient-to-r from-[#2a1f07] via-[#4a3510] to-[#7a5a16] px-6 py-6">
+    <div className="relative overflow-hidden rounded-t-2xl bg-gradient-to-r from-[#f7e7b8] via-[#f0d488] to-[#e6bd5c] px-6 py-6">
       {/* Collage logo mờ dần về bên phải, nhắc tới ý "hàng trăm thương hiệu". */}
       <div
         className="absolute inset-y-0 right-0 hidden w-1/2 items-center gap-3 overflow-hidden pl-8 md:flex"
@@ -190,20 +215,21 @@ function BannerHeader({ brands }: { brands: Brand[] }) {
         ))}
       </div>
 
-      {/* Lớp phủ kéo từ trái sang, giữ cho chữ luôn nằm trên nền tối và đọc rõ. */}
-      <div className="absolute inset-0 bg-gradient-to-r from-[#2a1f07] via-[#2a1f07]/85 to-transparent" />
+      {/* Lớp phủ kéo từ trái sang, giữ nền phía sau chữ đủ sáng và đều màu để
+          chữ xanh đậm luôn đọc rõ, kể cả khi collage phía sau đổi theo dữ liệu. */}
+      <div className="absolute inset-0 bg-gradient-to-r from-[#f7e7b8] via-[#f7e7b8]/90 to-transparent" />
 
       <div className="relative">
         <div className="flex flex-wrap items-center gap-2.5">
-          <h2 className="text-xl font-extrabold text-brand-400 md:text-2xl">
+          <h2 className="text-xl font-extrabold text-[#0e4a2c] md:text-2xl">
             Thương hiệu lớn tiêu biểu
           </h2>
-          <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-accent-400 to-accent-500 px-3 py-1 text-sm font-bold text-[#2a1f07] shadow-sm">
+          <span className="inline-flex items-center gap-1 rounded-full bg-[#0e4a2c] px-3 py-1 text-sm font-bold text-[#f0d488] shadow-sm">
             <Sparkles size={13} />
             Pro Company
           </span>
         </div>
-        <p className="mt-2 max-w-xl text-sm font-medium text-white/90">
+        <p className="mt-2 max-w-xl text-sm font-semibold text-[#0e4a2c]/75">
           Hàng trăm thương hiệu lớn tiêu biểu đang tuyển dụng trên UniWork Pro
         </p>
       </div>
@@ -235,15 +261,13 @@ function SpotlightCard({
   brand,
   following,
   onFollow,
-  paused,
 }: {
   brand: Brand
   following: boolean
   onFollow: () => void
-  paused: boolean
 }) {
   return (
-    <div className="spotlight-in relative flex min-h-[340px] flex-col justify-between overflow-hidden rounded-xl p-6 text-white">
+    <div className="relative flex min-h-[340px] flex-col justify-between overflow-hidden p-6 text-white">
       {/* Nền tách riêng khỏi nội dung để phóng chậm được mà chữ vẫn đứng yên.
           Màu đặc thôi thì phóng to không nhìn thấy gì — phải có vệt sáng và hoa
           văn bên trong mới thấy được chuyển động. */}
@@ -279,16 +303,6 @@ function SpotlightCard({
           </Link>
           <FollowButton following={following} onClick={onFollow} tone="light" />
         </div>
-      </div>
-
-      {/* Thanh tiến trình cho biết bao lâu nữa đổi sang thương hiệu khác. Không
-          có nó, việc khối tự đổi trông như trang bị lỗi. Dừng cùng lúc với vòng
-          xoay khi con trỏ vào khối. */}
-      <div className="absolute inset-x-0 bottom-0 h-1 bg-white/20">
-        <div
-          className={cn('progress-fill h-full bg-accent-400', paused && 'is-paused')}
-          style={{ animationDuration: `${ROTATE_MS}ms` }}
-        />
       </div>
     </div>
   )
