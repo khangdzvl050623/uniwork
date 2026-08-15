@@ -1,0 +1,193 @@
+# BRD ước lượng — bản dựng tạm cho T29
+
+**Trạng thái:** bản nháp do DEV1 tự dựng, **chưa qua BA**.
+
+Bảng phụ thuộc trong [sprint-0.md](sprint-0.md) đã lường trước tình huống này: *"T29 chờ T17, T18, T19 — BRD trễ thì schema phải dựng theo phỏng đoán, Sprint 1 làm lại"*. Tài liệu này là phần "phỏng đoán" đó, viết ra thành văn bản thay vì để trong đầu, để khi BA bàn giao BRD thật thì có thứ cụ thể mà đối chiếu — lệch chỗ nào sửa chỗ đó, chứ không phải đọc lại toàn bộ schema để đoán xem mình đã nghĩ gì.
+
+## Suy ra từ đâu
+
+Không bịa. Mỗi trường trong schema đều truy ngược được về một trong bốn nguồn đã có trong repo:
+
+| Nguồn | Cho ta biết |
+|---|---|
+| [gioi-thieu-du-an.md](gioi-thieu-du-an.md) | Ba nhóm chức năng, khác biệt lõi là ghép theo lịch rảnh |
+| [packages/shared/src/domain.ts](../packages/shared/src/domain.ts) | Bộ giá trị cố định đã chốt: `ROLES`, `SCHEDULE_TYPES`, `JOB_STATUSES`, `APPLICATION_STATUSES`, `DayOfWeek` |
+| [apps/web/src/pages/PostJob.tsx](../apps/web/src/pages/PostJob.tsx) | Form đăng tin đã dựng — chính là danh sách trường của module Đăng tin |
+| [apps/web/src/data/mock.ts](../apps/web/src/data/mock.ts) | Hình dạng dữ liệu giao diện đang bind vào |
+
+`JOB_STATUSES` và `APPLICATION_STATUSES` trong `domain.ts` hiện chưa chỗ nào dùng. Chúng được khai sẵn từ Sprint 0 như từ vựng dự kiến — T29 là lúc chúng có bảng thật để gắn vào.
+
+---
+
+## Module 1 — Auth (ước lượng T17)
+
+### Trường dữ liệu
+
+| Bảng | Trường | Ghi chú |
+|---|---|---|
+| `users` | email, passwordHash, role, status, emailVerifiedAt | Đã có từ T13 |
+| `refresh_tokens` | userId, tokenHash, expiresAt, revokedAt, userAgent, ip | Mới |
+| `auth_tokens` | userId, tokenHash, type, expiresAt, usedAt | Mới — xác thực email và đặt lại mật khẩu dùng chung một bảng |
+
+Ba quyết định đáng nói:
+
+**Lưu `tokenHash` chứ không lưu token.** Refresh token là thứ đăng nhập được. Để nguyên trong database nghĩa là ai đọc được database thì đăng nhập được bằng tài khoản bất kỳ — đúng thứ ta đã tránh khi băm mật khẩu, không có lý do gì bỏ qua ở đây.
+
+**Có hàng riêng cho từng refresh token, không phải một cột trên `users`.** Nhờ vậy mới đăng nhập được nhiều thiết bị, và mới có màn hình "đăng xuất khỏi thiết bị khác" ở Sprint 6. Cột `revokedAt` cho phép thu hồi mà vẫn giữ lại vết.
+
+**Email xác thực và đặt lại mật khẩu dùng chung một bảng**, phân biệt bằng cột `type`. Hai luồng này giống hệt nhau về cơ chế: sinh chuỗi ngẫu nhiên, gửi mail, hết hạn sau N phút, dùng một lần. Tách hai bảng chỉ để copy y nguyên cấu trúc là nhân đôi chỗ phải sửa.
+
+### Luồng chính
+
+```
+Đăng ký → tạo user (emailVerifiedAt = null) → gửi mail xác thực
+        → bấm link → emailVerifiedAt = now
+Đăng nhập → kiểm mật khẩu → phát access token (15 phút) + refresh token (30 ngày)
+Làm mới → đổi refresh token cũ lấy cặp mới, đánh dấu cái cũ revokedAt
+```
+
+### Lỗi và ngoại lệ
+
+| Tình huống | Xử lý |
+|---|---|
+| Email đã tồn tại | 409, không tiết lộ tài khoản đó vai trò gì |
+| Sai mật khẩu | 401, thông báo chung "email hoặc mật khẩu không đúng" |
+| Chưa xác thực email | Đăng nhập được nhưng chặn ứng tuyển và đăng tin |
+| `status = SUSPENDED` | 403, mọi refresh token bị thu hồi |
+| Refresh token đã dùng lại lần hai | Dấu hiệu bị đánh cắp — thu hồi toàn bộ token của user đó |
+
+---
+
+## Module 2 — Đăng tin (ước lượng T18)
+
+### Trường dữ liệu
+
+Đọc thẳng từ form [PostJob.tsx](../apps/web/src/pages/PostJob.tsx):
+
+| Nhóm | Trường |
+|---|---|
+| Cơ bản | title, description, requirements[], benefits[], city, district, quantity |
+| Thời gian | scheduleType, commitmentMonths, minShiftsPerWeek, startDate, endDate, workDate + lưới ca làm |
+| Lương và kỹ năng | salaryMin, salaryMax, salaryUnit, kỹ năng yêu cầu, deadline |
+| Vòng đời | status, publishedAt, closedAt, rejectionReason, viewCount |
+
+Ba trường ngày (`startDate`, `endDate`, `workDate`) loại trừ nhau theo `scheduleType` — form đã hiện đúng như vậy, mỗi loại một nhóm ô khác nhau. Ở tầng database chúng đều để `null` được; ràng buộc "thời vụ thì phải có ngày bắt đầu" thuộc về Zod ở tầng service, vì nó là luật nghiệp vụ có thể đổi, không phải bất biến cấu trúc.
+
+### Giấy tờ xác minh
+
+Mục T18 yêu cầu rõ phần này. Bảng `employer_documents`: mỗi giấy tờ một hàng, có `type` (giấy phép kinh doanh / mã số thuế / CCCD người đại diện), `fileUrl` trỏ Cloudinary, `status` và `reviewNote` của admin.
+
+Cột `verifiedAt` sẵn có trên `employer_profiles` giữ nguyên vai trò kết luận cuối: có giấy tờ được duyệt thì admin đặt mốc này, và đây là thứ quyết định tin có được hiện công khai hay không. Bảng giấy tờ là hồ sơ chứng minh, không phải cờ điều khiển.
+
+### Luồng chính
+
+```
+DRAFT → (gửi duyệt) → PENDING → (admin duyệt)  → OPEN → (hết hạn / đủ người) → CLOSED
+                              → (admin từ chối) → DRAFT + rejectionReason
+```
+
+### Lỗi và ngoại lệ
+
+| Tình huống | Xử lý |
+|---|---|
+| Nhà tuyển dụng chưa có `verifiedAt` | Lưu nháp được, gửi duyệt thì 403 |
+| `salaryMin > salaryMax` | 422 |
+| Không chọn ca làm nào | 422 — thiếu ca thì tin không lọc theo lịch được, mất luôn tính năng lõi |
+| `deadline` trong quá khứ | 422 |
+| Sửa tin đang `OPEN` | Quay lại `PENDING`, phải duyệt lại |
+
+---
+
+## Module 3 — Tìm kiếm việc (ước lượng T19)
+
+### Trường dữ liệu
+
+Bộ lọc đọc từ [FilterSidebar.tsx](../apps/web/src/components/FilterSidebar.tsx): khu vực, loại thời gian, mức lương theo giờ, kỹ năng, cam kết tối thiểu, và ô quan trọng nhất — **chỉ hiện việc khớp lịch rảnh**.
+
+Ô đó cần một bảng mà hiện chưa có: `availabilities` — mỗi ô sinh viên tô trong lưới 7 ngày × 3 khung giờ là một hàng.
+
+### Cách ghép lịch
+
+Lịch rảnh của sinh viên và ca làm của tin dùng **chung một cấu trúc**: `(dayOfWeek, slot)`. Ghép hai bên chỉ là phép giao tập hợp, không cần thuật toán gì.
+
+```sql
+-- Tin nào có ít nhất một ca nằm trong lịch rảnh của sinh viên
+job_shifts JOIN availabilities USING (day_of_week, slot)
+```
+
+Đây là lý do `Availability` và `JobShift` cố tình giống hệt nhau về cột. Nhìn qua tưởng lặp, nhưng chúng là hai thực thể khác nhau — một cái mô tả người, một cái mô tả việc — và việc chúng cùng hình dạng chính là thứ làm bộ lọc chạy được bằng một câu JOIN.
+
+### Điểm phù hợp
+
+Công thức đã ghi trong [JobCard.tsx](../apps/web/src/components/JobCard.tsx): kỹ năng khớp + ca khớp + mức đáp ứng cam kết.
+
+Điểm này **tính lúc chạy, không lưu trên `jobs`** — nó phụ thuộc vào người đang xem, cùng một tin cho ra điểm khác nhau với hai sinh viên khác nhau. Chỗ duy nhất nó được lưu là cột `matchScore` trên `applications`: đóng băng điểm tại thời điểm ứng tuyển, để nhà tuyển dụng xem lại vẫn thấy đúng con số hồi đó, kể cả khi sinh viên đã đổi lịch rảnh từ lâu.
+
+### Lỗi và ngoại lệ
+
+| Tình huống | Xử lý |
+|---|---|
+| Sinh viên chưa khai lịch rảnh | Bật lọc theo lịch thì trả rỗng kèm gợi ý đi khai lịch, không phải danh sách trống không lời giải thích |
+| Ứng tuyển hai lần cùng một tin | Chặn ở tầng database bằng `@@unique([jobId, studentProfileId])` |
+| Ứng tuyển tin đã `CLOSED` | 409 |
+| Tin bị gỡ sau khi đã ứng tuyển | Đơn giữ nguyên, sinh viên vẫn xem được trạng thái |
+
+---
+
+## Cắt khỏi phạm vi T29
+
+Ba thứ **cố ý không đưa vào** đợt migration này:
+
+| Bỏ qua | Lý do |
+|---|---|
+| `notifications` | Thuộc Sprint 5. Không có gì trong ba BRD chạm tới, thêm bây giờ là bảng rỗng nằm không |
+| `job_reports` (báo cáo tin lừa đảo) | Thuộc trang quản trị, Sprint 6 |
+| Bảng thống kê cho admin | Sprint 6, và nhiều khả năng là view/truy vấn tổng hợp chứ không phải bảng |
+
+Nguyên tắc: bảng nào chưa có luồng nghiệp vụ ghi vào thì chưa tạo. Migration thêm bảng thì rẻ, còn bảng rỗng nằm trong schema nhiều tháng thì tới lúc dùng gần như chắc chắn sai hình dạng.
+
+---
+
+## Đã chốt
+
+Hai điểm dưới đây DEV1 đã quyết, không chờ BA nữa. Ghi lại lý do ở đây để sau không ai mở lại tranh luận từ đầu.
+
+### Giữ ba khung giờ cố định, không cho nhập giờ tự do
+
+Khung giờ tự do nghe linh hoạt hơn nhưng kéo theo cả bài toán so khoảng thời gian chồng lấn, trong khi lợi ích thực tế gần như không có: ca làm của quán cà phê và lịch học của sinh viên vốn đã theo buổi.
+
+Ba khung rời rạc là thứ làm phép ghép lịch trở thành một câu JOIN. Bỏ nó đi là bỏ luôn thiết kế của toàn bộ tính năng lõi.
+
+### Lịch rảnh để phẳng, không chia theo học kỳ
+
+Hai thứ này hay bị lẫn, nên nói rõ: chúng trả lời hai câu khác nhau.
+
+| | `availableFrom` / `availableUntil` | Lịch rảnh theo học kỳ |
+|---|---|---|
+| Trả lời | Còn đi làm được **tới bao giờ** | Rảnh **giờ nào**, trong **giai đoạn nào** |
+| Số lượng | Một khoảng trên hồ sơ | Nhiều lưới, mỗi lưới một thời hạn |
+| Phục vụ | Lọc tin đòi cam kết dài | Lọc tin khớp khung giờ |
+
+Cặp `availableFrom`/`availableUntil` **không** thay thế được lịch theo học kỳ — nó không biết gì về giờ giấc. Nó chỉ trả lời "sinh viên này còn ở lại đủ lâu cho tin cam kết 6 tháng không".
+
+Vẫn chọn để phẳng, vì ba lý do:
+
+1. Thời khoá biểu đổi hai lần một năm và sinh viên sửa lưới mất 30 giây. Lưu lịch sử của thứ tự sửa được trong nửa phút là đổi rất nhiều phức tạp lấy rất ít giá trị.
+2. Không ai tìm việc cho học kỳ sau. Sinh viên tìm việc làm **bây giờ**.
+3. Chi phí nằm ở truy vấn: có học kỳ thì mọi câu ghép lịch phải kèm điều kiện ngày, cộng đống ca biên — hai lưới chồng ngày, khoảng trống giữa hai học kỳ, lưới tương lai khai rồi bỏ quên lưới hiện tại.
+
+Điểm yếu duy nhất — lưới cũ âm thầm sai khi qua học kỳ mới — chữa được **không cần đổi schema**: `availabilities.createdAt` chính là mốc sửa lưới lần cuối, vì luồng sửa lưới xoá rồi tạo lại cả bộ. Quá 3 tháng thì nhắc sinh viên xem lại.
+
+Nếu sau này BA khẳng định phải có học kỳ thật, đó vẫn là migration **bổ sung** (thêm `validFrom`/`validUntil` vào `availabilities`), không phải viết lại.
+
+---
+
+## Còn chờ BA xác nhận
+
+Năm điểm dưới đây vẫn là phán đoán. Đây là danh sách đem ra đối chiếu khi BRD thật về:
+
+1. **`SEASONAL` khác `RECURRING` ở điểm nào về nghiệp vụ**, ngoài chuyện có ngày bắt đầu và kết thúc?
+2. **Tin có cần duyệt lại sau mỗi lần sửa không**, hay chỉ khi sửa các trường trọng yếu (lương, địa điểm)?
+3. **Sinh viên rút đơn được không?** Tôi có để `WITHDRAWN` trong `APPLICATION_STATUSES` — giá trị này BA đã chốt từ trước hay chỉ là dự phòng?
+4. **Loại giấy tờ xác minh** — ba loại tôi đặt (giấy phép kinh doanh, mã số thuế, CCCD) có đúng và có đủ không?
+5. **Lương thoả thuận** — có tin nào không ghi số cụ thể không? Hiện `salaryMin`/`salaryMax` bắt buộc.

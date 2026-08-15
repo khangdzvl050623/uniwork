@@ -27,6 +27,41 @@ export const APPLICATION_STATUSES = [
 ] as const
 export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number]
 
+/** Cách quy đổi con số lương của tin tuyển dụng. */
+export const SALARY_UNITS = ['HOUR', 'SHIFT', 'MONTH'] as const
+export type SalaryUnit = (typeof SALARY_UNITS)[number]
+
+/**
+ * Ba khung giờ trong ngày.
+ *
+ * Chia sẵn thành ba khung thay vì cho nhập giờ tự do là quyết định có chủ đích:
+ * nhờ đó lịch rảnh của sinh viên và ca làm của tin cùng một tập giá trị rời rạc,
+ * và việc ghép hai bên trở thành phép giao tập hợp — một câu JOIN, không phải
+ * bài toán so khoảng thời gian chồng lấn.
+ */
+export const TIME_SLOTS = ['MORNING', 'AFTERNOON', 'EVENING'] as const
+export type TimeSlot = (typeof TIME_SLOTS)[number]
+
+export const TIME_SLOT_LABELS: Record<TimeSlot, { label: string; range: string }> = {
+  MORNING: { label: 'Sáng', range: '06:00 – 12:00' },
+  AFTERNOON: { label: 'Chiều', range: '12:00 – 18:00' },
+  EVENING: { label: 'Tối', range: '18:00 – 22:00' },
+}
+
+/** Giấy tờ nhà tuyển dụng nộp để được xác minh (BRD Đăng tin). */
+export const DOCUMENT_TYPES = ['BUSINESS_LICENSE', 'TAX_CODE', 'ID_CARD'] as const
+export type DocumentType = (typeof DOCUMENT_TYPES)[number]
+
+export const DOCUMENT_TYPE_LABELS: Record<DocumentType, string> = {
+  BUSINESS_LICENSE: 'Giấy phép kinh doanh',
+  TAX_CODE: 'Mã số thuế',
+  ID_CARD: 'CCCD người đại diện',
+}
+
+/** Kết quả admin xét duyệt một giấy tờ. */
+export const REVIEW_STATUSES = ['PENDING', 'APPROVED', 'REJECTED'] as const
+export type ReviewStatus = (typeof REVIEW_STATUSES)[number]
+
 /**
  * 0 = Chủ nhật ... 6 = Thứ 7.
  *
