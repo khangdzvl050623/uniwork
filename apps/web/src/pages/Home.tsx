@@ -49,20 +49,20 @@ const HERO_POINTS = [
 ]
 
 /**
- * SỐ LIỆU TẠM, CHƯA PHẢI SỐ THẬT.
+ * Số liệu cho khối "Con số ấn tượng".
  *
- * Nền tảng chưa có người dùng thật nên đây là con số minh hoạ cho bản demo.
- * Khi có dữ liệu thật, thay bằng một endpoint đếm từ database — ví dụ
- * `GET /api/stats` trả về số tin đang tuyển và số nhà tuyển dụng đã duyệt.
+ * Đây là số mô phỏng, và giao diện đã nói thẳng điều đó ngay dưới tiêu đề khối.
+ * Giữ dạng số nguyên chứ không phải chuỗi '540.000+' để CountUp đếm được; phần
+ * dấu chấm ngăn hàng nghìn do formatNumber lo theo định dạng tiếng Việt.
  *
- * Để riêng thành hằng số ở đây chính là để lúc đó chỉ phải sửa một chỗ, và để
- * người đọc code biết ngay mấy con số này từ đâu ra.
+ * Khi có dữ liệu thật thì thay bằng một endpoint đếm từ database, lúc đó chỉ
+ * phải sửa đúng chỗ này.
  */
 const STATS = [
-  { value: 1200, suffix: '+', label: 'Tin việc làm' },
-  { value: 350, suffix: '+', label: 'Nhà tuyển dụng đã xác minh' },
-  { value: 8500, suffix: '+', label: 'Sinh viên đang dùng' },
-  { value: 92, suffix: '%', label: 'Hồ sơ được phản hồi' },
+  { value: 540_000, label: 'lượt tìm việc' },
+  { value: 200_000, label: 'hồ sơ sinh viên' },
+  { value: 2_000_000, label: 'giờ làm đã ghép' },
+  { value: 1_200_000, label: 'lượt xem tin' },
 ]
 
 const BRAND_TABS = ['Tất cả', 'Quán ăn & cà phê', 'Giáo dục', 'Bán lẻ', 'Sự kiện', 'Công nghệ']
@@ -296,22 +296,8 @@ export function Home() {
         </div>
       </section>
 
-      {/* ======================================================= CON SỐ NỔI BẬT */}
-      <section className="mx-auto mt-7 max-w-[1180px] px-4">
-        <Reveal className="grid grid-cols-2 gap-3 rounded-xl bg-white p-5 shadow-sm md:grid-cols-4">
-          {STATS.map((s) => (
-            <div key={s.label} className="text-center">
-              <div className="text-2xl font-extrabold text-brand-600 md:text-3xl">
-                <CountUp to={s.value} suffix={s.suffix} />
-              </div>
-              <div className="mt-1 text-sm text-slate-500">{s.label}</div>
-            </div>
-          ))}
-        </Reveal>
-      </section>
-
       {/* ==================================================== VIỆC LÀM TỐT NHẤT */}
-      <section className="mx-auto mt-5 max-w-[1180px] px-4">
+      <section className="mx-auto mt-7 max-w-[1180px] px-4">
         <Reveal className="rounded-xl bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-lg font-bold text-slate-900">Việc làm tốt nhất</h2>
@@ -774,16 +760,13 @@ export function Home() {
           </Reveal>
 
           <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              ['540.000+', 'lượt tìm việc'],
-              ['200.000+', 'hồ sơ sinh viên'],
-              ['2.000.000+', 'giờ làm đã ghép'],
-              ['1.200.000+', 'lượt xem tin'],
-            ].map(([value, label], i) => (
-              <Reveal key={label} delay={i * 80}>
+            {STATS.map((s, i) => (
+              <Reveal key={s.label} delay={i * 80}>
                 <div className="card-lift rounded-2xl bg-white/8 px-5 py-7 text-center ring-1 ring-white/15">
-                  <div className="text-2xl font-extrabold text-gradient-gold">{value}</div>
-                  <div className="mt-1.5 text-sm text-brand-50/80">{label}</div>
+                  <div className="text-2xl font-extrabold text-gradient-gold">
+                    <CountUp to={s.value} suffix="+" />
+                  </div>
+                  <div className="mt-1.5 text-sm text-brand-50/80">{s.label}</div>
                 </div>
               </Reveal>
             ))}
