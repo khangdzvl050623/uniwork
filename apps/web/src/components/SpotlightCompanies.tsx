@@ -117,87 +117,93 @@ export function SpotlightCompanies({ brands, tabs }: { brands: Brand[]; tabs: st
           ))}
         </div>
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
-          {/* Track trượt ngang, cùng nguyên lý với slick-slider.
-              Mọi thẻ nằm cạnh nhau trên một hàng dài; đổi thương hiệu là dịch
-              cả hàng sang trái đúng một bề rộng thẻ. Khung ngoài overflow-hidden
-              nên chỉ thấy đúng một thẻ tại mỗi thời điểm.
+        {/* Track trượt ngang, cùng cấu trúc với slick-slider của TopCV.
+            MỖI SLIDE LÀ MỘT TRANG HOÀN CHỈNH: thẻ hero bên trái kèm danh sách
+            các thương hiệu còn lại bên phải. Trượt sang trái là đổi cả trang.
 
-              Cách này hơn kiểu mờ-dần-tại-chỗ ở một điểm: chuyển động có hướng,
-              người xem hiểu ngay là đang sang thẻ kế tiếp chứ không phải nội
-              dung tự nhiên đổi. */}
+            Đây là điểm khác quan trọng so với việc chỉ trượt riêng thẻ hero: khi
+            cả trang cùng trượt, danh sách bên phải đổi nội dung mà không nhấp
+            nháy, vì nó rời đi như một khối chứ không thay chữ tại chỗ. */}
+        <div
+          className="slide-viewport relative mt-4 overflow-hidden"
+          onPointerDown={onDragStart}
+          onPointerUp={onDragEnd}
+          onPointerCancel={() => (dragFrom.current = null)}
+        >
           <div
-            className="slide-viewport relative overflow-hidden rounded-xl"
-            onPointerDown={onDragStart}
-            onPointerUp={onDragEnd}
-            onPointerCancel={() => (dragFrom.current = null)}
+            className="slide-track flex"
+            style={{ transform: `translate3d(-${active * 100}%, 0, 0)` }}
           >
-            <div
-              className="slide-track flex"
-              style={{ transform: `translate3d(-${active * 100}%, 0, 0)` }}
-            >
-              {brands.map((b) => (
-                <div key={b.name} className="w-full shrink-0">
-                  <SpotlightCard
-                    brand={b}
-                    following={followed.has(b.name)}
-                    onFollow={() => toggleFollow(b.name)}
-                  />
-                </div>
-              ))}
-            </div>
+            {brands.map((featured, pageIndex) => (
+              <div key={featured.name} className="w-full shrink-0">
+                <div className="grid gap-4 pr-px lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
+                  <div className="overflow-hidden rounded-xl">
+                    <SpotlightCard
+                      brand={featured}
+                      following={followed.has(featured.name)}
+                      onFollow={() => toggleFollow(featured.name)}
+                    />
+                  </div>
 
-            {/* Thanh tiến trình nằm NGOÀI track nên nó đứng yên khi track trượt.
-                key={active} ép React dựng lại mỗi lần đổi thẻ, nhờ vậy hoạt ảnh
-                chạy lại từ 0 thay vì tiếp tục từ chỗ dở. */}
-            <div className="absolute inset-x-0 bottom-0 h-1 bg-white/20">
-              <div
-                key={active}
-                className={cn('progress-fill h-full bg-accent-400', paused && 'is-paused')}
-                style={{ animationDuration: `${ROTATE_MS}ms` }}
+                  {/* content-start để các thẻ bám mép trên thay vì giãn đều cho
+                      kín chiều cao thẻ hero — trang nào ít thương hiệu hơn cũng
+                      không bị kéo giãn méo mó. */}
+                  <div className="grid content-start gap-3 sm:grid-cols-2">
+                    {brands
+                      .filter((b) => b.name !== featured.name)
+                      .map((b) => (
+                        <BrandCard
+                          key={b.name}
+                          brand={b}
+                          following={followed.has(b.name)}
+                          onSelect={() => setActive(brands.indexOf(b))}
+                          onFollow={() => toggleFollow(b.name)}
+                        />
+                      ))}
+                  </div>
+                </div>
+                <span className="sr-only">
+                  Trang {pageIndex + 1} trên {brands.length}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-4">
+          {/* Chấm chỉ vị trí: cho biết có bao nhiêu trang, đang ở trang nào. */}
+          <div className="flex gap-1.5">
+            {brands.map((b, i) => (
+              <button
+                key={b.name}
+                onClick={() => setActive(i)}
+                aria-label={`Xem ${b.name}`}
+                className={cn(
+                  'h-1.5 rounded-full transition-all duration-300',
+                  i === active ? 'w-6 bg-accent-500' : 'w-1.5 bg-slate-300 hover:bg-slate-400',
+                )}
               />
-            </div>
+            ))}
           </div>
 
-          <div className="flex flex-col">
-            <div className="grid gap-3 sm:grid-cols-2">
-              {brands.map((b, i) => (
-                <BrandCard
-                  key={b.name}
-                  brand={b}
-                  active={i === active}
-                  following={followed.has(b.name)}
-                  onSelect={() => setActive(i)}
-                  onFollow={() => toggleFollow(b.name)}
-                />
-              ))}
-            </div>
+          {/* Thanh tiến trình cho biết còn bao lâu nữa sang trang. Không có nó,
+              việc khối tự đổi trông như trang bị lỗi. key={active} ép dựng lại
+              mỗi lần sang trang để hoạt ảnh chạy lại từ 0. */}
+          <div className="mx-2 h-1 flex-1 overflow-hidden rounded-full bg-slate-100">
+            <div
+              key={active}
+              className={cn('progress-fill h-full bg-accent-400', paused && 'is-paused')}
+              style={{ animationDuration: `${ROTATE_MS}ms` }}
+            />
+          </div>
 
-            <div className="mt-auto flex items-center justify-between pt-4">
-              {/* Chấm chỉ vị trí: cho biết có bao nhiêu thương hiệu, đang tới đâu. */}
-              <div className="flex gap-1.5">
-                {brands.map((b, i) => (
-                  <button
-                    key={b.name}
-                    onClick={() => setActive(i)}
-                    aria-label={`Xem ${b.name}`}
-                    className={cn(
-                      'h-1.5 rounded-full transition-all duration-300',
-                      i === active ? 'w-6 bg-accent-500' : 'w-1.5 bg-slate-300 hover:bg-slate-400',
-                    )}
-                  />
-                ))}
-              </div>
-
-              <div className="flex gap-2">
-                <ArrowButton label="Thương hiệu trước" onClick={() => go(-1)}>
-                  <ChevronLeft size={16} />
-                </ArrowButton>
-                <ArrowButton label="Thương hiệu tiếp theo" onClick={() => go(1)}>
-                  <ChevronRight size={16} />
-                </ArrowButton>
-              </div>
-            </div>
+          <div className="flex gap-2">
+            <ArrowButton label="Trang trước" onClick={() => go(-1)}>
+              <ChevronLeft size={16} />
+            </ArrowButton>
+            <ArrowButton label="Trang sau" onClick={() => go(1)}>
+              <ChevronRight size={16} />
+            </ArrowButton>
           </div>
         </div>
       </div>
@@ -349,13 +355,11 @@ function SpotlightCard({
 
 function BrandCard({
   brand,
-  active,
   following,
   onSelect,
   onFollow,
 }: {
   brand: Brand
-  active: boolean
   following: boolean
   onSelect: () => void
   onFollow: () => void
@@ -366,10 +370,8 @@ function BrandCard({
       className={cn(
         // Viền vàng nhạt thay vì xám: cả khối này thuộc gói Pro, viền vàng buộc
         // chúng thành một nhóm và tách khỏi các thẻ thường ở phần trên trang.
-        'card-lift cursor-pointer rounded-xl border p-3 transition-colors',
-        active
-          ? 'border-accent-400 bg-accent-50/60 ring-1 ring-accent-400/30'
-          : 'border-accent-100 hover:border-accent-400',
+        'card-lift cursor-pointer rounded-xl border border-accent-100 p-3 transition-colors',
+        'hover:border-accent-400',
       )}
     >
       <div className="flex items-center gap-3">
