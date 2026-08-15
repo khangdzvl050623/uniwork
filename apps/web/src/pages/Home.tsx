@@ -34,6 +34,7 @@ import { Reveal } from '@/components/Reveal'
 import { Countdown } from '@/components/Countdown'
 import { Marquee } from '@/components/Marquee'
 import { CountUp } from '@/components/CountUp'
+import { SpotlightCompanies } from '@/components/SpotlightCompanies'
 import { Button } from '@/components/ui/Button'
 import { DISTRICTS, JOBS } from '@/data/mock'
 import { cn } from '@/lib/utils'
@@ -376,30 +377,8 @@ export function Home() {
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {BRANDS.map((b) => (
-              <Link
-                key={b.name}
-                to="/viec-lam"
-                className="card-lift flex items-center gap-3 rounded-xl border border-slate-200 p-4 hover:border-brand-400"
-              >
-                <span
-                  className={cn(
-                    'grid h-14 w-14 shrink-0 place-items-center rounded-lg text-xl font-bold text-white',
-                    b.color,
-                  )}
-                >
-                  {b.initial}
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate font-semibold text-slate-900">{b.name}</span>
-                  <span className="block truncate text-xs text-slate-500">{b.tag}</span>
-                  <span className="mt-1 inline-block rounded bg-brand-50 px-1.5 py-0.5 text-[11px] font-medium text-brand-700">
-                    {b.jobs} tin đang tuyển
-                  </span>
-                </span>
-              </Link>
-            ))}
+          <div className="mt-4">
+            <SpotlightCompanies brands={BRANDS} />
           </div>
         </Reveal>
       </section>
