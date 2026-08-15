@@ -33,6 +33,7 @@ import { JobCard } from '@/components/JobCard'
 import { Reveal } from '@/components/Reveal'
 import { Countdown } from '@/components/Countdown'
 import { Marquee } from '@/components/Marquee'
+import { CountUp } from '@/components/CountUp'
 import { Button } from '@/components/ui/Button'
 import { DISTRICTS, JOBS } from '@/data/mock'
 import { cn } from '@/lib/utils'
@@ -45,6 +46,23 @@ const HERO_POINTS = [
   'Tin đăng đã kiểm duyệt giấy tờ doanh nghiệp',
   'Theo dõi trạng thái hồ sơ, không rơi vào inbox',
   'Miễn phí toàn bộ với sinh viên',
+]
+
+/**
+ * SỐ LIỆU TẠM, CHƯA PHẢI SỐ THẬT.
+ *
+ * Nền tảng chưa có người dùng thật nên đây là con số minh hoạ cho bản demo.
+ * Khi có dữ liệu thật, thay bằng một endpoint đếm từ database — ví dụ
+ * `GET /api/stats` trả về số tin đang tuyển và số nhà tuyển dụng đã duyệt.
+ *
+ * Để riêng thành hằng số ở đây chính là để lúc đó chỉ phải sửa một chỗ, và để
+ * người đọc code biết ngay mấy con số này từ đâu ra.
+ */
+const STATS = [
+  { value: 1200, suffix: '+', label: 'Tin việc làm' },
+  { value: 350, suffix: '+', label: 'Nhà tuyển dụng đã xác minh' },
+  { value: 8500, suffix: '+', label: 'Sinh viên đang dùng' },
+  { value: 92, suffix: '%', label: 'Hồ sơ được phản hồi' },
 ]
 
 const BRAND_TABS = ['Tất cả', 'Quán ăn & cà phê', 'Giáo dục', 'Bán lẻ', 'Sự kiện', 'Công nghệ']
@@ -278,8 +296,22 @@ export function Home() {
         </div>
       </section>
 
-      {/* ==================================================== VIỆC LÀM TỐT NHẤT */}
+      {/* ======================================================= CON SỐ NỔI BẬT */}
       <section className="mx-auto mt-7 max-w-[1180px] px-4">
+        <Reveal className="grid grid-cols-2 gap-3 rounded-xl bg-white p-5 shadow-sm md:grid-cols-4">
+          {STATS.map((s) => (
+            <div key={s.label} className="text-center">
+              <div className="text-2xl font-extrabold text-brand-600 md:text-3xl">
+                <CountUp to={s.value} suffix={s.suffix} />
+              </div>
+              <div className="mt-1 text-sm text-slate-500">{s.label}</div>
+            </div>
+          ))}
+        </Reveal>
+      </section>
+
+      {/* ==================================================== VIỆC LÀM TỐT NHẤT */}
+      <section className="mx-auto mt-5 max-w-[1180px] px-4">
         <Reveal className="rounded-xl bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-lg font-bold text-slate-900">Việc làm tốt nhất</h2>
@@ -309,9 +341,7 @@ export function Home() {
 
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {jobs.map((job) => (
-              <div key={job.id} className="card-lift rounded-xl">
-                <JobCard job={job} />
-              </div>
+              <JobCard key={job.id} job={job} />
             ))}
           </div>
 
