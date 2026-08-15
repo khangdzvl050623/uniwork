@@ -42,10 +42,14 @@ export function SpotlightCompanies({ brands, tabs }: { brands: Brand[]; tabs: st
   useEffect(() => {
     if (brands.length < 2 || paused) return
 
-    // Người bật giảm chuyển động thì không tự xoay. Với họ, một khối tự đổi sau
-    // lưng khi đang đọc gây khó chịu hơn là đẹp — vẫn bấm mũi tên xem được.
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-
+    // CỐ TÌNH vẫn xoay khi người dùng bật giảm chuyển động.
+    //
+    // Yêu cầu đó nói về hiệu ứng chuyển cảnh, không phải về việc nội dung được
+    // thay. Dừng hẳn thì người đó chỉ nhìn thấy mãi một thương hiệu — mà đây là
+    // vị trí trả phí, mọi bên đã mua đều phải được hiện.
+    //
+    // Phần hiệu ứng do CSS lo: khối @media prefers-reduced-motion trong
+    // index.css tắt hết animation, nên nội dung đổi tức thì thay vì trôi mượt.
     const id = setInterval(() => setActive((i) => (i + 1) % brands.length), ROTATE_MS)
     return () => clearInterval(id)
   }, [brands.length, paused, active])
@@ -93,6 +97,10 @@ export function SpotlightCompanies({ brands, tabs }: { brands: Brand[]; tabs: st
 
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
           <SpotlightCard
+            // key nằm ở đây chứ không phải trên thẻ div bên trong component.
+            // Đặt ở đúng chỗ này thì React chắc chắn dựng lại cả component mỗi
+            // lần đổi thương hiệu, nhờ vậy mọi animation chạy lại từ đầu.
+            key={spotlight.name}
             brand={spotlight}
             following={followed.has(spotlight.name)}
             onFollow={() => toggleFollow(spotlight.name)}
@@ -235,15 +243,15 @@ function SpotlightCard({
   paused: boolean
 }) {
   return (
-    <div
-      // key ép React dựng lại khối này mỗi lần đổi thương hiệu, nhờ vậy hoạt ảnh
-      // chạy lại từ đầu. Không có key thì React tái sử dụng DOM cũ và chỉ thay
-      // chữ — nhìn như nội dung bị "nhảy" chứ không phải chuyển cảnh.
-      key={brand.name}
-      className="spotlight-in relative flex min-h-[340px] flex-col justify-between overflow-hidden rounded-xl p-6 text-white"
-    >
-      {/* Nền tách riêng khỏi nội dung để phóng chậm được mà chữ vẫn đứng yên. */}
-      <div className={cn('ken-burns absolute inset-0', brand.color)} />
+    <div className="spotlight-in relative flex min-h-[340px] flex-col justify-between overflow-hidden rounded-xl p-6 text-white">
+      {/* Nền tách riêng khỏi nội dung để phóng chậm được mà chữ vẫn đứng yên.
+          Màu đặc thôi thì phóng to không nhìn thấy gì — phải có vệt sáng và hoa
+          văn bên trong mới thấy được chuyển động. */}
+      <div className={cn('absolute inset-0', brand.color)} />
+      <div className="ken-burns absolute inset-0">
+        <div className="absolute -inset-1/4 bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.42),transparent_58%)]" />
+        <div className="pattern-hex absolute inset-0 opacity-25" />
+      </div>
       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-black/5" />
 
       <div className="relative flex items-start justify-between">
