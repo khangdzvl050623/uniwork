@@ -204,131 +204,171 @@ const PRESS = [
 
 const CHART_BARS = [42, 58, 35, 72, 64, 88, 76, 95, 61, 80, 54, 90]
 
+/** Số nhóm nghề hiện mỗi trang ở cột trái của hero. */
+const CAT_PER_PAGE = 6
+
 export function Home() {
   const [jobTab, setJobTab] = useState(0)
+  const [catPage, setCatPage] = useState(0)
   const jobs = jobTab === 0 ? [...JOBS].sort((a, b) => b.matchScore - a.matchScore) : JOBS
+  const catPages = Math.ceil(CATEGORIES.length / CAT_PER_PAGE)
 
   return (
     <>
       {/* ================================================================ HERO */}
-      <section className="bg-brand-deep px-4 pt-7 pb-12">
+      <section className="hero-bg px-4 pt-6 pb-8">
         <div className="mx-auto max-w-[1180px]">
-          <form
-            onSubmit={(e) => e.preventDefault()}
-            className="flex flex-col gap-2 rounded-xl bg-white p-2 shadow-xl md:flex-row"
-          >
-            <div className="flex flex-1 items-center gap-2 px-3">
-              <Search size={18} className="shrink-0 text-slate-400" />
-              <input
-                placeholder="Vị trí, kỹ năng hoặc tên công ty"
-                className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
-              />
-            </div>
-            <div className="flex items-center gap-2 px-3 md:border-l md:border-slate-200">
-              <MapPin size={18} className="shrink-0 text-slate-400" />
-              <select className="h-11 w-full bg-transparent text-sm text-slate-600 outline-none md:w-44">
-                <option value="">Tất cả khu vực</option>
-                {DISTRICTS.map((d) => (
-                  <option key={d}>{d}</option>
-                ))}
-              </select>
-            </div>
-            <Button type="submit" size="lg" className="shrink-0 md:px-9">
-              <Search size={17} />
-              Tìm kiếm
-            </Button>
-          </form>
+          <h1 className="text-center text-xl font-extrabold text-brand-300 md:text-2xl">
+            UniWork — Việc làm bán thời gian khớp đúng lịch học
+          </h1>
 
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-            <span className="text-brand-100/75">Từ khoá phổ biến:</span>
-            {HOT_KEYWORDS.map((k) => (
-              <Link
-                key={k}
-                to="/viec-lam"
-                className="rounded-full border border-white/25 px-3 py-1 text-brand-50 transition-colors hover:border-white/60 hover:bg-white/10"
-              >
-                {k}
-              </Link>
-            ))}
-          </div>
+          <div className="hero-grid mt-5">
+            <form
+              onSubmit={(e) => e.preventDefault()}
+              className="area-search flex flex-col gap-2 rounded-xl bg-white p-2 shadow-xl md:flex-row"
+            >
+              <div className="flex flex-1 items-center gap-2 px-3">
+                <Search size={18} className="shrink-0 text-slate-400" />
+                <input
+                  placeholder="Vị trí, kỹ năng hoặc tên công ty"
+                  className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+                />
+              </div>
+              <div className="flex items-center gap-2 px-3 md:border-l md:border-slate-200">
+                <MapPin size={18} className="shrink-0 text-slate-400" />
+                <select className="h-11 w-full bg-transparent text-sm text-slate-600 outline-none md:w-44">
+                  <option value="">Tất cả khu vực</option>
+                  {DISTRICTS.map((d) => (
+                    <option key={d}>{d}</option>
+                  ))}
+                </select>
+              </div>
+              <Button type="submit" size="lg" className="shrink-0 md:px-9">
+                <Search size={17} />
+                Tìm kiếm
+              </Button>
+            </form>
 
-          <div className="mt-6 grid gap-4 lg:grid-cols-[1fr_1.05fr]">
-            <Reveal className="rounded-2xl bg-white/10 p-6 ring-1 ring-white/15 backdrop-blur-sm">
-              <h1 className="text-2xl font-extrabold leading-snug text-white sm:text-[28px]">
-                Việc làm bán thời gian
-                <br />
-                <span className="text-gradient-gold">khớp đúng lịch học</span> của bạn
-              </h1>
-              <ul className="mt-4 space-y-2.5">
-                {HERO_POINTS.map((p) => (
-                  <li key={p} className="flex items-start gap-2.5 text-sm text-brand-50/90">
-                    <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-brand-300" />
-                    {p}
+            <div className="area-keyword flex flex-wrap items-center gap-2 text-sm">
+              <span className="text-brand-100/75">Từ khoá phổ biến:</span>
+              {HOT_KEYWORDS.map((k) => (
+                <Link
+                  key={k}
+                  to="/viec-lam"
+                  className="rounded-full border border-white/25 px-3 py-1 text-brand-50 transition-colors hover:border-white/60 hover:bg-white/10"
+                >
+                  {k}
+                </Link>
+              ))}
+            </div>
+
+            {/* Cột trái trải hai hàng, đúng vùng categoryFamily-area của TopCV. */}
+            <div className="area-category flex flex-col rounded-xl bg-white p-2">
+              <ul className="flex-1">
+                {CATEGORIES.slice(catPage * CAT_PER_PAGE, (catPage + 1) * CAT_PER_PAGE).map((c) => (
+                  <li key={c.label}>
+                    <Link
+                      to="/viec-lam"
+                      className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-slate-700 transition-colors hover:bg-brand-50 hover:text-brand-700"
+                    >
+                      <c.icon size={16} className="shrink-0 text-brand-600" />
+                      <span className="min-w-0 flex-1 truncate">{c.label}</span>
+                      <ChevronRight size={15} className="shrink-0 text-slate-300" />
+                    </Link>
                   </li>
                 ))}
               </ul>
-              <div className="mt-5 flex flex-wrap gap-2">
-                <Link to="/lich-ranh">
-                  <Button variant="accent">
-                    <CalendarCheck size={16} />
-                    Khai lịch rảnh
-                  </Button>
-                </Link>
-                <Link to="/viec-lam">
-                  <Button
-                    variant="outline"
-                    className="border-white/40 bg-transparent text-white hover:border-white hover:bg-white/10 hover:text-white"
+
+              <div className="mt-1 flex items-center justify-between border-t border-slate-100 px-3 pt-2">
+                <span className="text-xs text-slate-400">
+                  {catPage + 1}/{catPages}
+                </span>
+                <div className="flex gap-1.5">
+                  <button
+                    onClick={() => setCatPage((p) => (p - 1 + catPages) % catPages)}
+                    aria-label="Nhóm nghề trước"
+                    className="grid h-7 w-7 place-items-center rounded-full border border-slate-200 text-slate-400 transition-colors hover:border-brand-400 hover:text-brand-600"
                   >
-                    Xem việc làm
-                  </Button>
-                </Link>
+                    <ChevronRight size={14} className="rotate-180" />
+                  </button>
+                  <button
+                    onClick={() => setCatPage((p) => (p + 1) % catPages)}
+                    aria-label="Nhóm nghề tiếp theo"
+                    className="grid h-7 w-7 place-items-center rounded-full border border-brand-500 bg-brand-50 text-brand-600 transition-colors hover:bg-brand-100"
+                  >
+                    <ChevronRight size={14} />
+                  </button>
+                </div>
               </div>
-            </Reveal>
+            </div>
 
-            <Reveal delay={120}>
-              <div className="relative h-full overflow-hidden rounded-2xl bg-gradient-to-br from-teal-500 to-brand-700 p-6 ring-1 ring-white/20">
-                <div className="pattern-hex absolute inset-0 opacity-60" />
-                <div className="relative">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-white/20 px-3 py-1 text-xs font-semibold text-white">
-                    <Sparkles size={13} /> Mới dành cho sinh viên
+            {/* Vùng banner: chỗ đặt thông điệp chính, tương ứng banner-area. */}
+            <div className="area-banner relative overflow-hidden rounded-xl bg-gradient-to-br from-white to-brand-50 p-5">
+              <div className="relative flex flex-wrap items-center justify-between gap-5">
+                <div className="min-w-0">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-100 px-2.5 py-1 text-xs font-semibold text-brand-700">
+                    <Sparkles size={12} /> Chỉ có ở UniWork
                   </span>
-                  <h2 className="mt-3 text-xl font-bold leading-snug text-white">
-                    Cách duy nhất để biết
+                  <h2 className="mt-2.5 text-xl font-extrabold leading-snug text-slate-900 md:text-2xl">
+                    Lọc việc theo <span className="text-brand-600">đúng khung giờ</span>
                     <br />
-                    mình có đi làm được không
+                    bạn còn rảnh
                   </h2>
-                  <p className="mt-2 max-w-sm text-sm text-white/85">
-                    Lưới lịch rảnh chồng lên ca làm của tin — nhìn một cái là biết trùng giờ học hay
-                    không.
+                  <p className="mt-2 max-w-md text-sm text-slate-600">
+                    Khai lịch học một lần. Mỗi tin đăng tự chấm điểm phù hợp với lịch của bạn, khỏi
+                    ngồi dò từng ca.
                   </p>
+                  <Link to="/lich-ranh" className="mt-4 inline-block">
+                    <Button>
+                      <CalendarCheck size={16} />
+                      Khai lịch rảnh
+                      <ArrowRight size={15} />
+                    </Button>
+                  </Link>
+                </div>
 
-                  <div className="mt-5 grid grid-cols-7 gap-1">
+                {/* Lưới lịch thu nhỏ, cho thấy ngay ý tưởng thay vì tả bằng chữ. */}
+                <div className="shrink-0">
+                  <div className="grid grid-cols-7 gap-1">
                     {Array.from({ length: 21 }).map((_, i) => (
                       <span
                         key={i}
                         className={cn(
-                          'h-6 rounded',
+                          'h-6 w-6 rounded',
                           [3, 5, 10, 12, 17, 19, 20].includes(i)
                             ? 'bg-accent-400'
                             : [1, 8, 15].includes(i)
-                              ? 'bg-white/70'
-                              : 'bg-white/20',
+                              ? 'bg-brand-500'
+                              : 'bg-slate-200',
                         )}
                       />
                     ))}
                   </div>
-
-                  <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-white/80">
-                    <span className="flex items-center gap-1.5">
+                  <div className="mt-2.5 flex items-center gap-3 text-[11px] text-slate-500">
+                    <span className="flex items-center gap-1">
                       <span className="h-2.5 w-2.5 rounded-sm bg-accent-400" /> Ca cần làm
                     </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-sm bg-white/70" /> Bạn đang rảnh
+                    <span className="flex items-center gap-1">
+                      <span className="h-2.5 w-2.5 rounded-sm bg-brand-500" /> Bạn rảnh
                     </span>
                   </div>
                 </div>
               </div>
-            </Reveal>
+            </div>
+
+            {/* Vùng job-area: bốn lời hứa ngắn, thay cho danh sách gạch đầu dòng
+                dài dòng ở bản cũ. */}
+            <div className="area-jobs grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              {HERO_POINTS.map((p) => (
+                <div
+                  key={p}
+                  className="flex items-start gap-2 rounded-xl bg-white/10 px-3 py-2.5 text-xs text-brand-50 ring-1 ring-white/15"
+                >
+                  <CheckCircle2 size={15} className="mt-px shrink-0 text-brand-300" />
+                  {p}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </section>
