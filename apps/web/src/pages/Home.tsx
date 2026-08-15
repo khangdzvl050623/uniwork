@@ -66,7 +66,16 @@ const STATS = [
   { value: 1_200_000, label: 'lượt xem tin' },
 ]
 
-const BRAND_TABS = ['Tất cả', 'Quán ăn & cà phê', 'Giáo dục', 'Bán lẻ', 'Sự kiện', 'Công nghệ']
+const BRAND_TABS = [
+  'Tất cả',
+  'Quán ăn & cà phê',
+  'Giáo dục',
+  'Bán lẻ',
+  'Sự kiện',
+  'Công nghệ',
+  'Kho vận',
+  'Dịch vụ ăn uống',
+]
 
 const BRANDS = [
   {
@@ -104,6 +113,34 @@ const BRANDS = [
     color: 'bg-indigo-500',
     tag: 'Trung tâm ngoại ngữ',
     jobs: 9,
+  },
+  {
+    name: 'Nhà sách Tân Việt',
+    initial: 'N',
+    color: 'bg-orange-500',
+    tag: 'Bán lẻ · Nhà sách',
+    jobs: 7,
+  },
+  {
+    name: 'GreenBox Logistics',
+    initial: 'G',
+    color: 'bg-sky-600',
+    tag: 'Kho vận · Giao nhận',
+    jobs: 15,
+  },
+  {
+    name: 'Bếp Việt Catering',
+    initial: 'B',
+    color: 'bg-red-500',
+    tag: 'Dịch vụ ăn uống',
+    jobs: 10,
+  },
+  {
+    name: 'Studio Khoảnh Khắc',
+    initial: 'K',
+    color: 'bg-violet-600',
+    tag: 'Nhiếp ảnh · Sự kiện',
+    jobs: 5,
   },
 ]
 
