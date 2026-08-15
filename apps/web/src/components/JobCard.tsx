@@ -16,7 +16,10 @@ function shiftSummary(job: Job) {
 
 export function JobCard({ job }: { job: Job }) {
   return (
-    <article className="group relative rounded-xl border border-slate-200 bg-white p-4 transition-shadow hover:shadow-md">
+    // card-lift lo phần nâng thẻ và đổ bóng, đồng thời tự tắt khi người dùng bật
+    // giảm chuyển động (khai ở index.css). Trước đây chỉ trang chủ bọc thẻ trong
+    // card-lift, nên cùng một thẻ lại hành xử khác nhau giữa hai trang.
+    <article className="card-lift group relative rounded-xl border border-slate-200 bg-white p-4 hover:border-brand-300">
       <div className="flex gap-3">
         <div
           className={cn(
