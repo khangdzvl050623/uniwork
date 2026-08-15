@@ -298,40 +298,48 @@ function SpotlightCard({
   onFollow: () => void
 }) {
   return (
-    <div className="relative flex min-h-[340px] flex-col justify-between overflow-hidden p-6 text-white">
-      {/* Nền tách riêng khỏi nội dung để phóng chậm được mà chữ vẫn đứng yên.
-          Màu đặc thôi thì phóng to không nhìn thấy gì — phải có vệt sáng và hoa
-          văn bên trong mới thấy được chuyển động. */}
-      <div className={cn('absolute inset-0', brand.color)} />
+    <div className="relative flex min-h-[500px] flex-col items-center justify-center overflow-hidden p-6 text-center text-white">
+      {/* Nền nâu sepia CỐ ĐỊNH cho mọi thương hiệu, không đổi màu theo từng bên.
+          Lý do: logo mỗi công ty một màu, nền cũng đổi màu theo thì hai thứ đá
+          nhau và cả khối trông chắp vá. Nền tối đứng yên làm logo nổi lên. */}
+      <div className="absolute inset-0 bg-[#2b2119]" />
+
+      {/* Lớp phóng chậm. Màu đặc thôi thì phóng to không thấy gì — phải có vệt
+          sáng và hoa văn bên trong mới nhìn ra chuyển động. */}
       <div className="ken-burns absolute inset-0">
-        <div className="absolute -inset-1/4 bg-[radial-gradient(circle_at_30%_25%,rgba(255,255,255,0.42),transparent_58%)]" />
-        <div className="pattern-hex absolute inset-0 opacity-25" />
-      </div>
-      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-black/5" />
-
-      <div className="relative flex items-start justify-between">
-        <span className="inline-flex items-center gap-1 rounded-full bg-accent-500 px-2.5 py-1 text-xs font-bold shadow-sm">
-          <Sparkles size={12} />
-          Nổi bật
-        </span>
+        <div className="absolute -inset-1/4 bg-[radial-gradient(circle_at_35%_20%,rgba(214,178,110,0.38),transparent_62%)]" />
+        <div className="pattern-hex absolute inset-0 opacity-20" />
       </div>
 
-      <div className="relative">
-        <div className="stagger-1 grid h-20 w-20 place-items-center rounded-2xl bg-white text-3xl font-extrabold text-slate-900 shadow-lg">
+      {/* Chút màu thương hiệu hắt lên từ đáy, đủ để mỗi thẻ có sắc riêng mà
+          không phá tông nâu chung. */}
+      <div className={cn('absolute inset-x-0 bottom-0 h-1/3 opacity-25 blur-2xl', brand.color)} />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/25" />
+
+      <div className="relative flex flex-col items-center">
+        <div className="stagger-1 grid h-28 w-28 place-items-center rounded-xl bg-white text-4xl font-extrabold text-slate-900 shadow-2xl">
           {brand.initial}
         </div>
 
-        <h3 className="stagger-2 mt-4 text-2xl font-bold leading-tight">{brand.name}</h3>
-        <p className="stagger-2 mt-1 text-sm text-white/85">{brand.tag}</p>
+        <h3 className="stagger-2 mt-6 max-w-[16rem] text-lg font-bold uppercase leading-snug tracking-wide">
+          {brand.name}
+        </h3>
+        <p className="stagger-2 mt-1.5 text-sm text-white/75">{brand.tag}</p>
 
-        <div className="stagger-3 mt-5 flex flex-wrap items-center gap-2">
-          <Link
-            to="/viec-lam"
-            className="inline-flex items-center gap-1.5 rounded-full bg-white/95 px-4 py-2 text-sm font-semibold text-slate-900 transition-transform hover:-translate-y-0.5"
-          >
-            <Briefcase size={14} />
-            {brand.jobs} việc làm
-          </Link>
+        <Link
+          to="/viec-lam"
+          className="stagger-3 mt-5 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-4 py-2 text-sm font-medium ring-1 ring-white/25 transition-colors hover:bg-white/25"
+        >
+          <Briefcase size={14} />
+          {brand.jobs} việc làm
+        </Link>
+
+        <span className="stagger-3 mt-3 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-b from-[#fbd46a] to-[#e0a52e] px-5 py-2 text-sm font-bold text-[#2b2119] shadow-lg">
+          <Sparkles size={14} />
+          Pro Company
+        </span>
+
+        <div className="stagger-3 mt-3">
           <FollowButton following={following} onClick={onFollow} tone="light" />
         </div>
       </div>
@@ -356,10 +364,12 @@ function BrandCard({
     <div
       onClick={onSelect}
       className={cn(
+        // Viền vàng nhạt thay vì xám: cả khối này thuộc gói Pro, viền vàng buộc
+        // chúng thành một nhóm và tách khỏi các thẻ thường ở phần trên trang.
         'card-lift cursor-pointer rounded-xl border p-3 transition-colors',
         active
           ? 'border-accent-400 bg-accent-50/60 ring-1 ring-accent-400/30'
-          : 'border-slate-200 hover:border-accent-300',
+          : 'border-accent-100 hover:border-accent-400',
       )}
     >
       <div className="flex items-center gap-3">
