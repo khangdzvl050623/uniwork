@@ -169,7 +169,6 @@ const CHART_BARS = [42, 58, 35, 72, 64, 88, 76, 95, 61, 80, 54, 90]
 
 export function Home() {
   const [jobTab, setJobTab] = useState(0)
-  const [brandTab, setBrandTab] = useState(0)
   const jobs = jobTab === 0 ? [...JOBS].sort((a, b) => b.matchScore - a.matchScore) : JOBS
 
   return (
@@ -356,30 +355,8 @@ export function Home() {
 
       {/* ================================================ THƯƠNG HIỆU TIÊU BIỂU */}
       <section className="mx-auto mt-5 max-w-[1180px] px-4">
-        <Reveal className="rounded-xl bg-white p-5 shadow-sm">
-          <div className="flex flex-wrap items-center gap-3">
-            <h2 className="text-lg font-bold text-slate-900">Nhà tuyển dụng tiêu biểu</h2>
-            <div className="scroll-x flex gap-1.5 overflow-x-auto">
-              {BRAND_TABS.map((t, i) => (
-                <button
-                  key={t}
-                  onClick={() => setBrandTab(i)}
-                  className={cn(
-                    'shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
-                    brandTab === i
-                      ? 'border-brand-500 bg-brand-50 text-brand-700'
-                      : 'border-slate-200 text-slate-600 hover:border-brand-300',
-                  )}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="mt-4">
-            <SpotlightCompanies brands={BRANDS} />
-          </div>
+        <Reveal>
+          <SpotlightCompanies brands={BRANDS} tabs={BRAND_TABS} />
         </Reveal>
       </section>
 

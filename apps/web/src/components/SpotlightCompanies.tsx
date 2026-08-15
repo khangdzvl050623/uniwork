@@ -1,129 +1,160 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Briefcase, ChevronLeft, ChevronRight, Plus, Sparkles } from 'lucide-react'
+import { Briefcase, Check, ChevronLeft, ChevronRight, Plus, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export interface Brand {
   name: string
   initial: string
-  /** Class nền Tailwind, ví dụ 'bg-amber-500'. Dùng luôn làm màu nền thẻ nổi bật. */
+  /** Class nền Tailwind, ví dụ 'bg-amber-500'. Dùng luôn làm nền thẻ nổi bật. */
   color: string
   tag: string
   jobs: number
 }
 
-/** Số mili giây giữa hai lần tự đổi công ty nổi bật. */
-const ROTATE_MS = 5000
+/**
+ * Số mili giây giữa hai lần đổi thương hiệu nổi bật.
+ *
+ * 8 giây chứ không phải 3–4 như carousel quảng cáo thường thấy: thẻ này có tên
+ * công ty, ngành nghề và số tin: người đọc cần đủ thời gian đọc hết rồi mới
+ * quyết định có bấm hay không. Đổi quá nhanh thì không ai kịp đọc, và khối này
+ * chỉ còn là thứ nhấp nháy gây phân tâm.
+ */
+const ROTATE_MS = 8000
 
 /**
- * Khối "Nhà tuyển dụng nổi bật": một thẻ lớn bên trái, lưới thẻ nhỏ bên phải.
+ * Khối "Thương hiệu tiêu biểu": một thẻ lớn bên trái, lưới thẻ nhỏ bên phải.
  *
- * Vị trí nổi bật này về sau là chỗ bán — nhà tuyển dụng trả phí để được đưa lên
- * đây. Nên nó nhận cả danh sách rồi tự xoay vòng: khi có nhiều bên cùng mua, ai
- * cũng được hiện, không phải chọn một người duy nhất.
+ * Vị trí thẻ lớn về sau là chỗ bán — doanh nghiệp trả phí để được đưa lên đây.
+ * Nên component nhận cả danh sách rồi tự xoay vòng: khi có nhiều bên cùng mua,
+ * ai cũng được hiện, không phải chọn một người duy nhất.
  *
- * Khác một điểm so với các trang tuyển dụng khác: lưới bên phải KHÔNG đổi nội
- * dung mỗi lần xoay. Nếu để nó đổi theo, cả khối nhấp nháy liên tục và mắt
- * người đọc bị kéo đi mất. Ở đây lưới đứng yên, chỉ có viền sáng chạy từ thẻ
- * này sang thẻ khác — đủ để thấy có gì đang chuyển động mà không gây rối.
+ * Lưới bên phải KHÔNG đổi nội dung mỗi lần xoay. Để nó đổi theo thì cả khối
+ * nhấp nháy và mắt người đọc bị kéo đi; ở đây lưới đứng yên, chỉ có viền sáng
+ * chạy từ thẻ này sang thẻ khác.
  */
-export function SpotlightCompanies({ brands }: { brands: Brand[] }) {
+export function SpotlightCompanies({ brands, tabs }: { brands: Brand[]; tabs: string[] }) {
   const [active, setActive] = useState(0)
-  const paused = useRef(false)
+  const [tab, setTab] = useState(0)
+  const [paused, setPaused] = useState(false)
+  const [followed, setFollowed] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    if (brands.length < 2) return
+    if (brands.length < 2 || paused) return
 
     // Người bật giảm chuyển động thì không tự xoay. Với họ, một khối tự đổi sau
     // lưng khi đang đọc gây khó chịu hơn là đẹp — vẫn bấm mũi tên xem được.
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
-    const id = setInterval(() => {
-      if (paused.current) return
-      setActive((i) => (i + 1) % brands.length)
-    }, ROTATE_MS)
-
+    const id = setInterval(() => setActive((i) => (i + 1) % brands.length), ROTATE_MS)
     return () => clearInterval(id)
-  }, [brands.length])
+  }, [brands.length, paused, active])
 
   const go = (delta: number) => setActive((i) => (i + delta + brands.length) % brands.length)
+
+  const toggleFollow = (name: string) =>
+    setFollowed((prev) => {
+      const next = new Set(prev)
+      if (next.has(name)) next.delete(name)
+      else next.add(name)
+      return next
+    })
 
   const spotlight = brands[active]
   if (!spotlight) return null
 
   return (
     <div
-      // Dừng xoay khi con trỏ đang ở trong khối. Đang đọc dở một thẻ mà nó tự
-      // nhảy sang thẻ khác là kiểu khó chịu rất dễ gặp ở carousel.
-      onMouseEnter={() => (paused.current = true)}
-      onMouseLeave={() => (paused.current = false)}
-      className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]"
+      // Dừng xoay khi con trỏ ở trong khối. Đang đọc dở một thẻ mà nó tự nhảy
+      // sang thẻ khác là kiểu khó chịu rất dễ gặp ở carousel.
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
     >
-      <SpotlightCard brand={spotlight} />
+      {/* ---------------------------------------------------------- BĂNG ĐẦU */}
+      <div className="relative overflow-hidden rounded-t-2xl bg-gradient-to-r from-accent-600 via-accent-500 to-accent-400 px-6 py-5">
+        <div className="pattern-hex absolute inset-0 opacity-20" />
+        <div className="relative flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-extrabold text-white drop-shadow-sm">
+              Thương hiệu tiêu biểu
+            </h2>
+            <p className="mt-1 text-sm text-white/85">
+              Doanh nghiệp đã xác minh giấy tờ, đang tuyển sinh viên
+            </p>
+          </div>
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white px-3.5 py-1.5 text-sm font-bold text-accent-600 shadow-sm">
+            <Sparkles size={14} />
+            Nổi bật
+          </span>
+        </div>
+      </div>
 
-      <div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          {brands.map((b, i) => (
+      <div className="rounded-b-2xl border border-t-0 border-slate-200 bg-white p-4">
+        {/* ------------------------------------------------------ TAB NGÀNH */}
+        <div className="scroll-x flex gap-2 overflow-x-auto pb-1">
+          {tabs.map((t, i) => (
             <button
-              key={b.name}
-              onClick={() => setActive(i)}
+              key={t}
+              onClick={() => setTab(i)}
               className={cn(
-                'card-lift flex items-center gap-3 rounded-xl border p-3 text-left',
-                i === active
-                  ? 'border-brand-500 bg-brand-50/60 ring-1 ring-brand-500/20'
-                  : 'border-slate-200 hover:border-brand-300',
+                'shrink-0 rounded-full border px-4 py-1.5 text-sm font-medium transition-colors',
+                tab === i
+                  ? 'border-accent-500 bg-accent-500 text-white shadow-sm'
+                  : 'border-slate-200 text-slate-600 hover:border-accent-400 hover:text-accent-600',
               )}
             >
-              <span
-                className={cn(
-                  'grid h-11 w-11 shrink-0 place-items-center rounded-lg text-base font-bold text-white',
-                  b.color,
-                )}
-              >
-                {b.initial}
-              </span>
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-slate-900">{b.name}</span>
-                <span className="mt-0.5 flex items-center gap-1 text-xs text-slate-500">
-                  <Briefcase size={12} />
-                  {b.jobs} tin
-                </span>
-              </span>
+              {t}
             </button>
           ))}
         </div>
 
-        <div className="mt-3 flex items-center justify-between">
-          {/* Chấm chỉ vị trí: cho biết có bao nhiêu công ty và đang tới đâu. */}
-          <div className="flex gap-1.5">
-            {brands.map((b, i) => (
-              <button
-                key={b.name}
-                onClick={() => setActive(i)}
-                aria-label={`Xem ${b.name}`}
-                className={cn(
-                  'h-1.5 rounded-full transition-all',
-                  i === active ? 'w-5 bg-brand-600' : 'w-1.5 bg-slate-300 hover:bg-slate-400',
-                )}
-              />
-            ))}
-          </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)]">
+          <SpotlightCard
+            brand={spotlight}
+            following={followed.has(spotlight.name)}
+            onFollow={() => toggleFollow(spotlight.name)}
+            paused={paused}
+          />
 
-          <div className="flex gap-2">
-            <button
-              onClick={() => go(-1)}
-              aria-label="Công ty trước"
-              className="grid h-8 w-8 place-items-center rounded-full border border-slate-200 text-slate-500 transition-colors hover:border-brand-400 hover:text-brand-600"
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <button
-              onClick={() => go(1)}
-              aria-label="Công ty tiếp theo"
-              className="grid h-8 w-8 place-items-center rounded-full border border-slate-200 text-slate-500 transition-colors hover:border-brand-400 hover:text-brand-600"
-            >
-              <ChevronRight size={16} />
-            </button>
+          <div className="flex flex-col">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {brands.map((b, i) => (
+                <BrandCard
+                  key={b.name}
+                  brand={b}
+                  active={i === active}
+                  following={followed.has(b.name)}
+                  onSelect={() => setActive(i)}
+                  onFollow={() => toggleFollow(b.name)}
+                />
+              ))}
+            </div>
+
+            <div className="mt-auto flex items-center justify-between pt-4">
+              {/* Chấm chỉ vị trí: cho biết có bao nhiêu thương hiệu, đang tới đâu. */}
+              <div className="flex gap-1.5">
+                {brands.map((b, i) => (
+                  <button
+                    key={b.name}
+                    onClick={() => setActive(i)}
+                    aria-label={`Xem ${b.name}`}
+                    className={cn(
+                      'h-1.5 rounded-full transition-all duration-300',
+                      i === active ? 'w-6 bg-accent-500' : 'w-1.5 bg-slate-300 hover:bg-slate-400',
+                    )}
+                  />
+                ))}
+              </div>
+
+              <div className="flex gap-2">
+                <ArrowButton label="Thương hiệu trước" onClick={() => go(-1)}>
+                  <ChevronLeft size={16} />
+                </ArrowButton>
+                <ArrowButton label="Thương hiệu tiếp theo" onClick={() => go(1)}>
+                  <ChevronRight size={16} />
+                </ArrowButton>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -131,49 +162,166 @@ export function SpotlightCompanies({ brands }: { brands: Brand[] }) {
   )
 }
 
-function SpotlightCard({ brand }: { brand: Brand }) {
+function ArrowButton({
+  label,
+  onClick,
+  children,
+}: {
+  label: string
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      aria-label={label}
+      className="grid h-9 w-9 place-items-center rounded-full border border-slate-200 text-slate-500 transition-all hover:-translate-y-0.5 hover:border-accent-400 hover:text-accent-600 hover:shadow-sm"
+    >
+      {children}
+    </button>
+  )
+}
+
+function SpotlightCard({
+  brand,
+  following,
+  onFollow,
+  paused,
+}: {
+  brand: Brand
+  following: boolean
+  onFollow: () => void
+  paused: boolean
+}) {
   return (
     <div
-      // key ép React dựng lại nút này mỗi lần đổi công ty, nhờ vậy hoạt ảnh
-      // fade-in chạy lại từ đầu. Không có key thì React tái sử dụng DOM cũ và
-      // chỉ thay chữ, nhìn như nội dung bị "nhảy" chứ không phải chuyển cảnh.
+      // key ép React dựng lại khối này mỗi lần đổi thương hiệu, nhờ vậy hoạt ảnh
+      // chạy lại từ đầu. Không có key thì React tái sử dụng DOM cũ và chỉ thay
+      // chữ — nhìn như nội dung bị "nhảy" chứ không phải chuyển cảnh.
       key={brand.name}
-      className={cn(
-        'spotlight-in relative flex flex-col justify-between overflow-hidden rounded-2xl p-6 text-white',
-        brand.color,
-      )}
+      className="spotlight-in relative flex min-h-[340px] flex-col justify-between overflow-hidden rounded-xl p-6 text-white"
     >
-      {/* Lớp phủ tối dần từ dưới lên, để chữ trắng luôn đọc được dù nền màu gì. */}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-black/10 to-transparent" />
+      {/* Nền tách riêng khỏi nội dung để phóng chậm được mà chữ vẫn đứng yên. */}
+      <div className={cn('ken-burns absolute inset-0', brand.color)} />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-black/5" />
 
-      <div className="relative">
-        <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2.5 py-1 text-xs font-semibold ring-1 ring-white/30">
+      <div className="relative flex items-start justify-between">
+        <span className="inline-flex items-center gap-1 rounded-full bg-accent-500 px-2.5 py-1 text-xs font-bold shadow-sm">
           <Sparkles size={12} />
-          Nhà tuyển dụng nổi bật
+          Nổi bật
         </span>
       </div>
 
-      <div className="relative mt-8">
-        <div className="grid h-16 w-16 place-items-center rounded-xl bg-white/95 text-2xl font-extrabold text-slate-900">
+      <div className="relative">
+        <div className="stagger-1 grid h-20 w-20 place-items-center rounded-2xl bg-white text-3xl font-extrabold text-slate-900 shadow-lg">
           {brand.initial}
         </div>
-        <h3 className="mt-4 text-xl font-bold leading-snug">{brand.name}</h3>
-        <p className="mt-1 text-sm text-white/80">{brand.tag}</p>
 
-        <div className="mt-5 flex flex-wrap items-center gap-2">
+        <h3 className="stagger-2 mt-4 text-2xl font-bold leading-tight">{brand.name}</h3>
+        <p className="stagger-2 mt-1 text-sm text-white/85">{brand.tag}</p>
+
+        <div className="stagger-3 mt-5 flex flex-wrap items-center gap-2">
           <Link
             to="/viec-lam"
-            className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3.5 py-2 text-sm font-semibold text-slate-900 transition-colors hover:bg-white/90"
+            className="inline-flex items-center gap-1.5 rounded-full bg-white/95 px-4 py-2 text-sm font-semibold text-slate-900 transition-transform hover:-translate-y-0.5"
           >
             <Briefcase size={14} />
-            {brand.jobs} tin đang tuyển
+            {brand.jobs} việc làm
           </Link>
-          <button className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium ring-1 ring-white/45 transition-colors hover:bg-white/15">
-            <Plus size={14} />
-            Theo dõi
-          </button>
+          <FollowButton following={following} onClick={onFollow} tone="light" />
         </div>
       </div>
+
+      {/* Thanh tiến trình cho biết bao lâu nữa đổi sang thương hiệu khác. Không
+          có nó, việc khối tự đổi trông như trang bị lỗi. Dừng cùng lúc với vòng
+          xoay khi con trỏ vào khối. */}
+      <div className="absolute inset-x-0 bottom-0 h-1 bg-white/20">
+        <div
+          className={cn('progress-fill h-full bg-accent-400', paused && 'is-paused')}
+          style={{ animationDuration: `${ROTATE_MS}ms` }}
+        />
+      </div>
     </div>
+  )
+}
+
+function BrandCard({
+  brand,
+  active,
+  following,
+  onSelect,
+  onFollow,
+}: {
+  brand: Brand
+  active: boolean
+  following: boolean
+  onSelect: () => void
+  onFollow: () => void
+}) {
+  return (
+    <div
+      onClick={onSelect}
+      className={cn(
+        'card-lift cursor-pointer rounded-xl border p-3 transition-colors',
+        active
+          ? 'border-accent-400 bg-accent-50/60 ring-1 ring-accent-400/30'
+          : 'border-slate-200 hover:border-accent-300',
+      )}
+    >
+      <div className="flex items-center gap-3">
+        <span
+          className={cn(
+            'grid h-12 w-12 shrink-0 place-items-center rounded-lg text-lg font-bold text-white',
+            brand.color,
+          )}
+        >
+          {brand.initial}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-semibold text-slate-900">{brand.name}</span>
+          <span className="block truncate text-xs text-slate-500">{brand.tag}</span>
+        </span>
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-2">
+        <span className="flex items-center gap-1 text-xs text-slate-500">
+          <Briefcase size={12} />
+          {brand.jobs} việc làm
+        </span>
+        <FollowButton following={following} onClick={onFollow} tone="solid" />
+      </div>
+    </div>
+  )
+}
+
+function FollowButton({
+  following,
+  onClick,
+  tone,
+}: {
+  following: boolean
+  onClick: () => void
+  tone: 'light' | 'solid'
+}) {
+  return (
+    <button
+      onClick={(e) => {
+        // Nút nằm trong thẻ có onClick riêng. Không chặn thì bấm "Theo dõi" sẽ
+        // đồng thời đưa thẻ đó lên vị trí nổi bật — hai việc không liên quan.
+        e.stopPropagation()
+        onClick()
+      }}
+      className={cn(
+        'inline-flex shrink-0 items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-all',
+        following
+          ? 'bg-slate-100 text-slate-500'
+          : tone === 'light'
+            ? 'text-white ring-1 ring-white/50 hover:bg-white/15'
+            : 'bg-accent-50 text-accent-600 hover:bg-accent-100',
+      )}
+    >
+      {following ? <Check size={12} /> : <Plus size={12} />}
+      {following ? 'Đang theo dõi' : 'Theo dõi'}
+    </button>
   )
 }

@@ -104,11 +104,70 @@ body {
   }
 }
 
-/* Chuyển cảnh khi thẻ nổi bật đổi sang công ty khác. Cố tình ngắn và nhẹ:
-   khối này tự đổi sau mỗi 5 giây, hiệu ứng dài hơn sẽ thành thứ gây phân tâm
-   cho người đang đọc phần khác của trang. */
+/* Chuyển cảnh khi thẻ nổi bật đổi sang thương hiệu khác. */
 .spotlight-in {
-  animation: spotlight-in 0.45s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: spotlight-in 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Nội dung trong thẻ hiện lần lượt chứ không ập ra cùng lúc. Mắt người đọc đi
+   theo đúng thứ tự: logo, rồi tên, rồi nút bấm. */
+@keyframes stagger-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.stagger-1,
+.stagger-2,
+.stagger-3 {
+  animation: stagger-up 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+.stagger-1 {
+  animation-delay: 0.1s;
+}
+.stagger-2 {
+  animation-delay: 0.2s;
+}
+.stagger-3 {
+  animation-delay: 0.32s;
+}
+
+/* Nền phóng rất chậm. Khối đứng yên hoàn toàn trong 8 giây trông như ảnh tĩnh;
+   chuyển động nhỏ này đủ để thấy nó còn "sống" mà không ai để ý là đang chạy. */
+@keyframes ken-burns {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.12);
+  }
+}
+
+.ken-burns {
+  animation: ken-burns 9s ease-out forwards;
+}
+
+/* Thanh chạy cho biết còn bao lâu nữa đổi thẻ. Thời lượng do JS truyền vào để
+   luôn khớp với chu kỳ xoay thật, không phải chép tay hai chỗ. */
+@keyframes progress-fill {
+  from {
+    width: 0%;
+  }
+  to {
+    width: 100%;
+  }
+}
+
+.progress-fill {
+  animation: progress-fill linear forwards;
+}
+.progress-fill.is-paused {
+  animation-play-state: paused;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -120,7 +179,12 @@ body {
   .card-lift:hover {
     transform: none;
   }
-  .spotlight-in {
+  .spotlight-in,
+  .stagger-1,
+  .stagger-2,
+  .stagger-3,
+  .ken-burns,
+  .progress-fill {
     animation: none;
   }
 }
