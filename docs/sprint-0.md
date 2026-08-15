@@ -33,7 +33,7 @@
 | T19 | 3–4 | BA | BRD module **Tìm kiếm việc** | 1 trang: trường dữ liệu · luồng chính · lỗi và ngoại lệ |
 | T20 | 4 | DEV1 | Cài Vitest cho API, viết test mẫu | Test chạy xanh |
 | T21 | 4 | DEV2 | Cài Vitest cho web, viết test mẫu | Test chạy xanh |
-| T22 | 4 | DEV2 | Viết `.github/workflows/ci.yml`: install → lint → typecheck → test → build | CI chạy tự động trên mọi PR |
+| T22 | 4 | DEV2 | Viết `.github/workflows/ci.yml`: install → lint → typecheck → test → build. **Kèm một job riêng có service Postgres** cho `test:db` — xem ghi chú bên dưới | CI chạy tự động trên mọi PR |
 | T23 | 4 | DEV2 | Mở PR nháp cho CI chạy 1 lần, bật required status checks cho `dev` và `main` | PR có test đỏ thì không merge được |
 | T24 | 5 | DEV1 | Deploy `apps/api` lên Render: root directory, build/start command, biến môi trường, CORS trỏ domain Vercel | API chạy trên domain `.onrender.com` |
 | T25 | 5 | DEV1 | Cấu hình cron-job.org ping `/api/health` mỗi 5 phút, đặt repository variable `API_URL` | Workflow `keep-alive.yml` hoạt động |
@@ -44,6 +44,43 @@
 | T30 | 6 | DEV1 | Mở rộng seed: tin tuyển dụng mẫu có ca làm và kỹ năng | Sprint 1 có sẵn dữ liệu để phát triển |
 | T31 | 6 | DEV2 | Dựng khung route rỗng cho 6 màn hình theo wireframe | Điều hướng đủ 6 trang, chưa cần giao diện |
 | T32 | 6 | DEV1 | Mời DEV2 và BA vào repo với quyền `write` | Cả nhóm clone và chạy được dự án |
+
+## Ghi chú cho T22 — CI có hai làn test
+
+`pnpm test` và `pnpm test:db` là hai thứ khác nhau, và job CI phải chạy **cả hai**.
+
+| Lệnh | Cần database | Bắt được gì |
+|---|---|---|
+| `pnpm test` | không (giả lập Prisma) | Logic tầng service, hình dạng response |
+| `pnpm test:db` | **có** | CHECK constraint, khoá ngoại, ràng buộc unique, seed chạy lại được |
+
+Vì sao không được quên làn thứ hai: bốn CHECK constraint của bảng `jobs` được **viết tay trong file migration**. Prisma không biết chúng tồn tại, nên không công cụ nào phát hiện khi chúng biến mất. `pnpm test:db` là thứ duy nhất canh.
+
+Job cho làn này cần một service Postgres, rồi chạy theo thứ tự:
+
+```yaml
+services:
+  postgres:
+    image: postgres:17
+    env:
+      POSTGRES_USER: uniwork
+      POSTGRES_PASSWORD: uniwork
+      POSTGRES_DB: uniwork
+    options: >-
+      --health-cmd pg_isready --health-interval 10s
+      --health-timeout 5s --health-retries 5
+    ports: ['5432:5432']
+```
+
+```bash
+pnpm --filter @uniwork/api exec prisma migrate deploy
+pnpm --filter @uniwork/api db:seed
+pnpm --filter @uniwork/api test:db
+```
+
+`DATABASE_URL` và `DIRECT_URL` cùng trỏ `postgresql://uniwork:uniwork@localhost:5432/uniwork`. Không cần secret — đây là database dùng một lần, tự huỷ khi job kết thúc.
+
+Lưu ý: `db:seed` nạp cả tài khoản demo vì hostname là `localhost`. Đúng ý — làn test cần dữ liệu đó.
 
 ## Sáu frame wireframe (T28)
 
