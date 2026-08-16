@@ -1,3 +1,5 @@
+import type { ScheduleType } from './domain.js'
+
 /**
  * Hợp đồng giữa web và api.
  *
@@ -123,4 +125,55 @@ export interface SiteStatsResponse {
 
   /** Sinh viên có hoạt động trong 7 ngày gần nhất, hiện ở huy hiệu đầu trang. */
   activeStudentsThisWeek: number
+}
+
+/** Khoảng thời gian cho bộ lọc của dashboard. */
+export const STATS_RANGES = ['7d', '30d', '90d', '1y'] as const
+export type StatsRange = (typeof STATS_RANGES)[number]
+
+/** Một ô KPI: số hiện tại kèm chuỗi giá trị để vẽ biểu đồ thu nhỏ. */
+export interface KpiMetric {
+  value: number
+  /** Thay đổi so với kỳ trước, phần trăm. Âm nghĩa là giảm. */
+  changePercent: number
+  /**
+   * Chuỗi giá trị theo thời gian dùng vẽ sparkline. Độ dài đổi theo khoảng lọc
+   * và giao diện không giả định con số nào, nên trả 7 hay 365 điểm đều vẽ được.
+   */
+  series: number[]
+}
+
+/**
+ * GET /api/admin/thong-ke?range=30d — số liệu trang tổng quan khu quản trị.
+ *
+ * Cùng lý do như SiteStatsResponse: khai kiểu ở đây để phía api có sẵn hình
+ * dạng phải trả về, và để web đổi nguồn dữ liệu mà không phải sửa giao diện.
+ *
+ * Endpoint này PHẢI chặn theo quyền — chỉ ROLE ADMIN đọc được. Khác với
+ * /api/thong-ke vốn là số công khai, ở đây có số lượng hồ sơ chờ duyệt và
+ * thông tin doanh nghiệp chưa xác minh.
+ */
+export interface AdminStatsResponse {
+  computedAt: string
+  range: StatsRange
+
+  /** Bốn ô KPI trên cùng trang tổng quan. */
+  pendingJobs: KpiMetric
+  pendingEmployers: KpiMetric
+  students: KpiMetric
+  employers: KpiMetric
+
+  /** Biểu đồ đường: tin đăng mới và lượt ứng tuyển theo thời gian. */
+  trend: {
+    /** Nhãn trục ngang, cùng độ dài với hai chuỗi bên dưới. */
+    labels: string[]
+    newJobs: number[]
+    applications: number[]
+  }
+
+  /** Biểu đồ tròn: phân bố tin theo kiểu bố trí thời gian. */
+  scheduleMix: { type: ScheduleType; count: number }[]
+
+  /** Chỉ tiêu duyệt trong kỳ: đã làm được bao nhiêu trên mục tiêu bao nhiêu. */
+  reviewGoals: { label: string; current: number; target: number }[]
 }
