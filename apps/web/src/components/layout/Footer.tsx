@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
-import { Briefcase, Facebook, Mail, MapPin, Phone, Youtube } from 'lucide-react'
+import { Facebook, Mail, MapPin, Phone, Youtube } from 'lucide-react'
 import { ApiStatus } from '@/components/ApiStatus'
+import { UniWorkMark } from '@/components/UniWorkMark'
 
 const COLUMNS = [
   {
@@ -55,7 +56,7 @@ export function Footer() {
           <div>
             <div className="flex items-center gap-2">
               <span className="grid h-9 w-9 place-items-center rounded-md bg-brand-500 text-white">
-                <Briefcase size={18} />
+                <UniWorkMark size={18} />
               </span>
               <span className="text-lg font-extrabold text-slate-900">
                 Uni<span className="text-brand-600">Work</span>

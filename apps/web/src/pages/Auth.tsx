@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Briefcase, Building2, GraduationCap } from 'lucide-react'
+import { Building2, GraduationCap } from 'lucide-react'
+import { UniWorkMark } from '@/components/UniWorkMark'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 
@@ -62,7 +63,7 @@ function AuthShell({ children }: { children: React.ReactNode }) {
     <div className="mx-auto flex max-w-md flex-col justify-center px-4 py-12">
       <Link to="/" className="mb-6 flex items-center justify-center gap-2">
         <span className="grid h-10 w-10 place-items-center rounded-lg bg-brand-600 text-white">
-          <Briefcase size={20} />
+          <UniWorkMark size={20} />
         </span>
         <span className="text-xl font-bold text-slate-900">
           Uni<span className="text-brand-600">Work</span>

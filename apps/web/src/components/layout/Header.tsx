@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
-import { Briefcase, ChevronDown, Menu, X } from 'lucide-react'
+import { ChevronDown, Menu, X } from 'lucide-react'
+import { UniWorkMark } from '@/components/UniWorkMark'
 import { cn } from '@/lib/utils'
 
 const NAV = [
@@ -18,7 +19,7 @@ export function Header() {
       <div className="mx-auto flex h-14 max-w-[1180px] items-center gap-6 px-4">
         <Link to="/" className="flex shrink-0 items-center gap-2">
           <span className="grid h-8 w-8 place-items-center rounded-md bg-brand-500 text-white">
-            <Briefcase size={17} />
+            <UniWorkMark size={17} />
           </span>
           <span className="text-lg font-extrabold tracking-tight text-white">
             Uni<span className="text-brand-300">Work</span>
