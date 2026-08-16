@@ -30,14 +30,17 @@ import {
   Zap,
 } from 'lucide-react'
 import { JobCard } from '@/components/JobCard'
+import { HeroAurora } from '@/components/HeroAurora'
 import { Reveal } from '@/components/Reveal'
 import { Countdown } from '@/components/Countdown'
 import { Marquee } from '@/components/Marquee'
 import { CountUp } from '@/components/CountUp'
+import { MarketChart } from '@/components/MarketChart'
 import { SpotlightCompanies } from '@/components/SpotlightCompanies'
 import { Button } from '@/components/ui/Button'
 import { DISTRICTS, JOBS } from '@/data/mock'
-import { cn } from '@/lib/utils'
+import { useSiteStats } from '@/hooks/useSiteStats'
+import { cn, formatDate } from '@/lib/utils'
 
 const JOB_TABS = ['Phù hợp lịch của bạn', 'Việc mới nhất', 'Lương cao', 'Làm từ xa', 'Cuối tuần']
 const HOT_KEYWORDS = ['Phục vụ quán', 'Gia sư', 'Trực page', 'Sự kiện', 'Nhập liệu', 'Bán hàng']
@@ -47,23 +50,6 @@ const HERO_POINTS = [
   'Tin đăng đã kiểm duyệt giấy tờ doanh nghiệp',
   'Theo dõi trạng thái hồ sơ, không rơi vào inbox',
   'Miễn phí toàn bộ với sinh viên',
-]
-
-/**
- * Số liệu cho khối "Con số ấn tượng".
- *
- * Đây là số mô phỏng, và giao diện đã nói thẳng điều đó ngay dưới tiêu đề khối.
- * Giữ dạng số nguyên chứ không phải chuỗi '540.000+' để CountUp đếm được; phần
- * dấu chấm ngăn hàng nghìn do formatNumber lo theo định dạng tiếng Việt.
- *
- * Khi có dữ liệu thật thì thay bằng một endpoint đếm từ database, lúc đó chỉ
- * phải sửa đúng chỗ này.
- */
-const STATS = [
-  { value: 540_000, label: 'lượt tìm việc' },
-  { value: 200_000, label: 'hồ sơ sinh viên' },
-  { value: 2_000_000, label: 'giờ làm đã ghép' },
-  { value: 1_200_000, label: 'lượt xem tin' },
 ]
 
 const BRAND_TABS = [
@@ -96,7 +82,7 @@ const BRANDS = [
   {
     name: 'DataLine Việt Nam',
     initial: 'D',
-    color: 'bg-teal-600',
+    color: 'bg-cyan-600',
     tag: 'Dịch vụ dữ liệu',
     jobs: 6,
   },
@@ -179,7 +165,7 @@ const ECOSYSTEM = [
   {
     name: 'UniWork Schedule',
     desc: 'Quản lý lịch rảnh theo học kỳ',
-    color: 'from-teal-500 to-teal-700',
+    color: 'from-cyan-500 to-blue-600',
   },
   {
     name: 'UniWork CV',
@@ -202,8 +188,6 @@ const PRESS = [
   'Báo Thanh Niên',
 ]
 
-const CHART_BARS = [42, 58, 35, 72, 64, 88, 76, 95, 61, 80, 54, 90]
-
 /** Số nhóm nghề hiện mỗi trang ở cột trái của hero. */
 const CAT_PER_PAGE = 6
 
@@ -213,113 +197,181 @@ export function Home() {
   const jobs = jobTab === 0 ? [...JOBS].sort((a, b) => b.matchScore - a.matchScore) : JOBS
   const catPages = Math.ceil(CATEGORIES.length / CAT_PER_PAGE)
 
+  // Mọi con số hiện trên trang này đến từ đây, không chỗ nào ghi cứng. Hôm nay
+  // là số mô phỏng, ngày api có endpoint đếm thì chỉ hook đổi — trang chủ không
+  // biết và không cần biết nguồn nào.
+  const stats = useSiteStats()
+  const marketRising = stats.market.changePercent >= 0
+
   return (
     <>
       {/* ================================================================ HERO */}
-      <section className="hero-bg px-4 pt-6 pb-8">
-        <div className="mx-auto max-w-[1180px]">
-          <h1 className="text-center text-xl font-extrabold text-brand-300 md:text-2xl">
-            UniWork — Việc làm bán thời gian khớp đúng lịch học
+      {/* `isolate` không phải để trang trí: nó tạo một tầng xếp chồng riêng cho
+          khối hero, nhờ đó mấy vệt sáng bên trong HeroAurora (dùng mix-blend-mode
+          screen) chỉ hoà màu với nền hero chứ không ăn lan ra header phía trên. */}
+      <section className="hero-sky relative isolate overflow-hidden px-4 pt-12 pb-28 sm:pt-16">
+        <HeroAurora />
+
+        <div className="relative mx-auto max-w-[1180px]">
+          <div className="hero-rise flex justify-center" style={{ animationDelay: '0ms' }}>
+            <span className="sheen relative inline-flex items-center gap-2.5 overflow-hidden rounded-full border border-white/20 bg-white/10 px-4 py-1.5 text-xs font-semibold text-white backdrop-blur-sm sm:text-sm">
+              <span className="live-dot relative h-2 w-2 rounded-full bg-brand-300 text-brand-300" />
+              <span>
+                <CountUp to={stats.activeStudentsThisWeek} duration={1400} /> sinh viên đang tìm ca
+                làm trong tuần này
+              </span>
+            </span>
+          </div>
+
+          <h1
+            className="hero-rise mx-auto mt-6 max-w-4xl text-center text-[2rem] leading-[1.12] font-black tracking-tight text-white sm:text-5xl lg:text-[3.4rem]"
+            style={{ animationDelay: '80ms' }}
+          >
+            Việc làm bán thời gian <span className="text-gradient-fresh">khớp đúng lịch học</span>{' '}
+            của bạn
           </h1>
 
-          <div className="hero-grid mt-5">
-            <form
-              onSubmit={(e) => e.preventDefault()}
-              className="area-search flex flex-col gap-2 rounded-xl bg-white p-2 shadow-xl md:flex-row"
-            >
-              <div className="flex flex-1 items-center gap-2 px-3">
-                <Search size={18} className="shrink-0 text-slate-400" />
-                <input
-                  placeholder="Vị trí, kỹ năng hoặc tên công ty"
-                  className="h-11 w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
-                />
-              </div>
-              <div className="flex items-center gap-2 px-3 md:border-l md:border-slate-200">
-                <MapPin size={18} className="shrink-0 text-slate-400" />
-                <select className="h-11 w-full bg-transparent text-sm text-slate-600 outline-none md:w-44">
-                  <option value="">Tất cả khu vực</option>
-                  {DISTRICTS.map((d) => (
-                    <option key={d}>{d}</option>
-                  ))}
-                </select>
-              </div>
-              <Button type="submit" size="lg" className="shrink-0 md:px-9">
-                <Search size={17} />
-                Tìm kiếm
-              </Button>
-            </form>
+          <p
+            className="hero-rise mx-auto mt-5 max-w-2xl text-center text-base leading-relaxed text-white/75 sm:text-lg"
+            style={{ animationDelay: '140ms' }}
+          >
+            Khai lịch rảnh một lần, UniWork tự lọc ra những ca bạn thật sự đi làm được — khỏi ngồi
+            dò từng tin. Miễn phí toàn bộ với sinh viên.
+          </p>
 
-            <div className="area-keyword flex flex-wrap items-center gap-2 text-sm">
-              <span className="text-brand-100/75">Từ khoá phổ biến:</span>
-              {HOT_KEYWORDS.map((k) => (
-                <Link
-                  key={k}
-                  to="/viec-lam"
-                  className="rounded-full border border-white/25 px-3 py-1 text-brand-50 transition-colors hover:border-white/60 hover:bg-white/10"
-                >
-                  {k}
-                </Link>
-              ))}
+          <form
+            onSubmit={(e) => e.preventDefault()}
+            className="hero-rise search-shell mx-auto mt-9 flex max-w-3xl flex-col gap-2 rounded-2xl bg-white p-2 shadow-[0_24px_48px_-24px_rgba(0,0,0,0.55)] md:flex-row md:items-center"
+            style={{ animationDelay: '200ms' }}
+          >
+            <div className="flex flex-1 items-center gap-2 px-3">
+              <Search size={18} className="shrink-0 text-slate-400" />
+              <input
+                placeholder="Vị trí, kỹ năng hoặc tên công ty"
+                className="h-12 w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+              />
             </div>
-
-            {/* Cột trái trải hai hàng, đúng vùng categoryFamily-area của TopCV. */}
-            <div className="area-category flex flex-col rounded-xl bg-white p-2">
-              <ul className="flex-1">
-                {CATEGORIES.slice(catPage * CAT_PER_PAGE, (catPage + 1) * CAT_PER_PAGE).map((c) => (
-                  <li key={c.label}>
-                    <Link
-                      to="/viec-lam"
-                      className="flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm text-slate-700 transition-colors hover:bg-brand-50 hover:text-brand-700"
-                    >
-                      <c.icon size={16} className="shrink-0 text-brand-600" />
-                      <span className="min-w-0 flex-1 truncate">{c.label}</span>
-                      <ChevronRight size={15} className="shrink-0 text-slate-300" />
-                    </Link>
-                  </li>
+            <div className="flex items-center gap-2 px-3 md:border-l md:border-slate-200">
+              <MapPin size={18} className="shrink-0 text-slate-400" />
+              <select className="h-12 w-full cursor-pointer bg-transparent text-sm text-slate-600 outline-none md:w-44">
+                <option value="">Tất cả khu vực</option>
+                {DISTRICTS.map((d) => (
+                  <option key={d}>{d}</option>
                 ))}
-              </ul>
+              </select>
+            </div>
+            <Button type="submit" variant="gradient" size="lg" className="shrink-0 md:px-9">
+              <Search size={17} />
+              Tìm kiếm
+            </Button>
+          </form>
 
-              <div className="mt-1 flex items-center justify-between border-t border-slate-100 px-3 pt-2">
-                <span className="text-xs text-slate-400">
+          <div
+            className="hero-rise mt-5 flex flex-wrap items-center justify-center gap-2 text-sm"
+            style={{ animationDelay: '260ms' }}
+          >
+            <span className="text-white/55">Từ khoá phổ biến:</span>
+            {HOT_KEYWORDS.map((k) => (
+              <Link
+                key={k}
+                to="/viec-lam"
+                className="rounded-full border border-white/25 bg-white/5 px-3.5 py-1.5 font-medium text-white/85 backdrop-blur-sm transition-[transform,background-color,border-color,color] duration-200 ease-out hover:-translate-y-0.5 hover:border-brand-300/70 hover:bg-white/15 hover:text-white active:scale-[0.96]"
+              >
+                {k}
+              </Link>
+            ))}
+          </div>
+
+          <div className="mt-10 grid gap-4 lg:grid-cols-[320px_1fr]">
+            {/* Cột nhóm nghề. Nền trắng mờ chứ không đặc: giữ được dải màu chạy
+                phía sau, khối không bị "dán" lên như miếng giấy.
+
+                Cố ý KHÔNG dùng backdrop-blur ở hai khối lớn này. Thứ nằm sau
+                chúng vốn đã là gradient mềm — làm mờ một thứ vốn đã mờ thì mắt
+                không thấy khác gì, nhưng trình duyệt phải lọc lại cả vùng đó mỗi
+                khung hình vì các vệt sáng phía sau đang trôi. Trả tiền mà không
+                mua được gì. */}
+            <div
+              className="hero-rise flex flex-col rounded-2xl border border-white/15 bg-white/10 p-3"
+              style={{ animationDelay: '320ms' }}
+            >
+              <div className="flex items-center justify-between px-2 pb-2">
+                <span className="text-xs font-semibold tracking-wider text-white/60 uppercase">
+                  Nhóm nghề
+                </span>
+                <span className="text-xs text-white/45">
                   {catPage + 1}/{catPages}
                 </span>
-                <div className="flex gap-1.5">
-                  <button
-                    onClick={() => setCatPage((p) => (p - 1 + catPages) % catPages)}
-                    aria-label="Nhóm nghề trước"
-                    className="grid h-7 w-7 place-items-center rounded-full border border-slate-200 text-slate-400 transition-colors hover:border-brand-400 hover:text-brand-600"
-                  >
-                    <ChevronRight size={14} className="rotate-180" />
-                  </button>
-                  <button
-                    onClick={() => setCatPage((p) => (p + 1) % catPages)}
-                    aria-label="Nhóm nghề tiếp theo"
-                    className="grid h-7 w-7 place-items-center rounded-full border border-brand-500 bg-brand-50 text-brand-600 transition-colors hover:bg-brand-100"
-                  >
-                    <ChevronRight size={14} />
-                  </button>
-                </div>
+              </div>
+
+              {/* key={catPage} buộc React dựng lại cả danh sách khi đổi trang,
+                  nhờ đó animation cat-in chạy lại. Không có key thì React chỉ
+                  thay chữ bên trong các thẻ cũ và chữ tự đổi không kèm chuyển
+                  động — người dùng dễ tưởng chưa bấm trúng. */}
+              <ul key={catPage} className="flex-1 space-y-0.5">
+                {CATEGORIES.slice(catPage * CAT_PER_PAGE, (catPage + 1) * CAT_PER_PAGE).map(
+                  (c, i) => (
+                    <li key={c.label} className="cat-in" style={{ animationDelay: `${i * 45}ms` }}>
+                      <Link
+                        to="/viec-lam"
+                        className="group flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-white/85 transition-colors duration-200 hover:bg-white/15 hover:text-white"
+                      >
+                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/10 text-brand-300 transition-[transform,background-color] duration-200 ease-out group-hover:scale-110 group-hover:bg-brand-400/25">
+                          <c.icon size={15} />
+                        </span>
+                        <span className="min-w-0 flex-1 truncate">{c.label}</span>
+                        <span className="shrink-0 text-[11px] text-white/40">{c.count}</span>
+                        <ChevronRight
+                          size={15}
+                          className="shrink-0 text-white/30 transition-transform duration-200 ease-out group-hover:translate-x-0.5"
+                        />
+                      </Link>
+                    </li>
+                  ),
+                )}
+              </ul>
+
+              <div className="mt-2 flex items-center justify-end gap-1.5 border-t border-white/10 px-2 pt-2.5">
+                <button
+                  onClick={() => setCatPage((p) => (p - 1 + catPages) % catPages)}
+                  aria-label="Nhóm nghề trước"
+                  className="grid h-8 w-8 place-items-center rounded-full border border-white/25 text-white/70 transition-[transform,background-color,border-color,color] duration-150 ease-out hover:border-brand-300/70 hover:bg-white/15 hover:text-white active:scale-90"
+                >
+                  <ChevronRight size={15} className="rotate-180" />
+                </button>
+                <button
+                  onClick={() => setCatPage((p) => (p + 1) % catPages)}
+                  aria-label="Nhóm nghề tiếp theo"
+                  className="grid h-8 w-8 place-items-center rounded-full border border-brand-300/60 bg-brand-400/20 text-brand-100 transition-[transform,background-color,border-color,color] duration-150 ease-out hover:bg-brand-400/35 hover:text-white active:scale-90"
+                >
+                  <ChevronRight size={15} />
+                </button>
               </div>
             </div>
 
-            {/* Vùng banner: chỗ đặt thông điệp chính, tương ứng banner-area. */}
-            <div className="area-banner relative overflow-hidden rounded-xl bg-gradient-to-br from-white to-brand-50 p-5">
-              <div className="relative flex flex-wrap items-center justify-between gap-5">
-                <div className="min-w-0">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-100 px-2.5 py-1 text-xs font-semibold text-brand-700">
+            {/* Khối kể ý tưởng cốt lõi của sản phẩm: lọc việc theo lịch rảnh. */}
+            <div
+              className="hero-rise relative overflow-hidden rounded-2xl border border-white/15 bg-white/10 p-5 sm:p-6"
+              style={{ animationDelay: '380ms' }}
+            >
+              <div className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-brand-400/20 blur-2xl" />
+
+              <div className="relative flex flex-wrap items-center justify-between gap-6">
+                <div className="min-w-0 flex-1">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/20 px-2.5 py-1 text-xs font-semibold text-amber-200 ring-1 ring-amber-300/30">
                     <Sparkles size={12} /> Chỉ có ở UniWork
                   </span>
-                  <h2 className="mt-2.5 text-xl font-extrabold leading-snug text-slate-900 md:text-2xl">
-                    Lọc việc theo <span className="text-brand-600">đúng khung giờ</span>
+                  <h2 className="mt-3 text-xl leading-snug font-extrabold text-white sm:text-2xl">
+                    Lọc việc theo <span className="text-gradient-fresh">đúng khung giờ</span>
                     <br />
                     bạn còn rảnh
                   </h2>
-                  <p className="mt-2 max-w-md text-sm text-slate-600">
+                  <p className="mt-2 max-w-md text-sm leading-relaxed text-white/70">
                     Khai lịch học một lần. Mỗi tin đăng tự chấm điểm phù hợp với lịch của bạn, khỏi
                     ngồi dò từng ca.
                   </p>
-                  <Link to="/lich-ranh" className="mt-4 inline-block">
-                    <Button>
+                  <Link to="/lich-ranh" className="mt-5 inline-block">
+                    <Button variant="gradient">
                       <CalendarCheck size={16} />
                       Khai lịch rảnh
                       <ArrowRight size={15} />
@@ -327,49 +379,73 @@ export function Home() {
                   </Link>
                 </div>
 
-                {/* Lưới lịch thu nhỏ, cho thấy ngay ý tưởng thay vì tả bằng chữ. */}
+                {/* Lưới lịch thu nhỏ, cho thấy ngay ý tưởng thay vì tả bằng chữ.
+                    Các ô nảy ra lần lượt sau khi khối đã vào chỗ (trễ 560ms), nên
+                    mắt đọc xong tiêu đề mới thấy lưới dựng lên — đúng thứ tự
+                    "vấn đề trước, minh hoạ sau". */}
                 <div className="shrink-0">
-                  <div className="grid grid-cols-7 gap-1">
-                    {Array.from({ length: 21 }).map((_, i) => (
-                      <span
-                        key={i}
-                        className={cn(
-                          'h-6 w-6 rounded',
-                          [3, 5, 10, 12, 17, 19, 20].includes(i)
-                            ? 'bg-accent-400'
-                            : [1, 8, 15].includes(i)
-                              ? 'bg-brand-500'
-                              : 'bg-slate-200',
-                        )}
-                      />
-                    ))}
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {Array.from({ length: 21 }).map((_, i) => {
+                      const busy = [3, 5, 10, 12, 17, 19, 20].includes(i)
+                      const free = [1, 8, 15].includes(i)
+                      return (
+                        <span
+                          key={i}
+                          className={cn(
+                            'cell-pop h-6 w-6 rounded-md',
+                            busy
+                              ? 'bg-amber-400 shadow-[0_0_14px_-2px_rgba(251,191,36,0.85)]'
+                              : free
+                                ? 'bg-brand-400 shadow-[0_0_14px_-2px_rgba(20,196,171,0.85)]'
+                                : 'bg-white/12',
+                          )}
+                          style={{ animationDelay: `${560 + i * 22}ms` }}
+                        />
+                      )
+                    })}
                   </div>
-                  <div className="mt-2.5 flex items-center gap-3 text-[11px] text-slate-500">
-                    <span className="flex items-center gap-1">
-                      <span className="h-2.5 w-2.5 rounded-sm bg-accent-400" /> Ca cần làm
+                  <div className="mt-3 flex items-center gap-3 text-[11px] text-white/60">
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-sm bg-amber-400" /> Ca cần làm
                     </span>
-                    <span className="flex items-center gap-1">
-                      <span className="h-2.5 w-2.5 rounded-sm bg-brand-500" /> Bạn rảnh
+                    <span className="flex items-center gap-1.5">
+                      <span className="h-2.5 w-2.5 rounded-sm bg-brand-400" /> Bạn rảnh
                     </span>
                   </div>
                 </div>
               </div>
             </div>
-
-            {/* Vùng job-area: bốn lời hứa ngắn, thay cho danh sách gạch đầu dòng
-                dài dòng ở bản cũ. */}
-            <div className="area-jobs grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {HERO_POINTS.map((p) => (
-                <div
-                  key={p}
-                  className="flex items-start gap-2 rounded-xl bg-white/10 px-3 py-2.5 text-xs text-brand-50 ring-1 ring-white/15"
-                >
-                  <CheckCircle2 size={15} className="mt-px shrink-0 text-brand-300" />
-                  {p}
-                </div>
-              ))}
-            </div>
           </div>
+
+          {/* Bốn lời hứa ngắn, chốt lại phần hero. */}
+          <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+            {HERO_POINTS.map((p, i) => (
+              <div
+                key={p}
+                className="hero-rise flex items-start gap-2.5 rounded-xl border border-white/12 bg-white/8 px-3.5 py-3 text-xs leading-relaxed text-white/80 backdrop-blur-sm transition-colors duration-200 hover:border-brand-300/40 hover:bg-white/15"
+                style={{ animationDelay: `${440 + i * 70}ms` }}
+              >
+                <CheckCircle2 size={15} className="mt-px shrink-0 text-brand-300" />
+                {p}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Đường lượn khép đáy hero. Cắt bằng đường thẳng thì hero trông như một
+            dải băng dán lên trang; đường cong làm nó chảy vào phần nội dung
+            trắng bên dưới. Màu tô đúng bằng nền body (slate-100). */}
+        <div aria-hidden className="pointer-events-none absolute inset-x-0 bottom-0">
+          <svg
+            viewBox="0 0 1440 90"
+            preserveAspectRatio="none"
+            className="block h-[56px] w-full sm:h-[90px]"
+          >
+            <path
+              d="M0 90V44c180 30 360 42 540 26 180-16 360-58 540-58 120 0 240 18 360 40v38z"
+              fill="#f1f5f9"
+            />
+          </svg>
         </div>
       </section>
 
@@ -443,84 +519,57 @@ export function Home() {
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="text-xl font-bold text-white">Thị trường việc làm hôm nay</h2>
-              <p className="mt-1 text-sm text-slate-400">Cập nhật 13/08/2026</p>
+              <p className="mt-1 text-sm text-slate-400">Cập nhật {formatDate(stats.computedAt)}</p>
             </div>
-            <span className="flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-medium text-emerald-400">
-              <TrendingUp size={13} /> Tăng 12% so với tuần trước
+            {/* Chữ và màu bám theo dấu của changePercent. Ghi cứng "Tăng" rồi tới
+                ngày service trả về số âm là giao diện nói ngược hẳn sự thật. */}
+            <span
+              className={cn(
+                'flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium',
+                marketRising ? 'bg-brand-500/15 text-brand-300' : 'bg-rose-500/15 text-rose-300',
+              )}
+            >
+              <TrendingUp size={13} className={cn(!marketRising && 'rotate-180')} />
+              {marketRising ? 'Tăng' : 'Giảm'}{' '}
+              <CountUp to={Math.abs(stats.market.changePercent)} duration={900} suffix="%" /> so với
+              tuần trước
             </span>
           </div>
 
           <div className="mt-6 grid gap-6 lg:grid-cols-[320px_1fr]">
             <div className="space-y-3">
               {[
-                ['3.342', 'lượt ứng tuyển tuần này', Users],
-                ['48.692', 'giờ làm đã ghép thành công', Clock],
-                ['16.996', 'lượt xem tin tuyển dụng', BarChart3],
-              ].map(([value, label, Icon]) => {
-                const I = Icon as typeof Users
-                return (
-                  <div
-                    key={label as string}
-                    className="flex items-center gap-3 rounded-xl bg-white/5 px-4 py-3 ring-1 ring-white/10"
-                  >
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-500/20 text-brand-400">
-                      <I size={18} />
-                    </span>
-                    <span>
-                      <span className="block text-xl font-extrabold text-white">
-                        {value as string}
-                      </span>
-                      <span className="text-xs text-slate-400">{label as string}</span>
-                    </span>
-                  </div>
-                )
-              })}
+                {
+                  value: stats.market.applicationsThisWeek,
+                  label: 'lượt ứng tuyển tuần này',
+                  icon: Users,
+                },
+                {
+                  value: stats.market.matchedHours,
+                  label: 'giờ làm đã ghép thành công',
+                  icon: Clock,
+                },
+                { value: stats.market.jobViews, label: 'lượt xem tin tuyển dụng', icon: BarChart3 },
+              ].map(({ value, label, icon: Icon }) => (
+                <div
+                  key={label}
+                  className="flex items-center gap-3 rounded-xl bg-white/5 px-4 py-3 ring-1 ring-white/10"
+                >
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-500/20 text-brand-400">
+                    <Icon size={18} />
+                  </span>
+                  <span>
+                    <CountUp to={value} className="block text-xl font-extrabold text-white" />
+                    <span className="text-xs text-slate-400">{label}</span>
+                  </span>
+                </div>
+              ))}
             </div>
 
-            <div className="rounded-xl bg-white/5 p-5 ring-1 ring-white/10">
-              <div className="flex items-center justify-between text-xs text-slate-400">
-                <span>Lượt ứng tuyển 12 tuần gần nhất</span>
-                <span className="text-brand-400">▲ 12%</span>
-              </div>
-
-              <svg viewBox="0 0 320 80" className="mt-3 h-20 w-full" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="lineFill" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#00b14f" stopOpacity="0.45" />
-                    <stop offset="100%" stopColor="#00b14f" stopOpacity="0" />
-                  </linearGradient>
-                </defs>
-                <polygon
-                  fill="url(#lineFill)"
-                  points={`0,80 ${CHART_BARS.map((v, i) => `${(i * 320) / 11},${80 - (v / 100) * 70}`).join(' ')} 320,80`}
-                />
-                <polyline
-                  fill="none"
-                  stroke="#00b14f"
-                  strokeWidth="2"
-                  strokeLinejoin="round"
-                  points={CHART_BARS.map((v, i) => `${(i * 320) / 11},${80 - (v / 100) * 70}`).join(
-                    ' ',
-                  )}
-                />
-              </svg>
-
-              <div className="mt-5 flex h-24 items-end gap-1.5">
-                {CHART_BARS.map((v, i) => (
-                  <div key={i} className="flex-1">
-                    <div
-                      className="rounded-t bg-gradient-to-t from-brand-700 to-brand-400 transition-all hover:from-accent-600 hover:to-accent-400"
-                      style={{ height: `${v}%` }}
-                    />
-                  </div>
-                ))}
-              </div>
-              <div className="mt-2 flex justify-between text-[10px] text-slate-500">
-                <span>Tuần 1</span>
-                <span>Tuần 6</span>
-                <span>Tuần 12</span>
-              </div>
-            </div>
+            <MarketChart
+              weeklyApplications={stats.market.weeklyApplications}
+              changePercent={stats.market.changePercent}
+            />
           </div>
         </Reveal>
       </section>
@@ -793,10 +842,15 @@ export function Home() {
           </Reveal>
 
           <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {STATS.map((s, i) => (
+            {[
+              { value: stats.lifetime.jobSearches, label: 'lượt tìm việc' },
+              { value: stats.lifetime.studentProfiles, label: 'hồ sơ sinh viên' },
+              { value: stats.lifetime.matchedHours, label: 'giờ làm đã ghép' },
+              { value: stats.lifetime.jobViews, label: 'lượt xem tin' },
+            ].map((s, i) => (
               <Reveal key={s.label} delay={i * 80}>
                 <div className="card-lift rounded-2xl bg-white/8 px-5 py-7 text-center ring-1 ring-white/15">
-                  <div className="text-2xl font-extrabold text-gradient-gold">
+                  <div className="text-gradient-gold text-2xl font-extrabold">
                     <CountUp to={s.value} suffix="+" />
                   </div>
                   <div className="mt-1.5 text-sm text-brand-50/80">{s.label}</div>

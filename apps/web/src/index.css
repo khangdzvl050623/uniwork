@@ -6,17 +6,32 @@
 @custom-variant dark (&:is(.dark *));
 
 @theme {
-  --color-brand-50: #e9f9f0;
-  --color-brand-100: #c9f1dc;
-  --color-brand-200: #95e3ba;
-  --color-brand-300: #5bd395;
-  --color-brand-400: #2ec173;
-  --color-brand-500: #00b14f;
-  --color-brand-600: #009a44;
-  --color-brand-700: #007e37;
-  --color-brand-800: #00612b;
-  --color-brand-900: #01461f;
-  --color-brand-950: #012f15;
+  /*
+   * Thang màu thương hiệu: ngọc lam.
+   *
+   * Bản trước là #00b14f — đúng bằng màu thương hiệu TopCV, và đó là lý do đổi:
+   * đối tượng của UniWork là sinh viên, không phải người đi làm văn phòng, nên
+   * giao diện không có lý do gì phải mượn nhận diện của một sản phẩm nhắm vào
+   * nhóm khác.
+   *
+   * Hai bậc dưới đây được chọn theo độ tương phản chứ không theo cảm tính:
+   * - 600 (#00857a) là nền nút chính, đạt 4.53:1 với chữ trắng — vừa qua ngưỡng
+   *   AA cho cỡ chữ thường. Thang xanh cũ chỉ đạt 3.68:1 ở cùng vị trí.
+   * - 500 (#009e8c) là màu biểu tượng trên nền trắng, đạt 3.40:1 — trên ngưỡng
+   *   3:1 dành cho thành phần giao diện không phải chữ.
+   * Sáng hơn hai mức này thì bắt mắt hơn nhưng bắt đầu khó đọc, nên dừng ở đây.
+   */
+  --color-brand-50: #e6fbf7;
+  --color-brand-100: #bff5eb;
+  --color-brand-200: #86ecdb;
+  --color-brand-300: #47dcc5;
+  --color-brand-400: #14c4ab;
+  --color-brand-500: #009e8c;
+  --color-brand-600: #00857a;
+  --color-brand-700: #076b64;
+  --color-brand-800: #0a5550;
+  --color-brand-900: #0c4644;
+  --color-brand-950: #032b2b;
 
   --color-accent-50: #fff8eb;
   --color-accent-100: #fef0c7;
@@ -40,68 +55,268 @@ body {
   @apply bg-slate-100 text-slate-800 antialiased;
 }
 
+/* ------------------------------------------------------- đường cong ---- */
+
+/* Easing dựng sẵn của CSS quá nhạt: `ease-out` khởi động chậm nên chuyển động
+   trông như trôi chứ không dứt khoát. Ba đường cong dưới đây bốc mạnh ngay ở
+   đoạn đầu — đúng khoảnh khắc mắt người đang nhìn kỹ nhất — nên cùng một
+   khoảng thời gian mà cảm giác nhanh hơn hẳn.
+
+   - out-strong: mọi thứ xuất hiện hoặc phản hồi thao tác
+   - in-out-strong: khối đang di chuyển trên màn hình từ chỗ này sang chỗ khác
+   - back: nảy nhẹ quá đích rồi lùi lại, chỉ dùng cho chi tiết vui mắt */
+:root {
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-strong: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-back: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
 /* ---------------------------------------------------------------- nền ---- */
 
-/* Xanh đậm phủ hai vệt sáng — dùng cho hero và các dải nhấn */
-/* Nền khối hero: hai lớp gradient chồng lên nhau.
-   Lớp dưới đi ngang từ xanh đậm sang xanh tươi, lớp trên phủ tối dần từ trên
-   xuống. Một gradient đơn không tạo được chiều sâu này — chồng hai lớp mới cho
-   cảm giác ánh sáng hắt từ dưới lên. */
-.hero-bg {
-  background:
-    linear-gradient(180deg, var(--color-brand-950), rgb(1 47 21 / 0.25)),
-    linear-gradient(90deg, var(--color-brand-800) 22%, var(--color-brand-500) 78%);
-  background-repeat: no-repeat;
-  background-size: 100% 100%;
+/* Nền hero. Bắt đầu bằng xanh lá đậm để nối liền với header rồi chuyển dần qua
+   ngọc lam, xanh mực và tím — dải màu này là phần "trẻ" của giao diện, nhưng vì
+   toàn bộ đều tối nên chữ trắng bên trên vẫn đạt tương phản thoải mái. */
+.hero-sky {
+  background: linear-gradient(158deg, #032b2b 0%, #04413c 32%, #0d2149 68%, #211149 100%);
 }
 
-/* Lưới hero, cùng cấu trúc vùng với TopCV.
-   Đặt tên vùng thay vì đếm cột: đọc phát hiểu ngay khối nào nằm đâu, và đổi bố
-   cục ở màn hình nhỏ chỉ là viết lại mấy dòng tên vùng. */
-.hero-grid {
-  display: grid;
-  gap: 12px;
-  grid-template-areas:
-    'search'
-    'keyword'
-    'category'
-    'banner'
-    'jobs';
+/* Vệt sáng trôi phía sau hero. Chi tiết vì sao dùng gradient thay vì blur nằm ở
+   đầu file HeroAurora.tsx. */
+.hero-blob {
+  position: absolute;
+  border-radius: 9999px;
+  mix-blend-mode: screen;
+  will-change: transform;
 }
 
-@media (min-width: 1024px) {
-  .hero-grid {
-    grid-template-areas:
-      'search search'
-      'keyword keyword'
-      'category banner'
-      'category jobs';
-    grid-template-columns: 1fr 3fr;
-    grid-template-rows: auto auto 1fr auto;
+@keyframes blob-drift-a {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(7%, 11%, 0) scale(1.16);
   }
 }
 
-.area-search {
-  grid-area: search;
+@keyframes blob-drift-b {
+  from {
+    transform: translate3d(0, 0, 0) scale(1.12);
+  }
+  to {
+    transform: translate3d(-9%, -7%, 0) scale(0.92);
+  }
 }
-.area-keyword {
-  grid-area: keyword;
+
+@keyframes blob-drift-c {
+  from {
+    transform: translate3d(0, 0, 0) scale(0.94);
+  }
+  to {
+    transform: translate3d(10%, -9%, 0) scale(1.14);
+  }
 }
-.area-category {
-  grid-area: category;
+
+/* Khối hình học lơ lửng: lên xuống một quãng rất ngắn kèm nghiêng vài độ. Biên
+   độ nhỏ là chủ đích — chuyển động phải ở rìa tầm mắt, thấy được nhưng không
+   kéo mắt rời khỏi ô tìm kiếm. */
+@keyframes floaty {
+  from {
+    transform: translate3d(0, 0, 0) rotate(0deg);
+  }
+  to {
+    transform: translate3d(0, -18px, 0) rotate(7deg);
+  }
 }
-.area-banner {
-  grid-area: banner;
+
+.floaty {
+  animation-name: floaty;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+  animation-direction: alternate;
+  will-change: transform;
 }
-.area-jobs {
-  grid-area: jobs;
+
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0.2;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.6);
+  }
+}
+
+.twinkle {
+  animation-name: twinkle;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* Lưới chấm, mờ dần ra rìa nhờ mask nên không cắt ngang thành đường thẳng. */
+.pattern-dots {
+  background-image: radial-gradient(rgb(255 255 255 / 0.14) 1px, transparent 1px);
+  background-size: 26px 26px;
+  mask-image: radial-gradient(72% 62% at 50% 32%, #000 0%, transparent 100%);
+}
+
+/* --------------------------------------------------- hiệu ứng hero ---- */
+
+/* Nội dung hero hiện lên theo thứ tự đọc: huy hiệu, tiêu đề, ô tìm kiếm, rồi
+   phần còn lại. Độ trễ giữa các khối do JSX truyền vào qua animation-delay.
+
+   `backwards` giữ khối ở trạng thái đầu trong lúc chờ tới lượt; thiếu nó thì
+   khối hiện đủ nét trong vài trăm mili giây rồi mới biến mất để chạy animation,
+   nhìn như trang giật. */
+@keyframes hero-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 20px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.hero-rise {
+  animation: hero-rise 620ms var(--ease-out-strong) backwards;
+}
+
+/* Ô tìm kiếm là thứ quan trọng nhất trong hero, nên nó phản hồi ngay khi con
+   trỏ nhảy vào: nhô lên 2px và bật quầng sáng xanh. Dùng :focus-within chứ
+   không phải :focus để cả khối phản hồi dù người dùng bấm vào ô chữ hay ô chọn
+   khu vực. */
+.search-shell {
+  transition:
+    box-shadow 220ms var(--ease-out-strong),
+    transform 220ms var(--ease-out-strong);
+}
+
+.search-shell:focus-within {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0 0 4px rgb(20 196 171 / 0.35),
+    0 24px 48px -20px rgb(0 0 0 / 0.6);
+}
+
+/* Vệt sáng quét ngang huy hiệu. Dừng hẳn 6 giây giữa hai lượt quét (keyframe
+   55% và 100% trùng giá trị) — quét liên tục thì thành đèn nhấp nháy. */
+@keyframes sheen {
+  0% {
+    transform: translateX(-140%) skewX(-18deg);
+  }
+  55%,
+  100% {
+    transform: translateX(340%) skewX(-18deg);
+  }
+}
+
+.sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 45%;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.45), transparent);
+  animation: sheen 6s ease-in-out infinite;
+}
+
+/* Chấm "đang hoạt động": vòng sáng lan ra rồi tan. */
+@keyframes live-dot {
+  0% {
+    transform: scale(1);
+    opacity: 0.75;
+  }
+  70%,
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+.live-dot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: live-dot 2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+}
+
+/* Ô lịch trong khối demo nảy ra lần lượt. scale bắt đầu từ 0.4 chứ không phải 0:
+   không có gì ngoài đời hiện ra từ hư không, khởi điểm có kích thước làm cú nảy
+   trông như ô phóng to lên chứ không phải ô vừa được sinh ra. */
+@keyframes cell-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.cell-pop {
+  animation: cell-pop 420ms var(--ease-back) backwards;
+}
+
+/* Đổi trang nhóm nghề: hàng mới trượt vào từ trái, lệch nhau vài chục mili
+   giây. Nhờ đó mắt biết danh sách vừa được thay chứ không phải chữ tự đổi. */
+@keyframes cat-in {
+  from {
+    opacity: 0;
+    transform: translate3d(-10px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.cat-in {
+  animation: cat-in 340ms var(--ease-out-strong) backwards;
+}
+
+/* ------------------------------------------------------- biểu đồ ---- */
+
+/* Cột mọc lên từ đáy. transform-origin phải là `bottom`, mặc định `center` sẽ
+   khiến cột nở ra từ giữa về hai đầu — trông như cột đang phình chứ không phải
+   đang cao lên.
+
+   Dùng transition chứ không phải keyframes: transition ngắt và đổi hướng được
+   giữa chừng, còn keyframes bị ngắt là chạy lại từ đầu. Ở đây chưa cần tới,
+   nhưng ngày số liệu do service cấp và đổi ngay giữa lúc cột đang mọc thì khác
+   biệt đó thành ra quan trọng. */
+.chart-bar {
+  transform-origin: bottom;
+  transition: transform 620ms var(--ease-out-strong);
+}
+
+/* Đường vẽ dần. Chậm hơn cột một chút để mắt đọc được hướng đi của đường. */
+.chart-line {
+  transition: stroke-dashoffset 1100ms var(--ease-in-out-strong);
+}
+
+.chart-area {
+  transition: opacity 700ms 520ms ease;
+}
+
+/* Chữ gradient sáng dùng trên nền tối của hero. */
+.text-gradient-fresh {
+  background: linear-gradient(96deg, #5eead4 0%, #a5f3fc 42%, #c4b5fd 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .bg-brand-deep {
   background-color: var(--color-brand-950);
   background-image:
-    radial-gradient(70% 100% at 12% 0%, rgba(0, 177, 79, 0.5) 0%, transparent 62%),
-    radial-gradient(55% 85% at 92% 18%, rgba(46, 193, 115, 0.32) 0%, transparent 58%);
+    radial-gradient(70% 100% at 12% 0%, rgba(0, 158, 140, 0.55) 0%, transparent 62%),
+    radial-gradient(55% 85% at 92% 18%, rgba(139, 92, 246, 0.3) 0%, transparent 58%);
 }
 
 /* Lưới lục giác mờ chồng lên nền xanh đậm */
@@ -126,7 +341,7 @@ body {
 }
 .card-lift:hover {
   transform: translateY(-4px);
-  box-shadow: 0 14px 32px -16px rgb(1 70 31 / 0.45);
+  box-shadow: 0 14px 32px -16px rgb(3 43 43 / 0.45);
 }
 
 @keyframes reveal-up {
@@ -233,7 +448,21 @@ body {
 }
 
 
+/* Giảm chuyển động không có nghĩa là bỏ sạch animation, mà là bỏ phần DI
+   CHUYỂN. Thứ gây khó chịu cho người nhạy cảm với chuyển động là khối trượt
+   ngang dọc và nền trôi liên tục, chứ không phải chữ mờ dần hiện ra. Nên bên
+   dưới: mọi thứ lặp vô hạn và mọi thứ dịch chuyển đều tắt, còn phần hiện dần
+   thì đổi thành fade tại chỗ để nội dung vẫn xuất hiện có đầu có cuối. */
 @media (prefers-reduced-motion: reduce) {
+  @keyframes fade-in-only {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
   .reveal,
   .reveal.is-visible {
     opacity: 1;
@@ -248,6 +477,48 @@ body {
   .stagger-3,
   .ken-burns {
     animation: none;
+  }
+
+  /* Nền hero đứng yên hoàn toàn: vệt sáng, hạt và khối lơ lửng đều dừng. Màu
+     vẫn còn nguyên nên khối không bị trống. */
+  .hero-blob,
+  .floaty,
+  .twinkle,
+  .sheen::after,
+  .live-dot::before {
+    animation: none;
+  }
+  .twinkle {
+    opacity: 0.5;
+  }
+
+  /* Còn hiện ra, nhưng mờ dần tại chỗ thay vì trồi lên. */
+  .hero-rise,
+  .cat-in,
+  .cell-pop {
+    animation: fade-in-only 300ms ease backwards;
+  }
+
+  .search-shell:focus-within {
+    transform: none;
+  }
+
+  /* Biểu đồ hiện đủ ngay, không mọc và không vẽ dần.
+     `!important` ở đây là bắt buộc chứ không phải lười: trạng thái ẩn của cột và
+     của đường nằm trong thuộc tính style gắn thẳng trên thẻ, mà style gắn thẳng
+     thì thắng mọi selector. Không có !important, người bật giảm chuyển động sẽ
+     thấy một biểu đồ trống trơn — mất luôn nội dung chứ không chỉ mất hiệu ứng. */
+  .chart-bar {
+    transform: none !important;
+    transition: none;
+  }
+  .chart-line {
+    stroke-dashoffset: 0 !important;
+    transition: none;
+  }
+  .chart-area {
+    opacity: 1 !important;
+    transition: none;
   }
 
   /* Track vẫn dịch sang thẻ đúng, chỉ bỏ phần trượt — nhảy thẳng tới nơi. */
