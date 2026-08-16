@@ -31,6 +31,8 @@ import {
 } from 'lucide-react'
 import { JobCard } from '@/components/JobCard'
 import { HeroAurora } from '@/components/HeroAurora'
+import { Earth } from '@/components/Earth'
+import { SloganBand } from '@/components/SloganBand'
 import { Reveal } from '@/components/Reveal'
 import { Countdown } from '@/components/Countdown'
 import { Marquee } from '@/components/Marquee'
@@ -188,14 +190,9 @@ const PRESS = [
   'Báo Thanh Niên',
 ]
 
-/** Số nhóm nghề hiện mỗi trang ở cột trái của hero. */
-const CAT_PER_PAGE = 6
-
 export function Home() {
   const [jobTab, setJobTab] = useState(0)
-  const [catPage, setCatPage] = useState(0)
   const jobs = jobTab === 0 ? [...JOBS].sort((a, b) => b.matchScore - a.matchScore) : JOBS
-  const catPages = Math.ceil(CATEGORIES.length / CAT_PER_PAGE)
 
   // Mọi con số hiện trên trang này đến từ đây, không chỗ nào ghi cứng. Hôm nay
   // là số mô phỏng, ngày api có endpoint đếm thì chỉ hook đổi — trang chủ không
@@ -209,7 +206,7 @@ export function Home() {
       {/* `isolate` không phải để trang trí: nó tạo một tầng xếp chồng riêng cho
           khối hero, nhờ đó mấy vệt sáng bên trong HeroAurora (dùng mix-blend-mode
           screen) chỉ hoà màu với nền hero chứ không ăn lan ra header phía trên. */}
-      <section className="hero-sky relative isolate overflow-hidden px-4 pt-12 pb-28 sm:pt-16">
+      <section className="hero-sky relative isolate overflow-hidden px-4 pt-10 pb-24 sm:pt-14">
         <HeroAurora />
 
         <div className="relative mx-auto max-w-[1180px]">
@@ -224,7 +221,7 @@ export function Home() {
           </div>
 
           <h1
-            className="hero-rise mx-auto mt-6 max-w-4xl text-center text-[2rem] leading-[1.12] font-black tracking-tight text-white sm:text-5xl lg:text-[3.4rem]"
+            className="hero-rise mx-auto mt-5 max-w-3xl text-center text-[1.75rem] leading-[1.15] font-black tracking-tight text-white sm:text-4xl lg:text-[2.6rem]"
             style={{ animationDelay: '80ms' }}
           >
             Việc làm bán thời gian <span className="text-gradient-fresh">khớp đúng lịch học</span>{' '}
@@ -232,11 +229,10 @@ export function Home() {
           </h1>
 
           <p
-            className="hero-rise mx-auto mt-5 max-w-2xl text-center text-base leading-relaxed text-white/75 sm:text-lg"
+            className="hero-rise mx-auto mt-4 max-w-xl text-center text-sm text-white/70 sm:text-base"
             style={{ animationDelay: '140ms' }}
           >
-            Khai lịch rảnh một lần, UniWork tự lọc ra những ca bạn thật sự đi làm được — khỏi ngồi
-            dò từng tin. Miễn phí toàn bộ với sinh viên.
+            Khai lịch rảnh một lần. Miễn phí toàn bộ với sinh viên.
           </p>
 
           <form
@@ -282,154 +278,23 @@ export function Home() {
             ))}
           </div>
 
-          <div className="mt-10 grid gap-4 lg:grid-cols-[320px_1fr]">
-            {/* Cột nhóm nghề. Nền trắng mờ chứ không đặc: giữ được dải màu chạy
-                phía sau, khối không bị "dán" lên như miếng giấy.
-
-                Cố ý KHÔNG dùng backdrop-blur ở hai khối lớn này. Thứ nằm sau
-                chúng vốn đã là gradient mềm — làm mờ một thứ vốn đã mờ thì mắt
-                không thấy khác gì, nhưng trình duyệt phải lọc lại cả vùng đó mỗi
-                khung hình vì các vệt sáng phía sau đang trôi. Trả tiền mà không
-                mua được gì. */}
-            <div
-              className="hero-rise flex flex-col rounded-2xl border border-white/15 bg-white/10 p-3"
-              style={{ animationDelay: '320ms' }}
-            >
-              <div className="flex items-center justify-between px-2 pb-2">
-                <span className="text-xs font-semibold tracking-wider text-white/60 uppercase">
-                  Nhóm nghề
-                </span>
-                <span className="text-xs text-white/45">
-                  {catPage + 1}/{catPages}
-                </span>
-              </div>
-
-              {/* key={catPage} buộc React dựng lại cả danh sách khi đổi trang,
-                  nhờ đó animation cat-in chạy lại. Không có key thì React chỉ
-                  thay chữ bên trong các thẻ cũ và chữ tự đổi không kèm chuyển
-                  động — người dùng dễ tưởng chưa bấm trúng. */}
-              <ul key={catPage} className="flex-1 space-y-0.5">
-                {CATEGORIES.slice(catPage * CAT_PER_PAGE, (catPage + 1) * CAT_PER_PAGE).map(
-                  (c, i) => (
-                    <li key={c.label} className="cat-in" style={{ animationDelay: `${i * 45}ms` }}>
-                      <Link
-                        to="/viec-lam"
-                        className="group flex items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm text-white/85 transition-colors duration-200 hover:bg-white/15 hover:text-white"
-                      >
-                        <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-white/10 text-brand-300 transition-[transform,background-color] duration-200 ease-out group-hover:scale-110 group-hover:bg-brand-400/25">
-                          <c.icon size={15} />
-                        </span>
-                        <span className="min-w-0 flex-1 truncate">{c.label}</span>
-                        <span className="shrink-0 text-[11px] text-white/40">{c.count}</span>
-                        <ChevronRight
-                          size={15}
-                          className="shrink-0 text-white/30 transition-transform duration-200 ease-out group-hover:translate-x-0.5"
-                        />
-                      </Link>
-                    </li>
-                  ),
-                )}
-              </ul>
-
-              <div className="mt-2 flex items-center justify-end gap-1.5 border-t border-white/10 px-2 pt-2.5">
-                <button
-                  onClick={() => setCatPage((p) => (p - 1 + catPages) % catPages)}
-                  aria-label="Nhóm nghề trước"
-                  className="grid h-8 w-8 place-items-center rounded-full border border-white/25 text-white/70 transition-[transform,background-color,border-color,color] duration-150 ease-out hover:border-brand-300/70 hover:bg-white/15 hover:text-white active:scale-90"
-                >
-                  <ChevronRight size={15} className="rotate-180" />
-                </button>
-                <button
-                  onClick={() => setCatPage((p) => (p + 1) % catPages)}
-                  aria-label="Nhóm nghề tiếp theo"
-                  className="grid h-8 w-8 place-items-center rounded-full border border-brand-300/60 bg-brand-400/20 text-brand-100 transition-[transform,background-color,border-color,color] duration-150 ease-out hover:bg-brand-400/35 hover:text-white active:scale-90"
-                >
-                  <ChevronRight size={15} />
-                </button>
-              </div>
-            </div>
-
-            {/* Khối kể ý tưởng cốt lõi của sản phẩm: lọc việc theo lịch rảnh. */}
-            <div
-              className="hero-rise relative overflow-hidden rounded-2xl border border-white/15 bg-white/10 p-5 sm:p-6"
-              style={{ animationDelay: '380ms' }}
-            >
-              <div className="pointer-events-none absolute -top-20 -right-20 h-56 w-56 rounded-full bg-brand-400/20 blur-2xl" />
-
-              <div className="relative flex flex-wrap items-center justify-between gap-6">
-                <div className="min-w-0 flex-1">
-                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/20 px-2.5 py-1 text-xs font-semibold text-amber-200 ring-1 ring-amber-300/30">
-                    <Sparkles size={12} /> Chỉ có ở UniWork
-                  </span>
-                  <h2 className="mt-3 text-xl leading-snug font-extrabold text-white sm:text-2xl">
-                    Lọc việc theo <span className="text-gradient-fresh">đúng khung giờ</span>
-                    <br />
-                    bạn còn rảnh
-                  </h2>
-                  <p className="mt-2 max-w-md text-sm leading-relaxed text-white/70">
-                    Khai lịch học một lần. Mỗi tin đăng tự chấm điểm phù hợp với lịch của bạn, khỏi
-                    ngồi dò từng ca.
-                  </p>
-                  <Link to="/lich-ranh" className="mt-5 inline-block">
-                    <Button variant="gradient">
-                      <CalendarCheck size={16} />
-                      Khai lịch rảnh
-                      <ArrowRight size={15} />
-                    </Button>
-                  </Link>
-                </div>
-
-                {/* Lưới lịch thu nhỏ, cho thấy ngay ý tưởng thay vì tả bằng chữ.
-                    Các ô nảy ra lần lượt sau khi khối đã vào chỗ (trễ 560ms), nên
-                    mắt đọc xong tiêu đề mới thấy lưới dựng lên — đúng thứ tự
-                    "vấn đề trước, minh hoạ sau". */}
-                <div className="shrink-0">
-                  <div className="grid grid-cols-7 gap-1.5">
-                    {Array.from({ length: 21 }).map((_, i) => {
-                      const busy = [3, 5, 10, 12, 17, 19, 20].includes(i)
-                      const free = [1, 8, 15].includes(i)
-                      return (
-                        <span
-                          key={i}
-                          className={cn(
-                            'cell-pop h-6 w-6 rounded-md',
-                            busy
-                              ? 'bg-amber-400 shadow-[0_0_14px_-2px_rgba(251,191,36,0.85)]'
-                              : free
-                                ? 'bg-brand-400 shadow-[0_0_14px_-2px_rgba(20,196,171,0.85)]'
-                                : 'bg-white/12',
-                          )}
-                          style={{ animationDelay: `${560 + i * 22}ms` }}
-                        />
-                      )
-                    })}
-                  </div>
-                  <div className="mt-3 flex items-center gap-3 text-[11px] text-white/60">
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-sm bg-amber-400" /> Ca cần làm
-                    </span>
-                    <span className="flex items-center gap-1.5">
-                      <span className="h-2.5 w-2.5 rounded-sm bg-brand-400" /> Bạn rảnh
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Bốn lời hứa ngắn, chốt lại phần hero. */}
-          <div className="mt-4 grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+          {/* Bốn lời hứa, gộp thành một dòng mảnh phân cách bằng dấu chấm giữa.
+              Bốn thẻ riêng như bản trước chiếm gần 100px chỉ để nói bốn ý ngắn —
+              trong khi thứ người dùng vào đây để tìm là danh sách việc làm. */}
+          <ul
+            className="hero-rise mx-auto mt-7 flex max-w-3xl flex-wrap items-center justify-center gap-x-2.5 gap-y-1.5 text-xs text-white/60"
+            style={{ animationDelay: '320ms' }}
+          >
             {HERO_POINTS.map((p, i) => (
-              <div
-                key={p}
-                className="hero-rise flex items-start gap-2.5 rounded-xl border border-white/12 bg-white/8 px-3.5 py-3 text-xs leading-relaxed text-white/80 backdrop-blur-sm transition-colors duration-200 hover:border-brand-300/40 hover:bg-white/15"
-                style={{ animationDelay: `${440 + i * 70}ms` }}
-              >
-                <CheckCircle2 size={15} className="mt-px shrink-0 text-brand-300" />
-                {p}
-              </div>
+              <li key={p} className="flex items-center gap-2.5">
+                {i > 0 && <span aria-hidden className="h-1 w-1 rounded-full bg-white/25" />}
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 size={13} className="shrink-0 text-brand-300" />
+                  {p}
+                </span>
+              </li>
             ))}
-          </div>
+          </ul>
         </div>
 
         {/* Đường lượn khép đáy hero. Cắt bằng đường thẳng thì hero trông như một
@@ -502,6 +367,77 @@ export function Home() {
                 Xem thêm việc làm <ArrowRight size={15} />
               </Button>
             </Link>
+          </div>
+        </Reveal>
+      </section>
+
+      {/* ================================================= LỌC THEO LỊCH RẢNH */}
+      {/* Khối này trước nằm trong hero. Đưa xuống đây vì nó trả lời câu hỏi nảy
+          ra ngay SAU khi người dùng nhìn thấy danh sách việc — "làm sao biết ca
+          nào tôi đi được?" — chứ không phải câu hỏi họ mang theo lúc vừa vào
+          trang. Đặt trên hero thì nó chỉ đẩy danh sách việc xuống dưới nếp gấp. */}
+      <section className="mx-auto mt-5 max-w-[1180px] px-4">
+        <Reveal>
+          <div className="bg-brand-deep relative overflow-hidden rounded-2xl p-6 sm:p-9">
+            <div className="pattern-hex absolute inset-0 opacity-60" />
+
+            <div className="relative flex flex-wrap items-center justify-between gap-8">
+              <div className="min-w-0 flex-1">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-400/20 px-2.5 py-1 text-xs font-semibold text-amber-200 ring-1 ring-amber-300/30">
+                  <Sparkles size={12} /> Chỉ có ở UniWork
+                </span>
+                <h2 className="mt-3 text-2xl leading-snug font-extrabold text-white sm:text-3xl">
+                  Lọc việc theo <span className="text-gradient-fresh">đúng khung giờ</span>
+                  <br />
+                  bạn còn rảnh
+                </h2>
+                <p className="mt-3 max-w-md text-sm leading-relaxed text-brand-50/75">
+                  Khai lịch học một lần. Mỗi tin đăng tự chấm điểm phù hợp với lịch của bạn, khỏi
+                  ngồi dò từng ca xem có trùng tiết nào không.
+                </p>
+                <Link to="/lich-ranh" className="mt-6 inline-block">
+                  <Button variant="gradient" size="lg">
+                    <CalendarCheck size={16} />
+                    Khai lịch rảnh
+                    <ArrowRight size={15} />
+                  </Button>
+                </Link>
+              </div>
+
+              {/* Lưới lịch thu nhỏ, cho thấy ngay ý tưởng thay vì tả bằng chữ.
+                  Các ô nảy ra lần lượt chứ không ập ra cùng lúc — mắt đọc được
+                  ra rằng lưới đang được dựng lên chứ không phải một tấm ảnh. */}
+              <div className="shrink-0">
+                <div className="grid grid-cols-7 gap-1.5">
+                  {Array.from({ length: 21 }).map((_, i) => {
+                    const busy = [3, 5, 10, 12, 17, 19, 20].includes(i)
+                    const free = [1, 8, 15].includes(i)
+                    return (
+                      <span
+                        key={i}
+                        className={cn(
+                          'cell-pop h-7 w-7 rounded-md',
+                          busy
+                            ? 'bg-amber-400 shadow-[0_0_14px_-2px_rgba(251,191,36,0.85)]'
+                            : free
+                              ? 'bg-brand-400 shadow-[0_0_14px_-2px_rgba(20,196,171,0.85)]'
+                              : 'bg-white/12',
+                        )}
+                        style={{ animationDelay: `${240 + i * 22}ms` }}
+                      />
+                    )
+                  })}
+                </div>
+                <div className="mt-3.5 flex items-center gap-4 text-[11px] text-brand-50/70">
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-sm bg-amber-400" /> Ca cần làm
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="h-2.5 w-2.5 rounded-sm bg-brand-400" /> Bạn rảnh
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </Reveal>
       </section>
@@ -655,6 +591,14 @@ export function Home() {
           ))}
         </div>
       </section>
+
+      {/* ==================================================== KHẨU HIỆU */}
+      {/* Đặt ở giữa trang, ngay sau khi người đọc đã xem việc làm và nhóm nghề:
+          lúc này họ đã biết sản phẩm làm gì, nên một câu nói về "vì sao" mới có
+          chỗ bám. Để ngay đầu trang thì nó chỉ là chữ to chắn đường. */}
+      <div className="mt-12">
+        <SloganBand />
+      </div>
 
       {/* ============================================ XÂY DỰNG HỒ SƠ CÁ NHÂN */}
       <section className="mx-auto mt-10 max-w-[1180px] px-4">
@@ -860,11 +804,13 @@ export function Home() {
           </div>
 
           <Reveal delay={200}>
-            <div className="mt-10 flex flex-col items-center">
-              <button className="pulse-ring relative grid h-16 w-16 place-items-center rounded-full bg-white/15 ring-1 ring-white/40 transition-colors hover:bg-white/25">
-                <Play size={24} className="ml-1 text-white" fill="currentColor" />
-              </button>
-              <p className="mt-3 text-sm text-brand-50/80">Xem video giới thiệu sản phẩm</p>
+            <div className="mt-12 flex flex-col items-center">
+              <Earth>
+                <button className="pulse-ring relative grid h-20 w-20 place-items-center rounded-full bg-brand-500/30 ring-1 ring-brand-200/50 backdrop-blur-sm transition-[transform,background-color] duration-200 ease-out hover:scale-105 hover:bg-brand-500/45 active:scale-95">
+                  <Play size={28} className="ml-1 text-white" fill="currentColor" />
+                </button>
+              </Earth>
+              <p className="mt-4 text-sm text-brand-50/80">Xem video giới thiệu sản phẩm</p>
             </div>
           </Reveal>
         </div>
