@@ -80,6 +80,57 @@ function resample(source: number[], n: number): number[] {
   })
 }
 
+/**
+ * Như useTweenArray nhưng cho NHIỀU chuỗi cùng lúc, mỗi chuỗi một hàng.
+ *
+ * Cần bản này vì biểu đồ đường có hai chuỗi và cả hai phải biến hình cùng nhịp.
+ * Hai cách làm khác đều hỏng:
+ *
+ * - Gọi useTweenArray trong vòng lặp qua từng chuỗi: React đòi số lần gọi hook
+ *   phải cố định giữa các lần render, nên chỉ cần thêm bớt một chuỗi là vỡ.
+ * - Nối hết các chuỗi thành một mảng dài rồi tween: lúc đổi bộ lọc, hàm lấy mẫu
+ *   lại sẽ nội suy vắt qua chỗ nối giữa hai chuỗi, khiến đuôi chuỗi này kéo theo
+ *   đầu chuỗi kia — đường biểu đồ giật một nhịp lạ ngay giữa quá trình biến hình.
+ *
+ * Lấy mẫu lại từng hàng riêng biệt thì không có chỗ nối nào để mà vắt qua.
+ */
+export function useTweenMatrix(target: number[][], duration = 800) {
+  const [value, setValue] = useState<number[][]>(() => target.map((row) => row.map(() => 0)))
+  const current = useRef<number[][]>(target.map((row) => row.map(() => 0)))
+
+  const key = target.map((row) => row.join(',')).join('|')
+
+  useEffect(() => {
+    if (prefersReducedMotion()) {
+      current.current = target
+      setValue(target)
+      return
+    }
+
+    const from = target.map((row, r) => resample(current.current[r] ?? [], row.length))
+    let start = 0
+    let frame = 0
+
+    const step = (now: number) => {
+      if (!start) start = now
+      const progress = Math.min((now - start) / duration, 1)
+      const eased = ease(progress)
+      const next = target.map((row, r) =>
+        row.map((to, i) => from[r][i] + (to - from[r][i]) * eased),
+      )
+      current.current = next
+      setValue(next)
+      if (progress < 1) frame = requestAnimationFrame(step)
+    }
+
+    frame = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(frame)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, duration])
+
+  return value
+}
+
 export function useTweenArray(target: number[], duration = 800) {
   const [value, setValue] = useState<number[]>(() => new Array(target.length).fill(0))
   const current = useRef<number[]>(new Array(target.length).fill(0))

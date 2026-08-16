@@ -90,7 +90,7 @@ export function EmployerDashboard() {
           label="Tin đang mở"
           metric={{ value: totals.open, changePercent: 0, series: [1, 2, 2, 3, 2, 2] }}
           icon={FileText}
-          color="var(--color-dash-accent)"
+          color="var(--dash-accent)"
         />
         <KpiCard
           label="Lượt xem tin"
@@ -100,7 +100,7 @@ export function EmployerDashboard() {
             series: [820, 940, 1010, 1180, 1320, 1420],
           }}
           icon={Eye}
-          color="var(--color-dash-blue)"
+          color="var(--dash-blue)"
         />
         <KpiCard
           label="Lượt ứng tuyển"
@@ -110,13 +110,13 @@ export function EmployerDashboard() {
             series: [42, 58, 71, 88, 104, 121],
           }}
           icon={Send}
-          color="var(--color-dash-teal)"
+          color="var(--dash-teal)"
         />
         <KpiCard
           label="Ứng viên mới chưa xem"
           metric={{ value: totals.newApplicants, changePercent: -12, series: [4, 3, 5, 2, 3, 1] }}
           icon={UserCheck}
-          color="var(--color-dash-violet)"
+          color="var(--dash-violet)"
           invertTone
         />
       </div>
