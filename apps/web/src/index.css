@@ -334,9 +334,34 @@ body {
 }
 
 /* Lát của biểu đồ tròn quét dần từ 0. ease-in-out vì đây là chuyển động TRÊN
-   màn hình (lát bò quanh vòng tròn), không phải một khối vừa xuất hiện. */
+   màn hình (lát bò quanh vòng tròn), không phải một khối vừa xuất hiện.
+
+   Ba thuộc tính, ba thời lượng khác nhau, và đó là chủ đích: phần quét vào là
+   hoạt ảnh giới thiệu nên chậm, còn dày lên và mờ đi là phản hồi cho con trỏ
+   chuột nên phải bắt kịp tay. Gộp chung một thời lượng thì hoặc lượt quét thành
+   vội, hoặc lượt rê chuột thành ì. */
 .chart-arc {
-  transition: stroke-dashoffset 950ms var(--ease-in-out-strong);
+  transition:
+    stroke-dashoffset 950ms var(--ease-in-out-strong),
+    stroke-width 160ms var(--ease-out-strong),
+    opacity 160ms ease;
+}
+
+/* Con trỏ dọc và các chấm bám theo chuột trên biểu đồ đường.
+   110ms: đủ để trượt mượt giữa hai điểm thay vì nhảy cóc, đủ nhanh để không ai
+   cảm thấy con trỏ đang bị kéo lê phía sau ngón tay. */
+.chart-cursor {
+  transition:
+    left 110ms var(--ease-out-strong),
+    top 110ms var(--ease-out-strong),
+    opacity 140ms ease;
+}
+
+/* Thẻ chú giải trượt theo con trỏ. Cùng nhịp với con trỏ nên hai thứ đi liền
+   khối; lệch nhịp thì thẻ trông như bị con trỏ kéo theo. */
+.chart-tip {
+  transition: left 110ms var(--ease-out-strong);
+  animation: dash-in 140ms var(--ease-out-strong);
 }
 
 /* Thanh tiến độ ngang. Xem ProgressRow để biết vì sao là scaleX chứ không phải
@@ -570,11 +595,18 @@ body {
     opacity: 1 !important;
     transition: none;
   }
-  .chart-arc {
-    transition: none;
-  }
+  .chart-arc,
   .chart-bar-h {
     transition: none;
+  }
+  /* Con trỏ vẫn hiện đúng chỗ, chỉ bỏ phần trượt theo — với người bật giảm
+     chuyển động thì một khối bám theo chuột là thứ khó chịu nhất trong nhóm. */
+  .chart-cursor {
+    transition: none;
+  }
+  .chart-tip {
+    transition: none;
+    animation: none;
   }
   .dash-card,
   .dash-nav-mark::before,
