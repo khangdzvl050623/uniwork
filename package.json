@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "engines": {
-    "node": "22.x"
+    "node": "26.x"
   },
   "prettier": "@uniwork/config/prettier",
   "scripts": {
