@@ -39,6 +39,10 @@
   --color-accent-500: #f59e0b;
   --color-accent-600: #d97706;
 
+  /* MỘT mức bo góc duy nhất cho toàn khu quản trị. Trộn nhiều mức bo góc là
+     cách nhanh nhất làm một dashboard trông chắp vá. */
+  --radius-dash: 14px;
+
   /*
    * Không khai --font-sans ở đây. Preset của shadcn khai lại trong khối
    * `@theme inline` bên dưới và sẽ đè lên, nên khai ở trên chỉ tạo ảo giác là
@@ -280,6 +284,31 @@ body {
   animation: cat-in 340ms var(--ease-out-strong) backwards;
 }
 
+/* --------------------------------------------------- khẩu hiệu ---- */
+
+/* Chữ thay phiên trong câu khẩu hiệu: chữ cũ trượt lên và mờ đi, chữ mới trồi
+   từ dưới lên. Hai giai đoạn nằm chung một keyframe nên không cần đo thời gian
+   bằng JavaScript — React chỉ việc đổi chữ, CSS lo phần còn lại. */
+@keyframes slogan-swap {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 100%, 0);
+  }
+  12%,
+  88% {
+    opacity: 1;
+    transform: none;
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(0, -100%, 0);
+  }
+}
+
+.slogan-word {
+  animation: slogan-swap 2600ms var(--ease-out-strong);
+}
+
 /* ------------------------------------------------------- biểu đồ ---- */
 
 /* Cột mọc lên từ đáy. transform-origin phải là `bottom`, mặc định `center` sẽ
@@ -302,6 +331,19 @@ body {
 
 .chart-area {
   transition: opacity 700ms 520ms ease;
+}
+
+/* Lát của biểu đồ tròn quét dần từ 0. ease-in-out vì đây là chuyển động TRÊN
+   màn hình (lát bò quanh vòng tròn), không phải một khối vừa xuất hiện. */
+.chart-arc {
+  transition: stroke-dashoffset 950ms var(--ease-in-out-strong);
+}
+
+/* Thanh tiến độ ngang. Xem ProgressRow để biết vì sao là scaleX chứ không phải
+   width, và vì sao transform-origin phải đặt tay. */
+.chart-bar-h {
+  transform-origin: left;
+  transition: transform 900ms var(--ease-out-strong);
 }
 
 /* Chữ gradient sáng dùng trên nền tối của hero. */
@@ -503,6 +545,14 @@ body {
     transform: none;
   }
 
+  /* Quả địa cầu ngừng quay — phần này xử lý trong Earth.tsx vì cobe vẽ lên
+     canvas, CSS không với tới được. */
+
+  /* Chữ khẩu hiệu vẫn thay phiên, chỉ bỏ phần trượt lên xuống. */
+  .slogan-word {
+    animation: fade-in-only 400ms ease;
+  }
+
   /* Biểu đồ hiện đủ ngay, không mọc và không vẽ dần.
      `!important` ở đây là bắt buộc chứ không phải lười: trạng thái ẩn của cột và
      của đường nằm trong thuộc tính style gắn thẳng trên thẻ, mà style gắn thẳng
@@ -519,6 +569,23 @@ body {
   .chart-area {
     opacity: 1 !important;
     transition: none;
+  }
+  .chart-arc {
+    transition: none;
+  }
+  .chart-bar-h {
+    transition: none;
+  }
+  .dash-card,
+  .dash-nav-mark::before,
+  .dash-row {
+    transition: none;
+  }
+  .dash-card-hover:hover {
+    transform: none;
+  }
+  .dash-in {
+    animation: fade-in-only 260ms ease backwards;
   }
 
   /* Track vẫn dịch sang thẻ đúng, chỉ bỏ phần trượt — nhảy thẳng tới nơi. */
@@ -578,6 +645,213 @@ body {
 .scroll-x::-webkit-scrollbar-thumb {
   border-radius: 9999px;
   background: rgb(148 163 184 / 0.5);
+}
+
+/*
+ * ==========================================================================
+ * Khu vực quản trị (admin + NTD quản lý) — KHÔNG dùng ở trang công khai
+ * ==========================================================================
+ *
+ * Hệ màu thứ hai, cố ý tách hẳn khỏi thang brand-*. Lý do không phải thẩm mỹ
+ * mà là công việc: trang công khai để thu hút sinh viên nên sáng và tươi; còn
+ * admin là chỗ ngồi hàng giờ đọc bảng và duyệt tin. Hai mục đích khác nhau thì
+ * hai bảng màu.
+ *
+ * Tiền tố `dash-` khiến mọi tiện ích sinh ra tự nói rõ phạm vi: `bg-dash-surface`
+ * không bao giờ vô tình lọt vào trang chủ mà không ai thấy.
+ *
+ * VÌ SAO KHAI Ở `@theme inline` CHỨ KHÔNG PHẢI `@theme`
+ * `@theme` thường nhét thẳng giá trị màu vào từng lớp tiện ích, nên đổi biến
+ * lúc chạy không có tác dụng gì. `@theme inline` giữ lại `var(...)` trong lớp
+ * tiện ích, nhờ đó chỉ cần đổi `--dash-*` trên thẻ bọc ngoài là cả khu quản trị
+ * đổi chế độ sáng/tối — không phải viết hai bộ lớp `dark:` cho từng thẻ.
+ */
+@theme inline {
+  --color-dash-bg: var(--dash-bg);
+  --color-dash-surface: var(--dash-surface);
+  --color-dash-raised: var(--dash-raised);
+  --color-dash-line: var(--dash-line);
+  --color-dash-text: var(--dash-text);
+  --color-dash-muted: var(--dash-muted);
+  --color-dash-accent: var(--dash-accent);
+  --color-dash-accent-ink: var(--dash-accent-ink);
+  --color-dash-teal: var(--dash-teal);
+  --color-dash-blue: var(--dash-blue);
+  --color-dash-violet: var(--dash-violet);
+  --color-dash-orange: var(--dash-orange);
+  --color-dash-ok: var(--dash-ok);
+  --color-dash-wait: var(--dash-wait);
+  --color-dash-bad: var(--dash-bad);
+}
+
+/*
+ * Chế độ tối.
+ *
+ * Xám trung tính tuyệt đối trên đen tuyệt đối là dấu hiệu rõ nhất của một
+ * dashboard chưa được chỉnh màu — nó phẳng và bẩn. Cả thang dưới đây ám xanh
+ * lạnh một chút (kênh lam nhỉnh hơn kênh đỏ vài đơn vị), đủ để mắt đọc ra là
+ * màu có chủ đích chứ không phải màu mặc định.
+ *
+ * Nền card KHÔNG dùng đen tuyệt đối: đen trên đen thì hai lớp dính làm một và
+ * mất hết cảm giác phân tầng.
+ */
+[data-dash-theme='dark'] {
+  --dash-bg: #0b0c0f;
+  --dash-surface: #14161b;
+  --dash-raised: #1c1f26;
+  --dash-line: #ffffff12;
+  --dash-text: #e8eaed;
+  --dash-muted: #8b909a;
+
+  --dash-accent: #22c55e;
+  /* Chữ đặt TRÊN nền accent. Trắng trên xanh lá tươi chỉ đạt ~2.3:1, đọc không
+     nổi — nên chữ phải là màu tối. */
+  --dash-accent-ink: #06210f;
+
+  --dash-teal: #2dd4bf;
+  --dash-blue: #60a5fa;
+  --dash-violet: #a78bfa;
+  --dash-orange: #fb923c;
+
+  --dash-ok: #34d399;
+  --dash-wait: #fbbf24;
+  --dash-bad: #f87171;
+
+  /* Đổ bóng trên nền tối gần như vô hình, nên chiều sâu ở chế độ này do một
+     vệt sáng mảnh ở cạnh trên của card đảm nhiệm — xem .dash-card. */
+  --dash-card-shadow: none;
+  --dash-card-top: #ffffff0f;
+}
+
+/*
+ * Chế độ sáng.
+ *
+ * Không phải chỉ đảo ngược chế độ tối. Hai khác biệt bắt buộc:
+ * - Accent phải đậm hơn hẳn (#16a34a thay vì #22c55e): xanh lá tươi trên nền
+ *   trắng chỉ đạt ~2.2:1, còn bậc đậm này đạt 3.6:1 cho biểu tượng và trên
+ *   4.5:1 khi dùng làm nền nút với chữ trắng.
+ * - Chiều sâu chuyển từ vệt sáng sang đổ bóng thật, vì trên nền sáng thì bóng
+ *   mới là thứ mắt đọc ra được.
+ */
+[data-dash-theme='light'] {
+  --dash-bg: #f5f6f8;
+  --dash-surface: #ffffff;
+  --dash-raised: #eef0f4;
+  --dash-line: #0b0c1416;
+  --dash-text: #14161b;
+  --dash-muted: #5d636e;
+
+  --dash-accent: #16a34a;
+  --dash-accent-ink: #ffffff;
+
+  --dash-teal: #0d9488;
+  --dash-blue: #2563eb;
+  --dash-violet: #7c3aed;
+  --dash-orange: #ea580c;
+
+  --dash-ok: #15803d;
+  --dash-wait: #b45309;
+  --dash-bad: #dc2626;
+
+  --dash-card-shadow: 0 1px 2px rgb(11 12 20 / 0.05), 0 8px 24px -16px rgb(11 12 20 / 0.18);
+  --dash-card-top: transparent;
+}
+
+/* -------------------------------------------------- khối của quản trị ---- */
+
+/*
+ * Card dùng chung. Ba thứ gộp vào một lớp vì chúng phải đi cùng nhau:
+ *
+ * - Vệt sáng mảnh ở cạnh trên (::before). Ở chế độ tối, đổ bóng gần như không
+ *   thấy gì, nên chiều sâu phải đến từ ánh sáng hắt vào cạnh trên — giống cách
+ *   một vật thật bắt sáng. Ở chế độ sáng biến này thành trong suốt và đổ bóng
+ *   tiếp quản.
+ * - Nhô 2px khi rê chuột. Đủ để tay biết khối này phản hồi, chưa đủ để mắt phải
+ *   theo dõi.
+ * - Viền sáng lên theo. Đổi riêng transform thì khối trông như trượt; đổi kèm
+ *   viền thì nó trông như đang tiến lại gần.
+ */
+.dash-card {
+  position: relative;
+  background: var(--dash-surface);
+  border: 1px solid var(--dash-line);
+  border-radius: var(--radius-dash);
+  box-shadow: var(--dash-card-shadow);
+  transition:
+    transform 220ms var(--ease-out-strong),
+    border-color 220ms ease,
+    box-shadow 220ms ease;
+}
+
+.dash-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  border-radius: var(--radius-dash) var(--radius-dash) 0 0;
+  background: linear-gradient(90deg, transparent, var(--dash-card-top), transparent);
+  pointer-events: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dash-card-hover:hover {
+    transform: translateY(-2px);
+    border-color: color-mix(in oklab, var(--dash-accent) 32%, transparent);
+  }
+}
+
+/*
+ * Thanh chỉ mục đang chọn ở sidebar.
+ *
+ * Vẽ bằng ::before trên chính thẻ liên kết chứ không phải một thẻ riêng trượt
+ * qua lại. Trượt một thanh chung giữa các mục nghe hay nhưng cần đo toạ độ bằng
+ * JavaScript và tính lại mỗi lần cửa sổ đổi kích thước; scaleY trên từng mục
+ * cho kết quả gần như y hệt mà không cần đo gì.
+ */
+.dash-nav-mark::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  height: 18px;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--dash-accent);
+  transform: translateY(-50%) scaleY(0);
+  transform-origin: center;
+  transition: transform 220ms var(--ease-out-strong);
+}
+
+.dash-nav-mark[aria-current='page']::before {
+  transform: translateY(-50%) scaleY(1);
+}
+
+/* Hàng của bảng dữ liệu. Vệt sáng chạy từ trái sang, gợi ra hướng đọc. */
+.dash-row {
+  transition: background-color 160ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .dash-row:hover {
+    background: var(--dash-raised);
+  }
+}
+
+/* Khối vào chỗ khi trang admin dựng xong. Ngắn hơn hẳn trang công khai: đây là
+   công cụ làm việc, mở lên là muốn thấy số ngay chứ không phải xem trình diễn. */
+@keyframes dash-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.dash-in {
+  animation: dash-in 420ms var(--ease-out-strong) backwards;
 }
 
 @theme inline {
