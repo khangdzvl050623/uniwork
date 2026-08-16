@@ -1,0 +1,637 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>UniWork — Icon 04-B "Schedule Match"</title>
+
+    <!--
+      Favicon: bản TĨNH, rút gọn của chính icon này.
+
+      Cố ý không dùng bản đầy đủ: ở 16px thì filter blur biến cả icon thành một
+      vệt sáng nhoè, và thanh quét chạy trên tab trình duyệt là thứ gây khó chịu
+      chứ không phải điểm cộng. Bản favicon bỏ glow, bỏ chuyển động, tăng độ mờ
+      của lưới từ 0.06 lên 0.14 (ở cỡ đó 0.06 không còn nhìn ra gì) và thêm nền
+      bo góc để icon không trôi trên nền tab sáng.
+    -->
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230d2b28'/%3E%3Cg fill='%23ffffff' fill-opacity='.14'%3E%3Crect x='18' y='18' width='22' height='22' rx='3'/%3E%3Crect x='44' y='18' width='22' height='22' rx='3'/%3E%3Crect x='18' y='44' width='22' height='22' rx='3'/%3E%3C/g%3E%3Crect x='44' y='44' width='16' height='16' rx='3' fill='%235eead4'/%3E%3Cpath d='M48 52 L52 56 L58 48' fill='none' stroke='%23ffffff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
+    />
+
+    <style>
+      /* ==================================================================
+         TOKEN
+         ================================================================== */
+      :root {
+        /* Bảng màu theo đề bài */
+        --teal-300: #5eead4;
+        --teal-400: #2dd4bf;
+        --sky-500: #0ea5e9;
+        --teal-200: #99f6e4;
+        --teal-100: #ccfbf1;
+
+        /* Lưới nền mờ. Một chỗ duy nhất để chỉnh — xem ghi chú ở cuối trang
+           về việc vì sao giá trị này đáng cân nhắc tăng lên. */
+        --grid-fill: rgba(255, 255, 255, 0.06);
+
+        /* Nhịp chung của cả chuỗi chuyển động: quét → tìm thấy → xác nhận.
+           Ba animation dùng CHUNG một thời lượng nên chúng luôn khớp pha mà
+           không cần đồng bộ bằng JavaScript. Đổi một biến này là đổi cả nhịp. */
+        --beat: 2.5s;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        color-scheme: dark;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        padding: clamp(24px, 6vw, 72px) clamp(16px, 5vw, 48px);
+        font-family:
+          'Geist',
+          ui-sans-serif,
+          system-ui,
+          -apple-system,
+          'Segoe UI',
+          Roboto,
+          sans-serif;
+        color: #e6fbf7;
+
+        /* Nền theo đề bài: xanh đậm → xanh ngọc → xanh mực → tím.
+           Thêm hai vệt sáng radial phía trên để nền không phẳng lì — một
+           gradient tuyến tính đơn thuần trông như tấm bìa, còn có vệt sáng thì
+           trông như có nguồn sáng thật hắt vào. */
+        background:
+          radial-gradient(60% 50% at 15% 0%, rgba(94, 234, 212, 0.16), transparent 60%),
+          radial-gradient(50% 45% at 85% 15%, rgba(99, 102, 241, 0.18), transparent 62%),
+          linear-gradient(150deg, #064e3b 0%, #0f766e 32%, #1e3a5f 68%, #312e81 100%);
+        background-attachment: fixed;
+      }
+
+      /* ==================================================================
+         BỐ CỤC TRANG
+         ================================================================== */
+      .page {
+        max-width: 960px;
+        margin: 0 auto;
+      }
+
+      .eyebrow {
+        margin: 0;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        color: rgba(204, 251, 241, 0.65);
+      }
+
+      h1 {
+        margin: 10px 0 0;
+        font-size: clamp(24px, 4.5vw, 38px);
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+      }
+
+      .lede {
+        margin: 14px 0 0;
+        max-width: 52ch;
+        font-size: 15px;
+        line-height: 1.65;
+        color: rgba(230, 251, 247, 0.72);
+      }
+
+      /* Hàng icon. flex-wrap + align-items:flex-end để ba cỡ đứng chung một
+         đường đáy — xếp theo tâm thì cỡ 32 trông như đang lơ lửng. */
+      .row {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: flex-end;
+        gap: clamp(20px, 5vw, 56px);
+        margin-top: clamp(32px, 6vw, 56px);
+      }
+
+      figure {
+        margin: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 14px;
+      }
+
+      figcaption {
+        font-size: 12px;
+        text-align: center;
+        color: rgba(230, 251, 247, 0.6);
+      }
+
+      figcaption b {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: rgba(230, 251, 247, 0.92);
+      }
+
+      /* ==================================================================
+         KHUNG CHỨA ICON
+         ================================================================== */
+      .frame {
+        display: grid;
+        place-items: center;
+        background: rgba(0, 0, 0, 0.2);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 14px;
+
+        /* Đệm tỉ lệ theo cỡ icon chứ không cố định. Đệm cố định 16px thì ở cỡ
+           32 icon bị bóp nghẹt, còn ở cỡ 120 lại lọt thỏm giữa khoảng trống. */
+        padding: calc(var(--s) * 0.28);
+      }
+
+      .uw-icon {
+        display: block;
+        width: var(--s);
+        height: var(--s);
+
+        /* Tạo tầng xếp chồng riêng. Bắt buộc vì thanh quét dùng mix-blend-mode:
+           screen — không cô lập thì nó hoà màu ra tận nền trang và vệt sáng bị
+           đổi màu theo chỗ icon đang đứng. */
+        isolation: isolate;
+      }
+
+      /* ==================================================================
+         CÁC LỚP CỦA ICON
+         ================================================================== */
+
+      /* Lưới sau (4 ô) và hai ô mờ của lưới trước. */
+      .uw-grid rect,
+      .uw-front {
+        fill: var(--grid-fill);
+      }
+
+      /*
+       * Ô trùng — lóe sáng khi thanh quét đi qua.
+       *
+       * transform-box và transform-origin KHÔNG phải tuỳ chọn cho đẹp.
+       * Với phần tử SVG, gốc của phép biến hình mặc định là gốc toạ độ của
+       * khung nhìn (0,0), không phải tâm của chính phần tử. Thiếu hai dòng này
+       * thì scale(1.12) sẽ vừa phóng to vừa đẩy ô văng xuống dưới-phải, chứ
+       * không phải phình ra tại chỗ.
+       */
+      .uw-match {
+        transform-box: fill-box;
+        transform-origin: center;
+        animation: scan-flash var(--beat) ease-in-out infinite;
+      }
+
+      /*
+       * Dấu tích tự vẽ ra.
+       *
+       * pathLength="24" khai với trình duyệt rằng "coi như đường này dài đúng
+       * 24 đơn vị", bất kể chiều dài hình học thật (ở đây khoảng 15.7). Nhờ vậy
+       * stroke-dasharray: 24 phủ đúng trọn đường và dashoffset chạy 24 → 0 khớp
+       * chính xác với 0% → 100% nét được vẽ. Không có nó thì nét vẽ xong từ
+       * khoảng dashoffset 8 và phần chuyển động còn lại chạy không.
+       */
+      .uw-check {
+        stroke-dasharray: 24;
+        animation: check-pop var(--beat) ease-out infinite;
+      }
+
+      /*
+       * Thanh quét.
+       *
+       * screen làm vệt sáng CỘNG vào những gì nằm dưới thay vì che đi, nên khi
+       * thanh chạy qua ô trùng thì ô đó sáng bừng lên — đúng cảm giác "đang rọi
+       * đèn tìm" chứ không phải "có vật thể trượt qua".
+       */
+      .uw-scan {
+        mix-blend-mode: screen;
+        animation: scan-move var(--beat) linear infinite;
+      }
+
+      /* ==================================================================
+         CHUYỂN ĐỘNG — quét → tìm thấy → xác nhận
+         ================================================================== */
+
+      /* Thanh quét trái → phải. linear vì đây là chuyển động đều của một tia
+         quét; chậm dần ở cuối sẽ trông như nó đang do dự. */
+      @keyframes scan-move {
+        0% {
+          transform: translateX(-40px);
+          opacity: 0;
+        }
+        15% {
+          opacity: 1;
+        }
+        85% {
+          opacity: 1;
+        }
+        100% {
+          transform: translateX(40px);
+          opacity: 0;
+        }
+      }
+
+      /* Ô trùng lóe đúng lúc thanh quét đi ngang qua nó.
+         Tại mốc 50% thì translateX = 0, tức thanh nằm ngay trên ô — hai
+         animation khớp pha nhờ dùng chung biến --beat. */
+      @keyframes scan-flash {
+        0%,
+        45%,
+        55%,
+        100% {
+          opacity: 0.6;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 1;
+          transform: scale(1.12);
+        }
+      }
+
+      /* Dấu tích chỉ bắt đầu vẽ SAU khi thanh quét đã chạm ô (mốc 40%). Thứ tự
+         này là toàn bộ ý nghĩa của icon: xác nhận phải đến sau khi tìm thấy. */
+      @keyframes check-pop {
+        0%,
+        40% {
+          stroke-dashoffset: 24;
+          opacity: 0;
+        }
+        60% {
+          opacity: 1;
+        }
+        100% {
+          stroke-dashoffset: 0;
+          opacity: 1;
+        }
+      }
+
+      /*
+       * Giảm chuyển động.
+       *
+       * Không tắt trắng: tắt hết thì dấu tích và ô trùng vẫn hiện đúng, nhưng
+       * người dùng mất luôn thông điệp. Thay vào đó dựng thẳng TRẠNG THÁI CUỐI
+       * của câu chuyện — đã tìm thấy, đã xác nhận — và giữ thanh quét đứng yên
+       * trên ô trùng như một vệt sáng nhấn.
+       */
+      @media (prefers-reduced-motion: reduce) {
+        .uw-match,
+        .uw-check,
+        .uw-scan {
+          animation: none;
+        }
+        .uw-match {
+          opacity: 1;
+        }
+        .uw-check {
+          stroke-dashoffset: 0;
+          opacity: 1;
+        }
+        .uw-scan {
+          opacity: 0.5;
+        }
+      }
+
+      /* ==================================================================
+         GHI CHÚ CUỐI TRANG
+         ================================================================== */
+      .notes {
+        margin-top: clamp(40px, 8vw, 72px);
+        padding: 20px 22px;
+        background: rgba(0, 0, 0, 0.2);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 14px;
+      }
+
+      .notes h2 {
+        margin: 0 0 12px;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.1em;
+        text-transform: uppercase;
+        color: rgba(204, 251, 241, 0.7);
+      }
+
+      .notes ul {
+        margin: 0;
+        padding-left: 18px;
+        display: grid;
+        gap: 9px;
+        font-size: 14px;
+        line-height: 1.6;
+        color: rgba(230, 251, 247, 0.72);
+      }
+
+      .notes code {
+        font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+        font-size: 0.9em;
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.08);
+        color: var(--teal-200);
+      }
+    </style>
+  </head>
+
+  <body>
+    <!--
+      ==================================================================
+      DEFS DÙNG CHUNG
+      ==================================================================
+      Gradient và filter khai đúng MỘT lần ở đây, ba icon bên dưới cùng trỏ vào.
+
+      Vì sao không nhét defs vào từng icon: thuộc tính id là duy nhất trên toàn
+      tài liệu. Lặp lại <linearGradient id="uw-grad-teal"> ba lần thì HTML sai
+      chuẩn, và url(#uw-grad-teal) luôn lấy cái ĐẦU TIÊN — nên hai bản sau chỉ
+      là rác nằm đó.
+
+      Vì sao cũng không dùng <symbol> + <use>: nội dung do <use> nhân bản nằm
+      trong shadow tree, mà selector CSS ở tài liệu không với tới được. Ba
+      animation bên trên gắn theo class nên sẽ im lìm hoàn toàn.
+
+      Cách còn lại — và là cách đúng — là dùng chung defs, lặp lại phần hình vẽ.
+    -->
+    <svg width="0" height="0" style="position: absolute" aria-hidden="true">
+      <defs>
+        <!-- Dải teal → sky, dùng cho ô trùng và ô sáng của lưới trước -->
+        <linearGradient id="uw-grad-teal" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#5eead4" />
+          <stop offset="50%" stop-color="#2dd4bf" />
+          <stop offset="100%" stop-color="#0ea5e9" />
+        </linearGradient>
+
+        <!-- Vệt sáng của thanh quét: mờ ở hai mép, đậm ở giữa -->
+        <linearGradient id="uw-scan-grad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stop-color="#5eead4" stop-opacity="0" />
+          <stop offset="50%" stop-color="#5eead4" stop-opacity="0.7" />
+          <stop offset="100%" stop-color="#5eead4" stop-opacity="0" />
+        </linearGradient>
+
+        <!-- Neon glow mạnh: bản làm mờ nằm DƯỚI bản gốc, nên nét vẫn sắc còn
+             quầng sáng toả ra quanh nó -->
+        <filter id="uw-glow-strong" x="-50%" y="-50%" width="200%" height="200%">
+          <feGaussianBlur stdDeviation="4" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+
+        <!-- Glow nhẹ, dành cho phần fill -->
+        <filter id="uw-glow-soft" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="2" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+    </svg>
+
+    <main class="page">
+      <p class="eyebrow">UniWork Icon System</p>
+      <h1>04-B — Schedule Match</h1>
+      <p class="lede">
+        Hai lưới lịch chồng lệch nhau. Thanh quét chạy ngang, chạm tới ô trùng thì ô đó lóe sáng và
+        dấu tích tự vẽ ra. Ba bước — <b>quét → tìm thấy → xác nhận</b> — dùng chung một nhịp
+        <code>--beat</code> nên luôn khớp pha mà không cần JavaScript.
+      </p>
+
+      <div class="row">
+        <!-- ============================================================
+             32px — favicon
+             ============================================================
+             Khối <svg> dưới đây là thứ duy nhất cần copy khi đưa icon vào chỗ
+             khác. Chỉ cần mang theo defs dùng chung và phần CSS của các lớp
+             .uw-*, không phụ thuộc gì nữa.
+        -->
+        <figure>
+          <div class="frame" style="--s: 32px">
+            <svg class="uw-icon" viewBox="0 0 100 100" role="img" aria-label="Khớp lịch rảnh">
+              <!-- Lưới sau: 4 ô 22×22, mờ -->
+              <g class="uw-grid">
+                <rect x="18" y="18" width="22" height="22" rx="3" />
+                <rect x="44" y="18" width="22" height="22" rx="3" />
+                <rect x="18" y="44" width="22" height="22" rx="3" />
+                <rect x="44" y="44" width="22" height="22" rx="3" />
+              </g>
+
+              <!-- Lưới trước: lệch xuống-phải, ô góc trên-trái ăn màu teal nhạt -->
+              <rect
+                x="38"
+                y="38"
+                width="22"
+                height="22"
+                rx="3"
+                fill="url(#uw-grad-teal)"
+                opacity="0.15"
+              />
+              <rect class="uw-front" x="64" y="38" width="22" height="22" rx="3" />
+              <rect class="uw-front" x="38" y="64" width="22" height="22" rx="3" />
+
+              <!-- Ô trùng: đúng phần giao của ô (44,44) lưới sau và ô (38,38)
+                   lưới trước — 16×16. Hình học tự khớp, không phải đặt tay. -->
+              <rect
+                class="uw-match"
+                x="44"
+                y="44"
+                width="16"
+                height="16"
+                rx="3"
+                fill="url(#uw-grad-teal)"
+                filter="url(#uw-glow-strong)"
+              />
+
+              <!-- Dấu tích -->
+              <path
+                class="uw-check"
+                d="M48 52 L52 56 L58 48"
+                pathLength="24"
+                fill="none"
+                stroke="#ffffff"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+
+              <!-- Thanh quét: vẽ sau cùng nên nằm trên tất cả -->
+              <rect
+                class="uw-scan"
+                x="46"
+                y="14"
+                width="6"
+                height="72"
+                rx="3"
+                fill="url(#uw-scan-grad)"
+              />
+            </svg>
+          </div>
+          <figcaption><b>32px</b>Favicon</figcaption>
+        </figure>
+
+        <!-- ============================================================ 64px — app icon -->
+        <figure>
+          <div class="frame" style="--s: 64px">
+            <svg class="uw-icon" viewBox="0 0 100 100" role="img" aria-label="Khớp lịch rảnh">
+              <g class="uw-grid">
+                <rect x="18" y="18" width="22" height="22" rx="3" />
+                <rect x="44" y="18" width="22" height="22" rx="3" />
+                <rect x="18" y="44" width="22" height="22" rx="3" />
+                <rect x="44" y="44" width="22" height="22" rx="3" />
+              </g>
+
+              <rect
+                x="38"
+                y="38"
+                width="22"
+                height="22"
+                rx="3"
+                fill="url(#uw-grad-teal)"
+                opacity="0.15"
+              />
+              <rect class="uw-front" x="64" y="38" width="22" height="22" rx="3" />
+              <rect class="uw-front" x="38" y="64" width="22" height="22" rx="3" />
+
+              <rect
+                class="uw-match"
+                x="44"
+                y="44"
+                width="16"
+                height="16"
+                rx="3"
+                fill="url(#uw-grad-teal)"
+                filter="url(#uw-glow-strong)"
+              />
+
+              <path
+                class="uw-check"
+                d="M48 52 L52 56 L58 48"
+                pathLength="24"
+                fill="none"
+                stroke="#ffffff"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+
+              <rect
+                class="uw-scan"
+                x="46"
+                y="14"
+                width="6"
+                height="72"
+                rx="3"
+                fill="url(#uw-scan-grad)"
+              />
+            </svg>
+          </div>
+          <figcaption><b>64px</b>App icon</figcaption>
+        </figure>
+
+        <!-- ============================================================ 120px — hero / logo -->
+        <figure>
+          <div class="frame" style="--s: 120px">
+            <svg class="uw-icon" viewBox="0 0 100 100" role="img" aria-label="Khớp lịch rảnh">
+              <g class="uw-grid">
+                <rect x="18" y="18" width="22" height="22" rx="3" />
+                <rect x="44" y="18" width="22" height="22" rx="3" />
+                <rect x="18" y="44" width="22" height="22" rx="3" />
+                <rect x="44" y="44" width="22" height="22" rx="3" />
+              </g>
+
+              <rect
+                x="38"
+                y="38"
+                width="22"
+                height="22"
+                rx="3"
+                fill="url(#uw-grad-teal)"
+                opacity="0.15"
+              />
+              <rect class="uw-front" x="64" y="38" width="22" height="22" rx="3" />
+              <rect class="uw-front" x="38" y="64" width="22" height="22" rx="3" />
+
+              <rect
+                class="uw-match"
+                x="44"
+                y="44"
+                width="16"
+                height="16"
+                rx="3"
+                fill="url(#uw-grad-teal)"
+                filter="url(#uw-glow-strong)"
+              />
+
+              <path
+                class="uw-check"
+                d="M48 52 L52 56 L58 48"
+                pathLength="24"
+                fill="none"
+                stroke="#ffffff"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              />
+
+              <rect
+                class="uw-scan"
+                x="46"
+                y="14"
+                width="6"
+                height="72"
+                rx="3"
+                fill="url(#uw-scan-grad)"
+              />
+            </svg>
+          </div>
+          <figcaption><b>120px</b>Hero / logo</figcaption>
+        </figure>
+      </div>
+
+      <section class="notes">
+        <h2>Ghi chú kỹ thuật</h2>
+        <ul>
+          <li>
+            <code>transform-box: fill-box</code> trên ô trùng là bắt buộc. Gốc biến hình mặc định
+            của phần tử SVG là gốc toạ độ khung nhìn, không phải tâm phần tử — thiếu nó thì
+            <code>scale(1.12)</code> vừa phóng to vừa đẩy ô văng đi.
+          </li>
+          <li>
+            <code>pathLength="24"</code> trên dấu tích khiến <code>stroke-dasharray: 24</code> phủ
+            đúng trọn đường, dù chiều dài hình học thật chỉ khoảng 15.7. Không có nó thì nét vẽ xong
+            sớm và phần cuối hoạt ảnh chạy không.
+          </li>
+          <li>
+            <code>&lt;defs&gt;</code> khai một lần cho cả ba icon. Lặp lại id thì
+            <code>url(#id)</code> luôn lấy bản đầu tiên; còn <code>&lt;use&gt;</code> thì CSS không
+            với tới được shadow tree nên animation sẽ im lìm.
+          </li>
+          <li>
+            Icon 32px hiện dùng chung <code>glow-strong</code> đúng như đặc tả. Ở cỡ đó quầng sáng
+            lấn khá nhiều lên hình — nếu muốn sắc hơn thì đổi sang <code>url(#uw-glow-soft)</code>,
+            đã khai sẵn trong defs.
+          </li>
+          <li>
+            Lưới nền đang là <code>rgba(255,255,255,0.06)</code> theo đặc tả. Trên nền tối này nó
+            gần như không nhìn ra ở cỡ 32 và 64 — chỉnh biến <code>--grid-fill</code> lên khoảng
+            <code>0.10–0.14</code> nếu muốn thấy rõ hai lớp lưới chồng nhau.
+          </li>
+          <li>
+            <code>prefers-reduced-motion</code>: dựng thẳng trạng thái cuối (đã tìm thấy, đã xác
+            nhận) thay vì tắt trắng, nên người bật tuỳ chọn đó vẫn đọc được thông điệp của icon.
+          </li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

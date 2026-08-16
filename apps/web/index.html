@@ -7,6 +7,19 @@
       name="description"
       content="UniWork - tìm việc làm bán thời gian phù hợp lịch học của sinh viên"
     />
+
+    <!--
+      Favicon SVG. Trình duyệt tự vẽ ở mọi cỡ nên không cần bộ .ico nhiều lớp.
+
+      `sizes="any"` là để chặn một hành vi cũ của Chrome: không có nó thì Chrome
+      vẫn đi hỏi /favicon.ico trước rồi mới dùng tới SVG — mà file đó không tồn
+      tại, nên mỗi lượt truy cập lại thêm một request 404 vô ích.
+    -->
+    <link rel="icon" type="image/svg+xml" sizes="any" href="/favicon.svg" />
+
+    <!-- Màu thanh trình duyệt trên di động, lấy đúng màu header của trang. -->
+    <meta name="theme-color" content="#0c4644" />
+
     <title>UniWork — Việc làm bán thời gian cho sinh viên</title>
   </head>
   <body>
