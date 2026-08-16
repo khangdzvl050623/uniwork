@@ -250,7 +250,7 @@ export function SpotlightCompanies({ brands, tabs }: { brands: Brand[]; tabs: st
  */
 function BannerHeader({ brands }: { brands: Brand[] }) {
   return (
-    <div className="relative overflow-hidden rounded-t-2xl bg-[#2b2119] px-6 py-7">
+    <div className="relative overflow-hidden rounded-t-2xl bg-gradient-to-r from-brand-950 via-brand-800 to-indigo-900 px-6 py-7">
       {/* Collage logo phủ nửa phải, làm mờ để không tranh chỗ với chữ. */}
       <div
         className="absolute inset-y-0 right-0 hidden w-3/5 flex-wrap content-center items-center gap-3 overflow-hidden pl-10 md:flex"
@@ -279,21 +279,24 @@ function BannerHeader({ brands }: { brands: Brand[] }) {
 
       {/* Lớp phủ tối kéo từ trái sang, giữ vùng sau chữ đủ tối để chữ luôn đọc
           được dù collage phía sau đổi theo dữ liệu. */}
-      <div className="absolute inset-0 bg-gradient-to-r from-[#2b2119] via-[#2b2119]/92 to-transparent" />
+      <div className="absolute inset-0 bg-gradient-to-r from-brand-950 via-brand-950/90 to-transparent" />
 
       <div className="relative flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h2 className="text-2xl font-extrabold tracking-tight text-[#0e4a2c] md:text-[28px]">
-            Thương hiệu lớn tiêu biểu
+          {/* Trước đây tiêu đề này là text-[#0e4a2c] — xanh lá đậm đặt trên nền
+              nâu đậm #2b2119, tương phản khoảng 1.3:1, tức là gần như không đọc
+              được. Chữ trắng trên nền ngọc lam đậm cho khoảng 13:1. */}
+          <h2 className="text-2xl font-extrabold tracking-tight text-white md:text-[28px]">
+            Thương hiệu tiêu biểu
           </h2>
-          <p className="mt-2 max-w-xl text-sm font-semibold text-white md:text-[15px]">
-            Hàng trăm thương hiệu lớn tiêu biểu đang tuyển dụng trên UniWork Pro
+          <p className="mt-2 max-w-xl text-sm font-medium text-brand-50/80 md:text-[15px]">
+            Hàng trăm doanh nghiệp đã xác minh giấy tờ đang tuyển sinh viên trên UniWork
           </p>
         </div>
 
-        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-b from-[#fbd46a] to-[#e0a52e] px-6 py-3 text-base font-bold text-[#2b2119] shadow-lg">
+        <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-gradient-to-b from-accent-400 to-accent-600 px-6 py-3 text-base font-bold text-brand-950 shadow-lg">
           <Sparkles size={16} />
-          Pro Company
+          Nổi bật
         </span>
       </div>
     </div>
@@ -331,15 +334,16 @@ function SpotlightCard({
 }) {
   return (
     <div className="relative flex h-full min-h-[420px] flex-col items-center justify-center overflow-hidden p-6 text-center text-white">
-      {/* Nền nâu sepia CỐ ĐỊNH cho mọi thương hiệu, không đổi màu theo từng bên.
+      {/* Nền tối CỐ ĐỊNH cho mọi thương hiệu, không đổi màu theo từng bên.
           Lý do: logo mỗi công ty một màu, nền cũng đổi màu theo thì hai thứ đá
           nhau và cả khối trông chắp vá. Nền tối đứng yên làm logo nổi lên. */}
-      <div className="absolute inset-0 bg-[#2b2119]" />
+      <div className="bg-brand-950 absolute inset-0" />
 
       {/* Lớp phóng chậm. Màu đặc thôi thì phóng to không thấy gì — phải có vệt
           sáng và hoa văn bên trong mới nhìn ra chuyển động. */}
       <div className="ken-burns absolute inset-0">
-        <div className="absolute -inset-1/4 bg-[radial-gradient(circle_at_35%_20%,rgba(214,178,110,0.38),transparent_62%)]" />
+        <div className="absolute -inset-1/4 bg-[radial-gradient(circle_at_35%_20%,rgba(20,196,171,0.34),transparent_62%)]" />
+        <div className="absolute -inset-1/4 bg-[radial-gradient(circle_at_75%_85%,rgba(139,92,246,0.3),transparent_58%)]" />
         <div className="pattern-hex absolute inset-0 opacity-20" />
       </div>
 
@@ -366,9 +370,9 @@ function SpotlightCard({
           {brand.jobs} việc làm
         </Link>
 
-        <span className="stagger-3 mt-3 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-b from-[#fbd46a] to-[#e0a52e] px-5 py-2 text-sm font-bold text-[#2b2119] shadow-lg">
+        <span className="stagger-3 mt-3 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-b from-accent-400 to-accent-600 px-5 py-2 text-sm font-bold text-brand-950 shadow-lg">
           <Sparkles size={14} />
-          Pro Company
+          Đã xác minh
         </span>
 
         <div className="stagger-3 mt-3">

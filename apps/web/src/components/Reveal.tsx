@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
+import { useInView } from '@/hooks/useInView'
 import { cn } from '@/lib/utils'
 
 /**
- * Hiện dần nội dung khi cuộn tới. Dùng IntersectionObserver nên không tốn
- * listener scroll, và tự tắt khi người dùng bật giảm chuyển động trong hệ điều hành.
+ * Hiện dần nội dung khi cuộn tới. Tự tắt khi người dùng bật giảm chuyển động
+ * trong hệ điều hành — phần đó xử lý ở index.css.
  */
 export function Reveal({
   children,
@@ -14,26 +15,10 @@ export function Reveal({
   delay?: number
   className?: string
 }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [visible, setVisible] = useState(false)
-
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setVisible(true)
-          observer.disconnect()
-        }
-      },
-      { threshold: 0.12, rootMargin: '0px 0px -40px 0px' },
-    )
-
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
+  const [ref, visible] = useInView<HTMLDivElement>({
+    threshold: 0.12,
+    rootMargin: '0px 0px -40px 0px',
+  })
 
   return (
     <div
