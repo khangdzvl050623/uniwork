@@ -53,3 +53,19 @@ tmp/
 
 # Vercel
 .vercel
+
+# Skill cho trợ lý AI
+#
+# Nguồn thật nằm ở .agents/skills/ và ĐƯỢC commit — cả nhóm dùng chung một bộ,
+# skills-lock.json ghi hash từng file nên phát hiện được khi upstream đổi nội dung.
+#
+# .claude/skills/ thì KHÔNG commit: đó chỉ là symlink trỏ ngược về .agents/, do
+# `npx skills add` tự tạo cho từng công cụ. Symlink trên Windows hay lệch khi qua
+# git (thành file text chứa đường dẫn), nên để mỗi máy tự dựng lấy.
+#
+# Máy mới: chạy `npx skills add` một lần là có.
+.claude/skills/
+.agents/skills/*/node_modules/
+
+# Cấu hình Claude Code riêng của từng người
+.claude/settings.local.json
