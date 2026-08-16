@@ -1,7 +1,12 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Layout } from '@/components/layout/Layout'
-import { AdminLayout, AdminPlaceholder } from '@/components/layout/AdminLayout'
+import { AdminLayout } from '@/components/layout/AdminLayout'
 import { AdminDashboard } from '@/pages/admin/Dashboard'
+import { ReviewJobs } from '@/pages/admin/ReviewJobs'
+import { ReviewEmployers } from '@/pages/admin/ReviewEmployers'
+import { AdminSkills } from '@/pages/admin/Skills'
+import { AdminUsers } from '@/pages/admin/Users'
+import { EmployerDashboard } from '@/pages/admin/EmployerJobs'
 import { Home } from '@/pages/Home'
 import { JobList } from '@/pages/JobList'
 import { JobDetail } from '@/pages/JobDetail'
@@ -32,17 +37,11 @@ export function App() {
             không dựng ở đây, và ngược lại nền tối không rò sang trang chủ. */}
         <Route element={<AdminLayout />}>
           <Route path="/admin" element={<AdminDashboard />} />
-          <Route
-            path="/admin/duyet-tin"
-            element={<AdminPlaceholder title="Duyệt tin tuyển dụng" />}
-          />
-          <Route
-            path="/admin/duyet-ntd"
-            element={<AdminPlaceholder title="Duyệt nhà tuyển dụng" />}
-          />
-          <Route path="/admin/ky-nang" element={<AdminPlaceholder title="Danh mục kỹ năng" />} />
-          <Route path="/admin/nguoi-dung" element={<AdminPlaceholder title="Người dùng" />} />
-          <Route path="/ntd/quan-ly" element={<AdminPlaceholder title="Tin đăng của tôi" />} />
+          <Route path="/admin/duyet-tin" element={<ReviewJobs />} />
+          <Route path="/admin/duyet-ntd" element={<ReviewEmployers />} />
+          <Route path="/admin/ky-nang" element={<AdminSkills />} />
+          <Route path="/admin/nguoi-dung" element={<AdminUsers />} />
+          <Route path="/ntd/quan-ly" element={<EmployerDashboard />} />
         </Route>
       </Routes>
     </BrowserRouter>
