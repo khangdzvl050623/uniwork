@@ -33,6 +33,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Prisma Generate
+        run: pnpm --filter @uniwork/api exec prisma generate
+
       - name: Typecheck
         run: pnpm typecheck
 
