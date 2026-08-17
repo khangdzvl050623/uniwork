@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@10.33.0",
   "engines": {
-    "node": "26.x"
+    "node": "22.x"
   },
   "prettier": "@uniwork/config/prettier",
   "scripts": {
@@ -30,3 +30,4 @@
     "onlyBuiltDependencies": ["@node-rs/argon2", "@prisma/client", "@prisma/engines", "esbuild", "prisma"]
   }
 }
+
