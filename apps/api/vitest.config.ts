@@ -14,6 +14,7 @@ export default defineConfig({
     env: {
       NODE_ENV: 'test',
       CORS_ORIGIN: 'http://localhost:5173',
+      DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
     },
   },
 })
