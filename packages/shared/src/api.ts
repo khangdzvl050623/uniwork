@@ -1,4 +1,4 @@
-import type { ScheduleType } from './domain.js'
+import type { Role, ScheduleType } from './domain.js'
 
 /**
  * Hợp đồng giữa web và api.
@@ -126,6 +126,50 @@ export interface SiteStatsResponse {
   /** Sinh viên có hoạt động trong 7 ngày gần nhất, hiện ở huy hiệu đầu trang. */
   activeStudentsThisWeek: number
 }
+
+/*
+ * ===========================================================================
+ * Auth — Sprint 1
+ * ===========================================================================
+ *
+ * Đây là hợp đồng DEV2 dựng form theo. Chốt trước khi viết service, vì phía
+ * web bị chặn cho tới khi có nó.
+ *
+ * Nguyên tắc xuyên suốt: KHÔNG bao giờ có `passwordHash`, `tokenHash`, hay
+ * refresh token trong bất kỳ kiểu nào dưới đây. Refresh token đi bằng cookie
+ * httpOnly, không đi qua body — nên nó không được phép xuất hiện ở đây, và
+ * việc nó vắng mặt chính là thứ ngăn ai đó vô tình trả nó ra.
+ */
+
+/** Người dùng đang đăng nhập, ở dạng an toàn để gửi ra ngoài. */
+export interface AuthUser {
+  id: string
+  email: string
+  role: Role
+  /** null nghĩa là chưa xác thực email. Web dùng để hiện nhắc nhở. */
+  emailVerifiedAt: string | null
+  /** Tên hiển thị: họ tên sinh viên, hoặc tên công ty. */
+  displayName: string
+}
+
+/**
+ * Trả về sau khi đăng ký, đăng nhập, hoặc refresh.
+ *
+ * `accessToken` nằm trong body để web giữ TRONG BỘ NHỚ. Không đặt nó vào
+ * cookie: cookie tự động đi kèm mọi request, kể cả request do trang khác kích
+ * hoạt — đó là cửa cho tấn công CSRF. Còn refresh token thì ngược lại, nó nằm
+ * trong cookie httpOnly để JavaScript không đọc được.
+ */
+export interface AuthTokens {
+  accessToken: string
+  /** Số giây access token còn sống, để web hẹn giờ gọi refresh trước khi hết. */
+  expiresIn: number
+  user: AuthUser
+}
+
+/** Vai trò được phép tự đăng ký. ADMIN chỉ tạo bằng seed hoặc bởi admin khác. */
+export const SIGNUP_ROLES = ['STUDENT', 'EMPLOYER'] as const
+export type SignupRole = (typeof SIGNUP_ROLES)[number]
 
 /** Khoảng thời gian cho bộ lọc của dashboard. */
 export const STATS_RANGES = ['7d', '30d', '90d', '1y'] as const

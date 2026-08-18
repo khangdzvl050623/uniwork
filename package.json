@@ -16,8 +16,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:up": "docker compose up -d",
+    "db:wait": "docker compose up -d --wait",
     "db:down": "docker compose down",
-    "db:reset": "docker compose down -v && docker compose up -d",
+    "db:reset": "docker compose down -v && docker compose up -d --wait",
     "db:logs": "docker compose logs -f postgres",
     "cache:up": "docker compose --profile cache up -d"
   },
@@ -27,7 +28,12 @@
     "turbo": "^2.0.0"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["@node-rs/argon2", "@prisma/client", "@prisma/engines", "esbuild", "prisma"]
+    "onlyBuiltDependencies": [
+      "@node-rs/argon2",
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma"
+    ]
   }
 }
-

@@ -36,6 +36,64 @@ const schema = z.object({
     .refine((v) => v.startsWith('postgresql://') || v.startsWith('postgres://'), {
       message: 'phải là chuỗi kết nối Postgres, bắt đầu bằng postgresql://',
     }),
+
+  // -------------------------------------------------------------- Sprint 1 --
+
+  /*
+   * Chuỗi ký JWT. CỐ TÌNH không có giá trị mặc định, và đây là chỗ tuyệt đối
+   * không được nhân nhượng.
+   *
+   * Đặt mặc định thì ai đọc source trên GitHub cũng biết chuỗi ký, và tự ký
+   * được token mạo danh bất kỳ ai — kể cả admin. Khác với DATABASE_URL (quên
+   * khai thì app không chạy, lỗi lộ ngay), quên khai secret mà có mặc định thì
+   * app chạy hoàn toàn bình thường, không log gì cả, và cửa hậu mở suốt.
+   *
+   * Sinh chuỗi: openssl rand -base64 48
+   */
+  JWT_ACCESS_SECRET: z.string().min(32, 'cần ít nhất 32 ký tự'),
+
+  /*
+   * Hai secret PHẢI khác nhau.
+   *
+   * Dùng chung một chuỗi thì access token đem đi làm refresh token được và
+   * ngược lại — người dùng có thể lấy access token (nằm trong bộ nhớ trình
+   * duyệt, JavaScript đọc được) rồi gọi /refresh để tự gia hạn vô thời hạn,
+   * phá sạch ý nghĩa của việc cho access token hạn ngắn.
+   */
+  JWT_REFRESH_SECRET: z.string().min(32, 'cần ít nhất 32 ký tự'),
+
+  /*
+   * Hạn của access token. Ngắn là có chủ đích: token này không tra được vào
+   * đâu để thu hồi, nên cách duy nhất giới hạn thiệt hại khi lộ là để nó hết
+   * hạn nhanh. 15 phút đủ ngắn, và người dùng không thấy phiền vì web tự gọi
+   * /refresh khi gặp 401.
+   */
+  ACCESS_TTL: z.string().default('15m'),
+
+  /*
+   * Hạn của refresh token, tính bằng ngày.
+   *
+   * 7 ngày, và con số này TRƯỢT THEO HOẠT ĐỘNG chứ không phải đếm từ lần đăng
+   * nhập: mỗi lần refresh cấp token mới với hạn 7 ngày mới. Nên người dùng vào
+   * app hàng tuần sẽ không bao giờ bị đăng xuất; chỉ ai bỏ đi trọn 7 ngày mới
+   * phải đăng nhập lại.
+   *
+   * Lưu ý về vai trò của con số này: nó KHÔNG quyết định tốc độ thu hồi. Token
+   * nằm trong database nên thu hồi là tức thì, bất kể hạn còn bao lâu — đó là
+   * lý do refresh token cố ý không dùng JWT. Cái nó giới hạn là quãng thời gian
+   * một token bị trộm mà chưa ai phát hiện còn dùng được. Hai lớp bảo vệ chính
+   * vẫn là xoay vòng và phát hiện dùng lại, xem auth.service.ts.
+   */
+  REFRESH_TTL_DAYS: z.coerce.number().int().positive().default(7),
+
+  /*
+   * Khoá gửi email. Không mặc định: quên khai thì phải vỡ lúc khởi động, chứ
+   * không phải lúc sinh viên đầu tiên bấm "Gửi mã xác thực".
+   */
+  BREVO_API_KEY: z.string().min(1),
+
+  /* Địa chỉ web, dùng ghép link trong email. */
+  APP_URL: z.string().url(),
 })
 
 const parsed = schema.safeParse(process.env)

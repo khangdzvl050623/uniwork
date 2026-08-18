@@ -91,3 +91,36 @@ services:
       # Nhiều origin thì ngăn cách bằng dấu phẩy, không có khoảng trắng thừa.
       - key: CORS_ORIGIN
         sync: false
+
+      # ------------------------------------------------------------ Sprint 1
+
+      # Chuỗi ký JWT. sync: false vì đây là bí mật thật — vào git một lần là ai
+      # cũng ký được token mạo danh admin, và xoá đi cũng vô ích vì còn trong
+      # lịch sử commit.
+      #
+      # Sinh mỗi chuỗi bằng: openssl rand -base64 48
+      # HAI CHUỖI PHẢI KHÁC NHAU. Dùng chung thì access token đem đi làm refresh
+      # token được, phá sạch ý nghĩa của việc cho access token hạn ngắn.
+      - key: JWT_ACCESS_SECRET
+        sync: false
+      - key: JWT_REFRESH_SECRET
+        sync: false
+
+      # Khoá gửi email Brevo. Cũng là bí mật, nhập tay trên dashboard.
+      # Nhớ xác thực địa chỉ gửi trong Brevo (Senders & IP), nếu không mọi lời
+      # gọi đều bị từ chối với thông điệp khá khó hiểu.
+      - key: BREVO_API_KEY
+        sync: false
+
+      # Hai biến dưới đây KHÔNG phải bí mật nên ghi thẳng giá trị. Chúng chỉ là
+      # tinh chỉnh, và để lộ thiên thì đọc render.yaml là biết hệ thống đang
+      # cấu hình thế nào — tiện hơn phải mở dashboard.
+      - key: ACCESS_TTL
+        value: 15m
+      - key: REFRESH_TTL_DAYS
+        value: '30'
+
+      # Địa chỉ web thật, dùng ghép link trong email xác thực. Phải khớp với
+      # domain Vercel, sai thì người dùng bấm link trong mail rơi vào trang lỗi.
+      - key: APP_URL
+        sync: false

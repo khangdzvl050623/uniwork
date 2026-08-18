@@ -1,5 +1,6 @@
 import express, { type Express } from 'express'
 import cors from 'cors'
+import cookieParser from 'cookie-parser'
 import { corsOrigins } from './config/env.js'
 import { apiRouter } from './routes.js'
 import { requestLogger } from './middlewares/request-logger.js'
@@ -22,6 +23,16 @@ export function createApp(): Express {
   // bằng gì cho người ngoài biết. Tắt đi, không có lợi ích nào bù lại.
   app.disable('x-powered-by')
 
+  // Render đặt app sau một proxy. Không khai dòng này thì `req.ip` trả về địa
+  // chỉ của proxy — mọi người dùng trông như cùng một IP, khiến phần ghi nhận
+  // thiết bị vô nghĩa và giới hạn tần suất theo IP (T43) sẽ chặn nhầm tất cả
+  // khi một người thao tác quá nhanh.
+  //
+  // Số 1 nghĩa là chỉ tin đúng một lớp proxy gần nhất. Đặt `true` là tin toàn
+  // bộ chuỗi X-Forwarded-For, mà chuỗi đó do client tự khai được — kẻ xấu chỉ
+  // cần bịa thêm một IP ở đầu là né được mọi giới hạn theo IP.
+  app.set('trust proxy', 1)
+
   // CORS phải đứng trước mọi route. Trình duyệt gửi một request OPTIONS thăm dò
   // trước khi gửi request thật; nếu route xử lý trước thì request thăm dò rơi
   // vào 404 và trình duyệt chặn luôn request thật.
@@ -37,6 +48,12 @@ export function createApp(): Express {
   // Giới hạn kích thước body. Không đặt thì một request 500MB cũng được nhận,
   // đủ để hạ một instance 512MB RAM trên Render.
   app.use(express.json({ limit: '1mb' }))
+
+  // Bóc header Cookie thành `req.cookies`. Phải đứng trước router, vì controller
+  // của auth đọc refresh token từ đó — thiếu dòng này thì `req.cookies` là
+  // undefined và mọi lần refresh đều trả "chưa đăng nhập", dù cookie vẫn được
+  // trình duyệt gửi lên đầy đủ.
+  app.use(cookieParser())
 
   app.use(requestLogger)
 
