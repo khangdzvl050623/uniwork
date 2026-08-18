@@ -43,7 +43,7 @@ Mã tiếp nối Sprint 0 (kết thúc ở T32).
 
 | Mã | Ngày | Người | Công việc | Kết quả cần đạt |
 | --- | --- | --- | --- | --- |
-| T33 | 1 | DEV1 | Cài `jsonwebtoken`, `cookie-parser`; thêm 6 biến môi trường mới vào **cả 5 nơi** (xem ghi chú T33): `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ACCESS_TTL`, `REFRESH_TTL_DAYS`, `BREVO_API_KEY`, `APP_URL` | Thiếu biến bắt buộc thì app dừng ngay lúc khởi động; `pnpm test` và CI vẫn xanh |
+| T33 | 1 | DEV1 | Cài `jsonwebtoken`, `cookie-parser`; thêm 6 biến môi trường mới vào **cả 5 nơi** (xem ghi chú T33): `JWT_ACCESS_SECRET`, `ACCESS_TTL`, `REFRESH_TTL_DAYS`, `BREVO_API_KEY`, `MAIL_FROM`, `APP_URL` | Thiếu biến bắt buộc thì app dừng ngay lúc khởi động; `pnpm test` và CI vẫn xanh |
 | T34 | 1 | DEV1 | `lib/password.ts` — băm và kiểm mật khẩu bằng Argon2id | Băm cùng một mật khẩu hai lần ra hai chuỗi khác nhau, kiểm vẫn đúng |
 | T35 | 1–2 | DEV1 | `lib/token.ts` — ký và giải mã JWT access; sinh refresh token ngẫu nhiên, **lưu vào bảng `RefreshToken` dưới dạng đã băm** | Xem trực tiếp trong database không đọc được refresh token gốc |
 | T36 | 2–3 | DEV1 | `POST /api/auth/dang-ky` cho cả hai vai trò. SV tạo kèm `StudentProfile`, NTD tạo kèm `EmployerProfile` ở trạng thái `PENDING` | Đăng ký trùng email trả `CONFLICT`, không tạo bản ghi rác |
@@ -147,7 +147,6 @@ env: {
   CORS_ORIGIN: 'http://localhost:5173',
   DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
   JWT_ACCESS_SECRET: 'x'.repeat(48),   // đủ dài để qua .min(32)
-  JWT_REFRESH_SECRET: 'y'.repeat(48),
   BREVO_API_KEY: 'test-key',
   APP_URL: 'http://localhost:5173',
 }
@@ -162,7 +161,7 @@ env: {
 | Biến | Có default? | Vì sao |
 | --- | --- | --- |
 | `ACCESS_TTL` `REFRESH_TTL` | **Có** — `'15m'`, `'30d'` | Chỉ là tinh chỉnh, không phải bí mật |
-| `JWT_ACCESS_SECRET` `JWT_REFRESH_SECRET` | **Không** | Đặt default là lỗ hổng nghiêm trọng: ai đọc source trên GitHub cũng biết chuỗi ký, tự ký được token giả mạo bất kỳ ai |
+| `JWT_ACCESS_SECRET` | **Không** | Đặt default là lỗ hổng nghiêm trọng: ai đọc source trên GitHub cũng biết chuỗi ký, tự ký được token giả mạo bất kỳ ai |
 | `BREVO_API_KEY` `APP_URL` | **Không** | Quên khai thì phải vỡ lúc khởi động, chứ không phải lúc người dùng bấm gửi OTP |
 
 Sinh chuỗi bí mật: `openssl rand -base64 48`. Hai secret phải **khác nhau** — dùng chung một chuỗi thì access token có thể đem đi làm refresh token.

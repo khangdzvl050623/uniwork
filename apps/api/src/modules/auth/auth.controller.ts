@@ -5,6 +5,7 @@ import { ok } from '../../lib/respond.js'
 import { badRequest, unauthorized } from '../../lib/errors.js'
 import { env, isProduction } from '../../config/env.js'
 import * as authService from './auth.service.js'
+import * as otpService from './otp.service.js'
 import type { DeviceInfo, SessionResult } from './auth.service.js'
 
 /**
@@ -152,6 +153,29 @@ export const logoutController: RequestHandler = async (req, res) => {
   await authService.logout(req.cookies?.[REFRESH_COOKIE] as string | undefined)
   clearRefreshCookie(res)
   ok(res, { ok: true })
+}
+
+/* --------------------------------------------------------------- OTP (T42) */
+
+const otpSchema = z.object({
+  // Đúng 6 chữ số. `regex` chứ không phải `min(6).max(6)`: chuỗi 'abcdef' cũng
+  // dài 6 nhưng không bao giờ khớp mã, chặn sớm ở đây thì đỡ một câu truy vấn.
+  code: z.string().regex(/^\d{6}$/, 'Mã xác thực gồm đúng 6 chữ số'),
+})
+
+export const sendOtpController: RequestHandler = async (req, res) => {
+  if (!req.user) throw unauthorized()
+  ok(res, await otpService.sendVerificationOtp(req.user.id))
+}
+
+export const verifyEmailController: RequestHandler = async (req, res) => {
+  if (!req.user) throw unauthorized()
+  const { code } = parse(otpSchema, req.body)
+  await otpService.verifyEmailOtp(req.user.id, code)
+
+  // Trả lại hồ sơ đã cập nhật để phía web không phải gọi thêm /toi chỉ để biết
+  // `emailVerifiedAt` giờ đã có giá trị.
+  ok(res, await authService.currentUser(req.user.id))
 }
 
 export const meController: RequestHandler = async (req, res) => {

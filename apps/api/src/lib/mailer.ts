@@ -43,10 +43,18 @@ export interface Mail {
 }
 
 /**
- * Người gửi. Địa chỉ này PHẢI được xác thực trong Brevo (Senders & IP), nếu
- * không mọi lời gọi đều trả 400 với thông điệp khá khó hiểu.
+ * Người gửi.
+ *
+ * Địa chỉ lấy từ biến môi trường `MAIL_FROM` và PHẢI được xác thực trong Brevo
+ * (Settings → Senders, Domains & Dedicated IPs), nếu không mọi lời gọi đều bị
+ * từ chối với thông điệp khá khó hiểu.
+ *
+ * Lưu ý nếu dùng email của trường hoặc Gmail: tên miền đó không phải của bạn
+ * nên không thêm được bản ghi DNS để xác thực. Brevo vẫn cho gửi, nhưng tự đổi
+ * tên miền người gửi thành `@brevosend.com`. Chấp nhận được cho đồ án — đổi lại
+ * tỉ lệ rơi vào Spam cao hơn, nhớ dặn người chấm ngó qua thư mục đó lúc demo.
  */
-const SENDER = { name: 'UniWork', email: 'no-reply@uniwork.vn' }
+const SENDER = { name: 'UniWork', email: env.MAIL_FROM }
 
 export async function sendMail(mail: Mail): Promise<void> {
   if (!HAS_REAL_KEY) {

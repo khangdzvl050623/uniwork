@@ -4,9 +4,17 @@
 
 1. Mở Postman → **Import** → chọn `uniwork.postman_collection.json`
 2. Chạy API ở máy: `pnpm --filter @uniwork/api dev` (cổng 4000)
-3. Bấm **Run collection** để chạy cả 12 request từ trên xuống, hoặc bấm từng cái
+3. Bấm **Run collection** để chạy cả 15 request từ trên xuống, hoặc bấm từng cái
 
 Mỗi request có sẵn phần kiểm ở tab **Scripts → Post-response**, nên chạy xong là thấy xanh/đỏ ngay chứ không phải tự đọc JSON đoán đúng sai.
+
+Bộ này **chạy lại được nhiều lần**: request `01` có script sinh email mới mỗi lượt chạy. Không có nó thì lần thứ hai trả `409` và test đỏ oan, dù chẳng có gì sai.
+
+Muốn chạy cả bộ từ dòng lệnh, không cần mở Postman:
+
+```bash
+npx newman run docs/postman/uniwork.postman_collection.json
+```
 
 ## Hai thứ Postman tự lo, đừng làm tay
 
@@ -20,7 +28,7 @@ Các request cần đăng nhập chỉ việc khai header `Authorization: Bearer
 
 **Refresh token.** Nó nằm trong cookie `httpOnly`, và **Postman tự giữ cookie** trong Cookie Jar. Nên request `08 — Refresh` không cần điền gì cả — cứ bấm Send.
 
-> Nếu refresh trả 401 dù vừa đăng nhập xong: mở **Cookies** (dưới nút Send) → kiểm xem có `uniwork_rt` cho `localhost` không. Không có thì thường là chưa chạy bước đăng nhập, hoặc đã chạy `09 — Đăng xuất` rồi.
+> Nếu refresh trả 401 dù vừa đăng nhập xong: mở **Cookies** (dưới nút Send) → kiểm xem có `uniwork_rt` cho `localhost` không. Không có thì thường là chưa chạy bước đăng nhập, hoặc đã chạy `12 — Đăng xuất` rồi.
 
 ## Đổi sang thử bản deploy
 
@@ -40,7 +48,7 @@ Bộ này cố ý xếp thành một câu chuyện, không phải danh sách r�
 | # | Request | Kiểm điều gì |
 | --- | --- | --- |
 | 00 | Health | API sống chưa |
-| 01 | Đăng ký SV | Tạo tài khoản; **không lộ** `passwordHash`/`refreshToken` trong body; cookie có `HttpOnly` |
+| 01 | Đăng ký SV | Tạo tài khoản; **không lộ** `passwordHash`/`refreshToken`; cookie có `HttpOnly` |
 | 02 | Đăng ký trùng | Trả `409 CONFLICT` |
 | 03 | Mật khẩu yếu | Trả `400`, lỗi gắn đúng vào trường `password` |
 | 04 | Đăng nhập | Trả `accessToken`, tự lưu vào biến |
@@ -48,14 +56,18 @@ Bộ này cố ý xếp thành một câu chuyện, không phải danh sách r�
 | 06 | Tôi là ai | Token hợp lệ → `200` kèm `displayName` |
 | 07 | Tôi là ai, không token | `401 UNAUTHORIZED` |
 | 08 | Refresh | Cấp cặp token mới (xoay vòng) |
-| 09 | Đăng xuất | Luôn `200`, kể cả khi không có cookie |
-| 10 | Refresh sau đăng xuất | `401` — token đã thu hồi |
-| 11 | Danh mục kỹ năng | Endpoint công khai vẫn chạy |
+| 09 | Gửi mã OTP | Mã 6 chữ số, tự lưu vào biến `otpCode` |
+| 10 | Xác thực email | `emailVerifiedAt` có giá trị |
+| 11 | Dùng lại mã | `400` — mã chỉ xài được một lần |
+| 12 | Đăng xuất | Luôn `200`, kể cả khi không có cookie |
+| 13 | Refresh sau đăng xuất | `401` — token đã thu hồi |
+| 14 | Danh mục kỹ năng | Endpoint công khai vẫn chạy |
 
-Bước 05 và 10 là hai bước dễ bị bỏ qua nhưng quan trọng nhất:
+Ba bước dễ bị bỏ qua nhưng quan trọng nhất:
 
 - **05** khoá chặt việc thông điệp lỗi không tiết lộ email nào đã đăng ký. Nếu ai đó sửa code cho "thân thiện hơn" bằng cách báo *"Email này chưa đăng ký"*, test này đỏ ngay.
-- **10** chứng minh đăng xuất thật sự thu hồi token ở phía server, chứ không chỉ xoá cookie ở trình duyệt.
+- **11** chứng minh mã OTP chỉ dùng được một lần — và thông điệp lỗi giống hệt khi sai mã, không tiết lộ rằng mã đó từng đúng.
+- **13** chứng minh đăng xuất thật sự thu hồi token ở phía server, chứ không chỉ xoá cookie ở trình duyệt.
 
 ## Thử tay việc phát hiện token bị trộm
 
