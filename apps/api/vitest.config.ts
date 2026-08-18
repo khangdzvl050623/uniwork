@@ -31,7 +31,7 @@ export default defineConfig({
       JWT_REFRESH_SECRET: 'test-refresh-secret-khac-han-cai-tren-0123456789',
       ACCESS_TTL: '15m',
       REFRESH_TTL_DAYS: '30',
-      RESEND_API_KEY: 'test-key',
+      BREVO_API_KEY: 'test-key',
       APP_URL: 'http://localhost:5173',
     },
   },

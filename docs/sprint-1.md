@@ -43,7 +43,7 @@ Mã tiếp nối Sprint 0 (kết thúc ở T32).
 
 | Mã | Ngày | Người | Công việc | Kết quả cần đạt |
 | --- | --- | --- | --- | --- |
-| T33 | 1 | DEV1 | Cài `jsonwebtoken`, `cookie-parser`, `resend`; thêm 6 biến môi trường mới vào **cả 5 nơi** (xem ghi chú T33): `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ACCESS_TTL`, `REFRESH_TTL`, `RESEND_API_KEY`, `APP_URL` | Thiếu biến bắt buộc thì app dừng ngay lúc khởi động; `pnpm test` và CI vẫn xanh |
+| T33 | 1 | DEV1 | Cài `jsonwebtoken`, `cookie-parser`; thêm 6 biến môi trường mới vào **cả 5 nơi** (xem ghi chú T33): `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`, `ACCESS_TTL`, `REFRESH_TTL_DAYS`, `BREVO_API_KEY`, `APP_URL` | Thiếu biến bắt buộc thì app dừng ngay lúc khởi động; `pnpm test` và CI vẫn xanh |
 | T34 | 1 | DEV1 | `lib/password.ts` — băm và kiểm mật khẩu bằng Argon2id | Băm cùng một mật khẩu hai lần ra hai chuỗi khác nhau, kiểm vẫn đúng |
 | T35 | 1–2 | DEV1 | `lib/token.ts` — ký và giải mã JWT access; sinh refresh token ngẫu nhiên, **lưu vào bảng `RefreshToken` dưới dạng đã băm** | Xem trực tiếp trong database không đọc được refresh token gốc |
 | T36 | 2–3 | DEV1 | `POST /api/auth/dang-ky` cho cả hai vai trò. SV tạo kèm `StudentProfile`, NTD tạo kèm `EmployerProfile` ở trạng thái `PENDING` | Đăng ký trùng email trả `CONFLICT`, không tạo bản ghi rác |
@@ -51,7 +51,7 @@ Mã tiếp nối Sprint 0 (kết thúc ở T32).
 | T38 | 3–4 | DEV1 | `POST /api/auth/refresh` — **xoay vòng token**: mỗi lần refresh thì huỷ token cũ và cấp token mới | Dùng lại refresh token cũ bị từ chối và **huỷ toàn bộ phiên của user đó** |
 | T39 | 4 | DEV1 | `POST /api/auth/dang-xuat` — xoá cookie và huỷ refresh token trong DB | Đăng xuất rồi gọi refresh trả `UNAUTHORIZED` |
 | T40 | 4 | DEV1 | Middleware `requireAuth` và `requireRole(...roles)` | Gọi endpoint cần quyền mà không có token trả `UNAUTHORIZED`, sai vai trò trả `FORBIDDEN` |
-| T41 | 5 | DEV1 | Gửi email qua Resend: `lib/mailer.ts` + mẫu email OTP | Nhận được email thật trong hộp thư |
+| T41 | 5 | DEV1 | Gửi email qua Brevo: `lib/mailer.ts` + mẫu email OTP | Nhận được email thật trong hộp thư |
 | T42 | 5 | DEV1 | `POST /api/auth/gui-otp` và `POST /api/auth/xac-thuc-email` dùng bảng `OneTimeToken` type `EMAIL_VERIFICATION` | OTP hết hạn sau 10 phút; dùng rồi không dùng lại được |
 | T43 | 5 | DEV1 | Chống dò mật khẩu: giới hạn số lần gọi `/dang-nhap` và `/gui-otp` theo IP + email | Quá ngưỡng trả `RATE_LIMITED` |
 | T44 | 1–2 | DEV2 | `lib/auth-store.ts` — giữ access token **trong bộ nhớ**, không dùng localStorage | Mở tab mới vẫn đăng nhập được nhờ refresh token trong cookie |
@@ -148,7 +148,7 @@ env: {
   DATABASE_URL: 'postgresql://test:test@localhost:5432/test',
   JWT_ACCESS_SECRET: 'x'.repeat(48),   // đủ dài để qua .min(32)
   JWT_REFRESH_SECRET: 'y'.repeat(48),
-  RESEND_API_KEY: 'test-key',
+  BREVO_API_KEY: 'test-key',
   APP_URL: 'http://localhost:5173',
 }
 ```
@@ -163,7 +163,7 @@ env: {
 | --- | --- | --- |
 | `ACCESS_TTL` `REFRESH_TTL` | **Có** — `'15m'`, `'30d'` | Chỉ là tinh chỉnh, không phải bí mật |
 | `JWT_ACCESS_SECRET` `JWT_REFRESH_SECRET` | **Không** | Đặt default là lỗ hổng nghiêm trọng: ai đọc source trên GitHub cũng biết chuỗi ký, tự ký được token giả mạo bất kỳ ai |
-| `RESEND_API_KEY` `APP_URL` | **Không** | Quên khai thì phải vỡ lúc khởi động, chứ không phải lúc người dùng bấm gửi OTP |
+| `BREVO_API_KEY` `APP_URL` | **Không** | Quên khai thì phải vỡ lúc khởi động, chứ không phải lúc người dùng bấm gửi OTP |
 
 Sinh chuỗi bí mật: `openssl rand -base64 48`. Hai secret phải **khác nhau** — dùng chung một chuỗi thì access token có thể đem đi làm refresh token.
 
@@ -172,7 +172,7 @@ Sinh chuỗi bí mật: `openssl rand -base64 48`. Hai secret phải **khác nha
 | Loại | Ví dụ | Đặt ở đâu |
 | --- | --- | --- |
 | Chỉ sống trong máy ảo CI, bên ngoài không với tới | `postgresql://test:test@localhost:5432/test` | Commit thẳng, không sao |
-| Mở được thứ có thật ngoài đời | chuỗi Neon, `RESEND_API_KEY`, khoá Cloudinary | **GitHub Secrets**, gọi bằng `${{ secrets.TÊN }}` |
+| Mở được thứ có thật ngoài đời | chuỗi Neon, `BREVO_API_KEY`, khoá Cloudinary | **GitHub Secrets**, gọi bằng `${{ secrets.TÊN }}` |
 
 Câu tự hỏi khi phân loại: *lộ chuỗi này ra thì kẻ xấu làm được gì?* Với `test:test@localhost` — không gì cả, vì máy ảo đó bị xoá khi job kết thúc. Với chuỗi Neon — đọc và xoá được database thật.
 
@@ -204,9 +204,9 @@ Render gói miễn phí có filesystem **tạm**: mỗi lần service khởi đ�
 
 ## Ghi chú cho T41 — email và cold start
 
-Timeline ghi Brevo, file Excel ghi Resend. **Chốt một cái rồi sửa cả hai tài liệu cho khớp**, đừng để hai nguồn nói hai đằng.
+**Đã chốt: Brevo.** Timeline ghi Brevo, Excel ghi Resend — chọn Brevo và đã sửa code cho khớp.
 
-Gói miễn phí của Resend chỉ gửi được tới **email đã xác thực** cho tới khi xác thực tên miền. Nghĩa là lúc demo, người chấm nhập email lạ sẽ **không nhận được OTP**. Hai cách xử lý, chọn trước khi tới buổi bảo vệ:
+Lý do bỏ Resend: gói miễn phí của nó chỉ gửi được tới email đã xác thực cho tới khi xác thực tên miền — mà đồ án không có tên miền, nên hôm bảo vệ người chấm nhập email lạ sẽ không nhận được gì. Brevo chỉ đòi xác thực ĐỊA CHỈ GỬI, người nhận tự do.
 
 1. Xác thực một tên miền thật (mất tiền tên miền).
 2. Chuẩn bị sẵn tài khoản demo đã xác thực, và ở môi trường demo cho phép hiện OTP ngay trên màn hình.
@@ -272,5 +272,5 @@ Chạy hết danh sách này trước khi tạo PR. Mấy dòng có dấu ⚠ l�
 | --- | --- | --- |
 | Cookie xuyên domain không chạy trên bản deploy | Trên máy thì được, lên Vercel thì đăng nhập xong lại mất phiên | Test trên bản deploy thật **từ ngày 3**, không đợi cuối sprint |
 | Upload file ăn hết thời gian | Ngày 9 vẫn chưa tải được file nào lên | Cắt sang lưu link Google Drive, ghi rõ là hạn chế đã biết |
-| Resend không gửi được tới email lạ | Người ngoài nhóm không nhận được OTP | Bật chế độ hiện OTP trên màn hình ở môi trường demo |
+| Brevo hết hạn mức 300 email/ngày | Người ngoài nhóm không nhận được OTP | Bật chế độ hiện OTP trên màn hình ở môi trường demo |
 | Hai dev cùng sửa `packages/shared` | Conflict liên tục ở `api.ts` | DEV1 là người duy nhất thêm type vào `shared`; DEV2 báo qua chat khi cần type mới |

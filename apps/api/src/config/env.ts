@@ -70,14 +70,27 @@ const schema = z.object({
    */
   ACCESS_TTL: z.string().default('15m'),
 
-  /* Hạn của refresh token — cũng là thời gian tối đa không đăng nhập lại. */
-  REFRESH_TTL_DAYS: z.coerce.number().int().positive().default(30),
+  /*
+   * Hạn của refresh token, tính bằng ngày.
+   *
+   * 7 ngày, và con số này TRƯỢT THEO HOẠT ĐỘNG chứ không phải đếm từ lần đăng
+   * nhập: mỗi lần refresh cấp token mới với hạn 7 ngày mới. Nên người dùng vào
+   * app hàng tuần sẽ không bao giờ bị đăng xuất; chỉ ai bỏ đi trọn 7 ngày mới
+   * phải đăng nhập lại.
+   *
+   * Lưu ý về vai trò của con số này: nó KHÔNG quyết định tốc độ thu hồi. Token
+   * nằm trong database nên thu hồi là tức thì, bất kể hạn còn bao lâu — đó là
+   * lý do refresh token cố ý không dùng JWT. Cái nó giới hạn là quãng thời gian
+   * một token bị trộm mà chưa ai phát hiện còn dùng được. Hai lớp bảo vệ chính
+   * vẫn là xoay vòng và phát hiện dùng lại, xem auth.service.ts.
+   */
+  REFRESH_TTL_DAYS: z.coerce.number().int().positive().default(7),
 
   /*
    * Khoá gửi email. Không mặc định: quên khai thì phải vỡ lúc khởi động, chứ
    * không phải lúc sinh viên đầu tiên bấm "Gửi mã xác thực".
    */
-  RESEND_API_KEY: z.string().min(1),
+  BREVO_API_KEY: z.string().min(1),
 
   /* Địa chỉ web, dùng ghép link trong email. */
   APP_URL: z.string().url(),

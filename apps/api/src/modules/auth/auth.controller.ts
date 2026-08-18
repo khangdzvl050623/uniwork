@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { SIGNUP_ROLES } from '@uniwork/shared'
 import { ok } from '../../lib/respond.js'
 import { badRequest, unauthorized } from '../../lib/errors.js'
-import { isProduction } from '../../config/env.js'
+import { env, isProduction } from '../../config/env.js'
 import * as authService from './auth.service.js'
 import type { DeviceInfo, SessionResult } from './auth.service.js'
 
@@ -36,13 +36,21 @@ const REFRESH_COOKIE = isProduction ? '__Host-uniwork_rt' : 'uniwork_rt'
  * - path: giới hạn ở nhánh auth. Cookie sẽ không đi kèm mọi request khác, giảm
  *   bề mặt lộ và bớt vài chục byte cho mỗi lần gọi API.
  */
-function setRefreshCookie(res: Response, token: string, maxAgeDays = 30) {
+function setRefreshCookie(res: Response, token: string) {
   res.cookie(REFRESH_COOKIE, token, {
     httpOnly: true,
     secure: isProduction,
     sameSite: isProduction ? 'none' : 'lax',
     path: '/api/auth',
-    maxAge: maxAgeDays * 24 * 60 * 60 * 1000,
+
+    // Hạn cookie PHẢI lấy từ cùng một biến với hạn ghi trong database.
+    //
+    // Ghi cứng một con số ở đây là lỗi âm thầm: đổi REFRESH_TTL_DAYS xuống 7 mà
+    // cookie vẫn sống 30 ngày thì từ ngày thứ 8 trình duyệt vẫn gửi cookie đều
+    // đặn, server tra ra token đã hết hạn và trả 401. Người dùng thấy mình
+    // "đang đăng nhập" nhưng thao tác nào cũng lỗi, còn log thì không có gì bất
+    // thường vì mọi thứ đều đúng theo code.
+    maxAge: env.REFRESH_TTL_DAYS * 24 * 60 * 60 * 1000,
   })
 }
 

@@ -106,8 +106,10 @@ services:
       - key: JWT_REFRESH_SECRET
         sync: false
 
-      # Khoá gửi email. Cũng là bí mật, nhập tay trên dashboard.
-      - key: RESEND_API_KEY
+      # Khoá gửi email Brevo. Cũng là bí mật, nhập tay trên dashboard.
+      # Nhớ xác thực địa chỉ gửi trong Brevo (Senders & IP), nếu không mọi lời
+      # gọi đều bị từ chối với thông điệp khá khó hiểu.
+      - key: BREVO_API_KEY
         sync: false
 
       # Hai biến dưới đây KHÔNG phải bí mật nên ghi thẳng giá trị. Chúng chỉ là
