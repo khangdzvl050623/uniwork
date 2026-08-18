@@ -36,6 +36,51 @@ const schema = z.object({
     .refine((v) => v.startsWith('postgresql://') || v.startsWith('postgres://'), {
       message: 'phải là chuỗi kết nối Postgres, bắt đầu bằng postgresql://',
     }),
+
+  // -------------------------------------------------------------- Sprint 1 --
+
+  /*
+   * Chuỗi ký JWT. CỐ TÌNH không có giá trị mặc định, và đây là chỗ tuyệt đối
+   * không được nhân nhượng.
+   *
+   * Đặt mặc định thì ai đọc source trên GitHub cũng biết chuỗi ký, và tự ký
+   * được token mạo danh bất kỳ ai — kể cả admin. Khác với DATABASE_URL (quên
+   * khai thì app không chạy, lỗi lộ ngay), quên khai secret mà có mặc định thì
+   * app chạy hoàn toàn bình thường, không log gì cả, và cửa hậu mở suốt.
+   *
+   * Sinh chuỗi: openssl rand -base64 48
+   */
+  JWT_ACCESS_SECRET: z.string().min(32, 'cần ít nhất 32 ký tự'),
+
+  /*
+   * Hai secret PHẢI khác nhau.
+   *
+   * Dùng chung một chuỗi thì access token đem đi làm refresh token được và
+   * ngược lại — người dùng có thể lấy access token (nằm trong bộ nhớ trình
+   * duyệt, JavaScript đọc được) rồi gọi /refresh để tự gia hạn vô thời hạn,
+   * phá sạch ý nghĩa của việc cho access token hạn ngắn.
+   */
+  JWT_REFRESH_SECRET: z.string().min(32, 'cần ít nhất 32 ký tự'),
+
+  /*
+   * Hạn của access token. Ngắn là có chủ đích: token này không tra được vào
+   * đâu để thu hồi, nên cách duy nhất giới hạn thiệt hại khi lộ là để nó hết
+   * hạn nhanh. 15 phút đủ ngắn, và người dùng không thấy phiền vì web tự gọi
+   * /refresh khi gặp 401.
+   */
+  ACCESS_TTL: z.string().default('15m'),
+
+  /* Hạn của refresh token — cũng là thời gian tối đa không đăng nhập lại. */
+  REFRESH_TTL_DAYS: z.coerce.number().int().positive().default(30),
+
+  /*
+   * Khoá gửi email. Không mặc định: quên khai thì phải vỡ lúc khởi động, chứ
+   * không phải lúc sinh viên đầu tiên bấm "Gửi mã xác thực".
+   */
+  RESEND_API_KEY: z.string().min(1),
+
+  /* Địa chỉ web, dùng ghép link trong email. */
+  APP_URL: z.string().url(),
 })
 
 const parsed = schema.safeParse(process.env)
