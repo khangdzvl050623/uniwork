@@ -9,6 +9,7 @@
   "prettier": "@uniwork/config/prettier",
   "scripts": {
     "dev": "turbo run dev",
+    "dev:local": "pnpm db:wait && pnpm dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",

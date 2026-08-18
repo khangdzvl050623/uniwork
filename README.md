@@ -280,7 +280,7 @@ pnpm install
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
 
-# BẬT DOCKER DESKTOP TRƯỚC — pnpm dev KHÔNG tự dựng database
+# BẬT DOCKER DESKTOP TRƯỚC — không lệnh nào dưới đây tự bật nó được
 pnpm db:wait        # dựng Postgres (cổng 5433) và ĐỢI tới khi nhận kết nối
 
 pnpm --filter @uniwork/api exec prisma migrate deploy   # tạo bảng
@@ -291,11 +291,20 @@ pnpm dev            # chạy cùng lúc: web :5173 · api :4000
 
 Ba dòng giữa chỉ cần chạy **lần đầu**, hoặc sau `pnpm db:reset`, hoặc khi có migration mới.
 
+**Từ lần thứ hai trở đi, mỗi ngày chỉ cần một lệnh:**
+
+```bash
+pnpm dev:local      # = db:wait rồi dev, gộp làm một
+```
+
+> Vì sao có `dev:local` thay vì bảo mọi người gõ `pnpm db:wait && pnpm dev`: **Windows PowerShell 5.1 không hiểu `&&`** — nó báo `The token '&&' is not a valid statement separator in this version`. Toán tử đó chỉ có ở PowerShell 7+, Bash và cmd. Đặt phần nối vào script thì pnpm tự chạy qua shell hiểu được `&&`, nên gõ ở PowerShell, Git Bash hay cmd đều như nhau.
+
 **Lệnh database**
 
 | Lệnh | Việc |
 |---|---|
-| `pnpm db:wait` | Dựng Postgres và **đợi tới khi sẵn sàng** — dùng cái này trước khi `pnpm dev` |
+| `pnpm dev:local` | **Dùng hằng ngày.** Dựng Postgres, đợi sẵn sàng, rồi chạy web + api |
+| `pnpm db:wait` | Chỉ dựng Postgres và đợi tới khi sẵn sàng |
 | `pnpm db:up` | Dựng Postgres rồi trả về ngay, không đợi |
 | `pnpm db:down` | Dừng, **giữ nguyên dữ liệu** |
 | `pnpm db:reset` | Dừng và **xoá sạch dữ liệu**, dựng lại từ đầu |
