@@ -112,6 +112,11 @@ services:
       - key: BREVO_API_KEY
         sync: false
 
+      # Địa chỉ đứng tên gửi. sync: false vì đây thường là email cá nhân của
+      # người dựng hệ thống — không nên nằm trong file có commit.
+      - key: MAIL_FROM
+        sync: false
+
       # Hai biến dưới đây KHÔNG phải bí mật nên ghi thẳng giá trị. Chúng chỉ là
       # tinh chỉnh, và để lộ thiên thì đọc render.yaml là biết hệ thống đang
       # cấu hình thế nào — tiện hơn phải mở dashboard.

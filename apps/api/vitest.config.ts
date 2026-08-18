@@ -33,6 +33,7 @@ export default defineConfig({
       REFRESH_TTL_DAYS: '30',
       BREVO_API_KEY: 'test-key',
       APP_URL: 'http://localhost:5173',
+      MAIL_FROM: 'test@example.com',
     },
   },
 })

@@ -89,8 +89,25 @@ const schema = z.object({
   /*
    * Khoá gửi email. Không mặc định: quên khai thì phải vỡ lúc khởi động, chứ
    * không phải lúc sinh viên đầu tiên bấm "Gửi mã xác thực".
+   *
+   * Đây là API key (dạng `xkeysib-...`), KHÔNG phải SMTP key (`xsmtpsib-...`).
+   * Hai thứ khác nhau: SMTP key dùng cho giao thức SMTP cổng 587, còn ta gọi
+   * REST API nên cần API key. Đưa nhầm loại thì Brevo trả 401.
    */
   BREVO_API_KEY: z.string().min(1),
+
+  /*
+   * Địa chỉ đứng tên gửi email.
+   *
+   * Là biến môi trường chứ không ghi cứng trong code vì hai lý do:
+   *
+   * - Brevo TỪ CHỐI gửi nếu địa chỉ này chưa được xác thực trong tài khoản
+   *   (Settings → Senders). Mỗi người trong nhóm xác thực email của mình, nên
+   *   giá trị khác nhau tuỳ máy.
+   * - Đó thường là email cá nhân. Ghi cứng vào repo công khai là đem địa chỉ
+   *   thật của một người đi phát cho máy quét spam.
+   */
+  MAIL_FROM: z.string().email('phải là một địa chỉ email hợp lệ'),
 
   /* Địa chỉ web, dùng ghép link trong email. */
   APP_URL: z.string().url(),
