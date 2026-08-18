@@ -98,12 +98,9 @@ services:
       # cũng ký được token mạo danh admin, và xoá đi cũng vô ích vì còn trong
       # lịch sử commit.
       #
-      # Sinh mỗi chuỗi bằng: openssl rand -base64 48
-      # HAI CHUỖI PHẢI KHÁC NHAU. Dùng chung thì access token đem đi làm refresh
-      # token được, phá sạch ý nghĩa của việc cho access token hạn ngắn.
+      # Sinh bằng: openssl rand -base64 48
+      # Mỗi môi trường một chuỗi riêng, đừng dùng lại chuỗi của máy dev.
       - key: JWT_ACCESS_SECRET
-        sync: false
-      - key: JWT_REFRESH_SECRET
         sync: false
 
       # Khoá gửi email Brevo. Cũng là bí mật, nhập tay trên dashboard.
@@ -123,7 +120,7 @@ services:
       - key: ACCESS_TTL
         value: 15m
       - key: REFRESH_TTL_DAYS
-        value: '30'
+        value: '7'
 
       # Địa chỉ web thật, dùng ghép link trong email xác thực. Phải khớp với
       # domain Vercel, sai thì người dùng bấm link trong mail rơi vào trang lỗi.

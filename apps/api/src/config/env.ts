@@ -53,16 +53,6 @@ const schema = z.object({
   JWT_ACCESS_SECRET: z.string().min(32, 'cần ít nhất 32 ký tự'),
 
   /*
-   * Hai secret PHẢI khác nhau.
-   *
-   * Dùng chung một chuỗi thì access token đem đi làm refresh token được và
-   * ngược lại — người dùng có thể lấy access token (nằm trong bộ nhớ trình
-   * duyệt, JavaScript đọc được) rồi gọi /refresh để tự gia hạn vô thời hạn,
-   * phá sạch ý nghĩa của việc cho access token hạn ngắn.
-   */
-  JWT_REFRESH_SECRET: z.string().min(32, 'cần ít nhất 32 ký tự'),
-
-  /*
    * Hạn của access token. Ngắn là có chủ đích: token này không tra được vào
    * đâu để thu hồi, nên cách duy nhất giới hạn thiệt hại khi lộ là để nó hết
    * hạn nhanh. 15 phút đủ ngắn, và người dùng không thấy phiền vì web tự gọi
