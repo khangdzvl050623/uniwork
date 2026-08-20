@@ -306,13 +306,12 @@
           }
         ],
         "url": {
-          "raw": "{{baseUrl}}/api/auth/toi",
+          "raw": "{{baseUrl}}/api/toi",
           "host": [
             "{{baseUrl}}"
           ],
           "path": [
             "api",
-            "auth",
             "toi"
           ]
         }
@@ -340,13 +339,12 @@
       "request": {
         "method": "GET",
         "url": {
-          "raw": "{{baseUrl}}/api/auth/toi",
+          "raw": "{{baseUrl}}/api/toi",
           "host": [
             "{{baseUrl}}"
           ],
           "path": [
             "api",
-            "auth",
             "toi"
           ]
         }
@@ -627,6 +625,103 @@
             "type": "text/javascript",
             "exec": [
               "pm.test('trả 200', () => pm.response.to.have.status(200))"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "15 — Tải CV lên (T56)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "cv",
+              "type": "file",
+              "src": "docs/postman/fixtures/cv-mau.pdf"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/toi/cv",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "toi",
+            "cv"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('trả 200 kèm cvUrl', () => {",
+              "  pm.response.to.have.status(200)",
+              "  pm.expect(pm.response.json().data.cvUrl).to.be.a('string')",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "16 — Tải CV giả mạo đổi đuôi (phải 400)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "cv",
+              "type": "file",
+              "src": "docs/postman/fixtures/gia-mao-doi-duoi.pdf"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/toi/cv",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "toi",
+            "cv"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// File mang duoi .pdf va trinh duyet/Postman gan mimetype application/pdf,",
+              "// nhung noi dung thật không phải PDF (không có chữ ký %PDF- ở đầu file) —",
+              "// đây chính là ca 'đổi đuôi .exe thành .pdf' mà T56 yêu cầu phải chặn.",
+              "pm.test('trả 400 VALIDATION_ERROR', () => {",
+              "  pm.response.to.have.status(400)",
+              "  pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR')",
+              "})"
             ]
           }
         }

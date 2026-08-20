@@ -4,7 +4,7 @@
 
 1. Mở Postman → **Import** → chọn `uniwork.postman_collection.json`
 2. Chạy API ở máy: `pnpm --filter @uniwork/api dev` (cổng 4000)
-3. Bấm **Run collection** để chạy cả 15 request từ trên xuống, hoặc bấm từng cái
+3. Bấm **Run collection** để chạy cả 17 request từ trên xuống, hoặc bấm từng cái
 
 Mỗi request có sẵn phần kiểm ở tab **Scripts → Post-response**, nên chạy xong là thấy xanh/đỏ ngay chứ không phải tự đọc JSON đoán đúng sai.
 
@@ -62,6 +62,8 @@ Bộ này cố ý xếp thành một câu chuyện, không phải danh sách r�
 | 12 | Đăng xuất | Luôn `200`, kể cả khi không có cookie |
 | 13 | Refresh sau đăng xuất | `401` — token đã thu hồi |
 | 14 | Danh mục kỹ năng | Endpoint công khai vẫn chạy |
+| 15 | Tải CV lên | PDF thật → `200` kèm `cvUrl` |
+| 16 | Tải CV giả mạo đổi đuôi | `.exe` đổi tên thành `.pdf` → `400`, dù mimetype khai báo vẫn là `application/pdf` |
 
 Ba bước dễ bị bỏ qua nhưng quan trọng nhất:
 
@@ -82,6 +84,13 @@ Ba bước dễ bị bỏ qua nhưng quan trọng nhất:
 6. Chạy lại `08 — Refresh` → cũng **401**, vì toàn bộ phiên đã bị huỷ
 
 Bước 6 là điểm mấu chốt. Nó chứng minh hệ thống không chỉ từ chối token cũ, mà còn **coi cả tài khoản là đã bị xâm phạm** và bắt đăng nhập lại từ đầu.
+
+## Request 15–16 cần file thật (T56)
+
+Hai request này gửi file đính kèm (`formdata`, key `cv`), khác mọi request khác trong bộ chỉ gửi JSON — nên cư xử hơi khác:
+
+- **Chạy bằng `npx newman run docs/postman/uniwork.postman_collection.json` (từ gốc repo):** chạy được ngay, không cần làm gì thêm. Hai file mẫu đã có sẵn ở `docs/postman/fixtures/`, đường dẫn trong collection trỏ đúng vào đó — nhưng đường dẫn này tính TỪ THƯ MỤC CHẠY LỆNH, nên nếu `cd` vào `docs/postman` rồi chạy `newman run uniwork.postman_collection.json` thì phải sửa lại đường dẫn, không thì request 15/16 báo thiếu file.
+- **Chạy trong Postman (giao diện desktop):** Postman KHÔNG tự đọc được đường dẫn file từ máy người khác — mỗi người mở collection trên máy mình phải tự bấm chọn lại file cho ô `cv` một lần. Chọn `docs/postman/fixtures/cv-mau.pdf` cho request 15 (PDF thật, phải trả 200) và `docs/postman/fixtures/gia-mao-doi-duoi.pdf` cho request 16 (nội dung không phải PDF dù đặt tên `.pdf`, phải trả 400).
 
 ## Khi nào dùng Postman, khi nào dùng test tự động
 
