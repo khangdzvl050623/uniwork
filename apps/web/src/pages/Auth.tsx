@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Building2, GraduationCap } from 'lucide-react'
-import { UniWorkMark } from '@/components/UniWorkMark'
 import { Button } from '@/components/ui/Button'
 import { cn } from '@/lib/utils'
 
@@ -62,9 +61,6 @@ function AuthShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto flex max-w-md flex-col justify-center px-4 py-12">
       <Link to="/" className="mb-6 flex items-center justify-center gap-2">
-        <span className="grid h-10 w-10 place-items-center rounded-lg bg-brand-600 text-white">
-          <UniWorkMark size={20} />
-        </span>
         <span className="text-xl font-bold text-slate-900">
           Uni<span className="text-brand-600">Work</span>
         </span>
@@ -128,19 +124,14 @@ export function Register() {
       <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
         {role === 'STUDENT' ? (
           <>
-            <Field label="Họ và tên" placeholder="Nguyễn Văn A" />
+            <Field label="Họ tên" placeholder="Nguyễn Văn A" />
             <Field label="Email" type="email" placeholder="ten@sinhvien.edu.vn" />
-            <Field label="Trường đang học" placeholder="ĐH Kinh tế TP.HCM" />
           </>
         ) : (
           <>
             <Field label="Tên công ty / cửa hàng" placeholder="The Corner Coffee" />
             <Field label="Email liên hệ" type="email" placeholder="tuyendung@congty.vn" />
-            <Field
-              label="Mã số thuế hoặc giấy phép kinh doanh"
-              placeholder="0312345678"
-              hint="Dùng để xác minh, tin chỉ hiển thị sau khi được duyệt"
-            />
+            
           </>
         )}
 
