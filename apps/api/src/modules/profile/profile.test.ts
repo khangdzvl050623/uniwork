@@ -16,6 +16,16 @@ vi.mock('../../lib/prisma.js', () => ({
   },
 }))
 
+/**
+ * Chặn gọi Cloudinary thật trong test — cùng lý do mock mailer.js ở otp.test.ts.
+ * `CLOUDINARY_API_KEY` trong vitest.config.ts là `'test-key'`, khác chuỗi
+ * placeholder `lib/cloudinary.ts` dùng để nhận biết "chưa cấu hình", nên không
+ * mock thì `HAS_REAL_KEY` sẽ đúng và code cố gọi mạng thật.
+ */
+vi.mock('../../lib/cloudinary.js', () => ({
+  uploadCvFile: vi.fn().mockResolvedValue('https://res.cloudinary.com/test/raw/upload/cv.pdf'),
+}))
+
 const userFindUnique = prisma.user.findUnique as unknown as Mock
 const studentProfileFindUnique = prisma.studentProfile.findUnique as unknown as Mock
 const studentProfileUpdate = prisma.studentProfile.update as unknown as Mock
@@ -258,5 +268,63 @@ describe('GET và PUT /api/toi/lich-ranh (T55)', () => {
 
     expect(res.status).toBe(400)
     expect(prisma.availability.deleteMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /api/toi/cv (T56)', () => {
+  const PDF_BYTES = Buffer.concat([Buffer.from('%PDF-1.4\n'), Buffer.from('noi dung gia lap')])
+
+  it('file .exe đổi đuôi thành .pdf bị từ chối — nội dung không đúng chữ ký PDF', async () => {
+    const fakePdf = Buffer.from('MZ\x90\x00 day khong phai PDF that')
+
+    const res = await request(createApp())
+      .post('/api/toi/cv')
+      .set('Authorization', `Bearer ${studentToken}`)
+      .attach('cv', fakePdf, { filename: 'virus.pdf', contentType: 'application/pdf' })
+
+    expect(res.status).toBe(400)
+    expect(studentProfileUpdate).not.toHaveBeenCalled()
+  })
+
+  it('file đúng chữ ký PDF thì tải lên và ghi cvUrl', async () => {
+    studentProfileFindUnique.mockResolvedValue({ id: 'sp-1' })
+    studentProfileUpdate.mockResolvedValue({
+      ...STUDENT_PROFILE_ROW,
+      cvUrl: 'https://res.cloudinary.com/test/raw/upload/cv.pdf',
+    })
+
+    const res = await request(createApp())
+      .post('/api/toi/cv')
+      .set('Authorization', `Bearer ${studentToken}`)
+      .attach('cv', PDF_BYTES, { filename: 'cv.pdf', contentType: 'application/pdf' })
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.cvUrl).toBe('https://res.cloudinary.com/test/raw/upload/cv.pdf')
+  })
+
+  it('không gửi file thì trả 400', async () => {
+    const res = await request(createApp())
+      .post('/api/toi/cv')
+      .set('Authorization', `Bearer ${studentToken}`)
+
+    expect(res.status).toBe(400)
+  })
+
+  it('nhà tuyển dụng gọi vào thì bị FORBIDDEN', async () => {
+    const res = await request(createApp())
+      .post('/api/toi/cv')
+      .set('Authorization', `Bearer ${employerToken}`)
+      .attach('cv', PDF_BYTES, { filename: 'cv.pdf', contentType: 'application/pdf' })
+
+    expect(res.status).toBe(403)
+  })
+
+  it('sai mimetype (không phải application/pdf) bị chặn trước khi đọc nội dung', async () => {
+    const res = await request(createApp())
+      .post('/api/toi/cv')
+      .set('Authorization', `Bearer ${studentToken}`)
+      .attach('cv', PDF_BYTES, { filename: 'cv.docx', contentType: 'application/msword' })
+
+    expect(res.status).toBe(400)
   })
 })

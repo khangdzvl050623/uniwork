@@ -9,6 +9,8 @@ import {
   updateEmployerProfileController,
   updateSkillsController,
   updateStudentProfileController,
+  uploadCvController,
+  uploadCvMiddleware,
 } from './profile.controller.js'
 
 export const profileRoutes = Router()
@@ -29,6 +31,9 @@ profileRoutes.put('/ho-so-ntd', requireRole('EMPLOYER'), updateEmployerProfileCo
 
 /* T54 */
 profileRoutes.put('/ky-nang', requireRole('STUDENT'), updateSkillsController)
+
+/* T56 */
+profileRoutes.post('/cv', requireRole('STUDENT'), uploadCvMiddleware, uploadCvController)
 
 /* T55 */
 profileRoutes.get('/lich-ranh', requireRole('STUDENT'), getAvailabilityController)

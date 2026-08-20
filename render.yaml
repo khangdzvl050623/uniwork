@@ -126,3 +126,12 @@ services:
       # domain Vercel, sai thì người dùng bấm link trong mail rơi vào trang lỗi.
       - key: APP_URL
         sync: false
+
+      # Cloudinary — nơi lưu CV thật (T56). Render có filesystem TẠM, ghi CV lên
+      # đĩa của service là mất khi service khởi động lại. Cả ba đều là bí mật.
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false

@@ -8,6 +8,7 @@ import type {
 } from '@uniwork/shared'
 import { prisma } from '../../lib/prisma.js'
 import { badRequest, forbidden, notFound } from '../../lib/errors.js'
+import { uploadCvFile } from '../../lib/cloudinary.js'
 import { displayNameOf } from '../auth/auth.service.js'
 
 /**
@@ -246,6 +247,50 @@ export async function replaceSkills(userId: string, skillIds: string[]): Promise
   ])
 
   return getStudentProfile(userId)
+}
+
+/* ------------------------------------------------------------------ T56 -- */
+
+/**
+ * Chữ ký đầu file PDF thật: 5 byte `%PDF-`.
+ *
+ * KHÔNG tin `mimetype` mà trình duyệt gửi kèm — nó suy ra từ ĐUÔI FILE, không
+ * đọc nội dung. Một file `virus.exe` đổi tên thành `virus.pdf` vẫn được trình
+ * duyệt gắn `mimetype: application/pdf`, lọt qua mọi kiểm tra dựa trên tên hay
+ * mimetype. Đọc đúng 5 byte đầu là cách duy nhất biết chắc nội dung thật.
+ */
+const PDF_MAGIC_BYTES = Buffer.from('%PDF-')
+
+function isPdfContent(buffer: Buffer): boolean {
+  return buffer.subarray(0, PDF_MAGIC_BYTES.length).equals(PDF_MAGIC_BYTES)
+}
+
+export async function uploadCv(userId: string, buffer: Buffer): Promise<StudentProfileResponse> {
+  if (!isPdfContent(buffer)) {
+    throw badRequest('File phải là PDF hợp lệ')
+  }
+
+  await requireStudentProfileId(userId)
+
+  const cvUrl = await uploadCvFile(buffer, userId)
+
+  const updated = await prisma.studentProfile.update({
+    where: { userId },
+    data: { cvUrl },
+    select: {
+      fullName: true,
+      university: true,
+      major: true,
+      year: true,
+      bio: true,
+      phone: true,
+      cvUrl: true,
+      expectedHourlyRate: true,
+      skills: { select: { skill: { select: { id: true, name: true, slug: true } } } },
+    },
+  })
+
+  return toStudentProfileResponse(updated)
 }
 
 /* ------------------------------------------------------------------ T55 -- */

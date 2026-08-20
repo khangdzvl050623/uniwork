@@ -1,4 +1,5 @@
 import type { ErrorRequestHandler } from 'express'
+import { MulterError } from 'multer'
 import { ZodError } from 'zod'
 import { AppError } from '../lib/errors.js'
 import { fail } from '../lib/respond.js'
@@ -33,7 +34,17 @@ export const errorHandler: ErrorRequestHandler = (err, req, res, _next) => {
     return
   }
 
-  // 3. Còn lại là lỗi ngoài ý muốn. Ghi log đầy đủ để còn lần ra, nhưng KHÔNG
+  // 3. Lỗi từ multer (T56): file quá giới hạn, sai tên field, v.v. — luôn là
+  // lỗi phía người gửi, không phải lỗi server. Không bắt riêng thì rơi vào
+  // nhánh cuối và trả nhầm 500 cho một request hoàn toàn hợp lệ về phía server.
+  if (err instanceof MulterError) {
+    const message =
+      err.code === 'LIMIT_FILE_SIZE' ? 'File vượt quá giới hạn 5MB' : 'File tải lên không hợp lệ'
+    fail(res, 'VALIDATION_ERROR', message, 400)
+    return
+  }
+
+  // 4. Còn lại là lỗi ngoài ý muốn. Ghi log đầy đủ để còn lần ra, nhưng KHÔNG
   //    trả chi tiết về cho client: stack trace lộ đường dẫn file, tên thư viện
   //    và phiên bản — vừa đủ để người khác dò lỗ hổng đã biết.
   const error = err instanceof Error ? err : new Error(String(err))

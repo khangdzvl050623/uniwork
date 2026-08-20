@@ -29,10 +29,13 @@ export default defineConfig({
        */
       JWT_ACCESS_SECRET: 'test-access-secret-khong-dung-that-0123456789',
       ACCESS_TTL: '15m',
-      REFRESH_TTL_DAYS: '30',
+      REFRESH_TTL_DAYS: '7',
       BREVO_API_KEY: 'test-key',
       APP_URL: 'http://localhost:5173',
       MAIL_FROM: 'test@example.com',
+      CLOUDINARY_CLOUD_NAME: 'test-cloud',
+      CLOUDINARY_API_KEY: 'test-key',
+      CLOUDINARY_API_SECRET: 'test-secret',
     },
   },
 })

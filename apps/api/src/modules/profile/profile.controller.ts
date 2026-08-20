@@ -1,4 +1,5 @@
 import type { Request, RequestHandler } from 'express'
+import multer from 'multer'
 import { z } from 'zod'
 import { TIME_SLOTS } from '@uniwork/shared'
 import { ok } from '../../lib/respond.js'
@@ -95,6 +96,40 @@ const updateSkillsSchema = z.object({
 export const updateSkillsController: RequestHandler = async (req, res) => {
   const { skillIds } = parse(updateSkillsSchema, req.body)
   ok(res, await profileService.replaceSkills(requireUserId(req), skillIds))
+}
+
+/* ------------------------------------------------------------------ T56 -- */
+
+/**
+ * `memoryStorage`: file vào thẳng RAM dưới dạng `Buffer`, không ghi ra đĩa.
+ *
+ * Đúng nhu cầu ở đây — file chỉ cần đi qua tay ta để chuyển tiếp lên Cloudinary,
+ * không cần giữ lại. Ghi ra đĩa trên Render còn hỏng hẳn: filesystem của gói
+ * free là tạm, mất sạch mỗi khi service khởi động lại.
+ *
+ * `fileFilter` lọc nhanh theo mimetype trình duyệt gửi — chặn sớm phần lớn file
+ * sai định dạng, đỡ tốn công đọc hết vào RAM. Đây KHÔNG phải lớp bảo vệ chính:
+ * mimetype suy từ đuôi file, đổi tên `.exe` thành `.pdf` là qua được. Lớp bảo vệ
+ * thật nằm ở `profile.service.ts` — đọc byte đầu file để biết nội dung thật.
+ */
+const uploadMemory = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype !== 'application/pdf') {
+      cb(badRequest('Chỉ nhận file PDF'))
+      return
+    }
+    cb(null, true)
+  },
+})
+
+export const uploadCvMiddleware = uploadMemory.single('cv')
+
+export const uploadCvController: RequestHandler = async (req, res) => {
+  const userId = requireUserId(req)
+  if (!req.file) throw badRequest('Thiếu file CV')
+  ok(res, await profileService.uploadCv(userId, req.file.buffer))
 }
 
 /* ------------------------------------------------------------------ T55 -- */
