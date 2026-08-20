@@ -1,0 +1,4 @@
+{
+  "extends": "@uniwork/config/tsconfig/base.json",
+  "include": ["src"]
+}

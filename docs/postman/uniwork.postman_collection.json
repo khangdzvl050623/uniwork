@@ -1,0 +1,636 @@
+{
+  "info": {
+    "name": "UniWork API",
+    "description": "Bộ request thử API UniWork. Import file này rồi chạy từ trên xuống.\n\nBiến {{baseUrl}} và {{accessToken}} tự động điền — xem tab Scripts của từng request.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:4000",
+      "description": "Đổi thành https://<ten>.onrender.com để thử trên bản deploy"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "description": "Tự điền sau khi đăng ký hoặc đăng nhập thành công"
+    },
+    {
+      "key": "email",
+      "value": "khang@sinhvien.edu.vn"
+    },
+    {
+      "key": "password",
+      "value": "matkhau123"
+    },
+    {
+      "key": "otpCode",
+      "value": "",
+      "description": "Tự điền từ bước 11"
+    }
+  ],
+  "item": [
+    {
+      "name": "00 — Health (kiểm API sống chưa)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/health",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "health"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('API sống', () => pm.response.to.have.status(200))",
+              "pm.test('đúng vỏ ApiSuccess', () => pm.expect(pm.response.json().ok).to.be.true)"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 — Đăng ký sinh viên",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"role\": \"STUDENT\",\n  \"name\": \"Nguyễn Minh Khang\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/dang-ky",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "dang-ky"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Sinh email mới cho mỗi lần chạy để bộ này lặp lại được.",
+              "// Không có dòng này thì lần chạy thứ hai trả 409 và test đỏ oan.",
+              "pm.collectionVariables.set('email', 'sv' + Date.now() + '@sinhvien.edu.vn')"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Lưu access token vào biến để các request sau tự dùng.",
+              "if (pm.response.code === 201) {",
+              "  pm.collectionVariables.set('accessToken', pm.response.json().data.accessToken)",
+              "}",
+              "",
+              "pm.test('trả 201', () => pm.response.to.have.status(201))",
+              "",
+              "// Ba thứ tuyệt đối không được lọt vào body.",
+              "pm.test('không lộ dữ liệu nhạy cảm', () => {",
+              "  const body = pm.response.text()",
+              "  pm.expect(body).to.not.include('passwordHash')",
+              "  pm.expect(body).to.not.include('refreshToken')",
+              "  pm.expect(body).to.not.include('tokenHash')",
+              "})",
+              "",
+              "pm.test('refresh token nằm trong cookie httpOnly', () => {",
+              "  const setCookie = pm.response.headers.get('set-cookie') || ''",
+              "  pm.expect(setCookie).to.include('HttpOnly')",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 — Đăng ký trùng email (phải 409)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"role\": \"STUDENT\",\n  \"name\": \"Người khác\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/dang-ky",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "dang-ky"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('trả 409 CONFLICT', () => {",
+              "  pm.response.to.have.status(409)",
+              "  pm.expect(pm.response.json().error.code).to.eql('CONFLICT')",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 — Đăng ký mật khẩu yếu (phải 400)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"yeu@example.com\",\n  \"password\": \"abcdefgh\",\n  \"role\": \"STUDENT\",\n  \"name\": \"Mật khẩu yếu\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/dang-ky",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "dang-ky"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('lỗi gắn đúng vào trường password', () => {",
+              "  pm.response.to.have.status(400)",
+              "  pm.expect(pm.response.json().error.details).to.have.property('password')",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 — Đăng nhập",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/dang-nhap",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "dang-nhap"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('accessToken', pm.response.json().data.accessToken)",
+              "}",
+              "pm.test('trả 200 kèm accessToken', () => {",
+              "  pm.response.to.have.status(200)",
+              "  pm.expect(pm.response.json().data.accessToken).to.be.a('string')",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 — Đăng nhập sai mật khẩu (phải 401)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"sai-mat-khau-1\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/dang-nhap",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "dang-nhap"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('trả 401', () => pm.response.to.have.status(401))",
+              "",
+              "// Thông điệp phải giống hệt trường hợp email không tồn tại — nếu khác",
+              "// nhau thì form đăng nhập thành công cụ dò xem email nào đã đăng ký.",
+              "pm.test('thông điệp không tiết lộ email có tồn tại hay không', () => {",
+              "  pm.expect(pm.response.json().error.message).to.eql('Email hoặc mật khẩu không đúng')",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 — Tôi là ai (cần token)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/toi",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "toi"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('trả 200 kèm hồ sơ', () => {",
+              "  pm.response.to.have.status(200)",
+              "  pm.expect(pm.response.json().data).to.have.property('displayName')",
+              "})",
+              "pm.test('không lộ passwordHash', () => {",
+              "  pm.expect(pm.response.text()).to.not.include('passwordHash')",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 — Tôi là ai, KHÔNG token (phải 401)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/toi",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "toi"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('trả 401 UNAUTHORIZED', () => {",
+              "  pm.response.to.have.status(401)",
+              "  pm.expect(pm.response.json().error.code).to.eql('UNAUTHORIZED')",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "08 — Refresh (xoay vòng token)",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/refresh",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "refresh"
+          ]
+        },
+        "description": "Không cần điền gì. Postman tự gửi cookie refresh token đã nhận từ bước đăng nhập."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.response.code === 200) {",
+              "  pm.collectionVariables.set('accessToken', pm.response.json().data.accessToken)",
+              "}",
+              "pm.test('trả 200 kèm access token mới', () => {",
+              "  pm.response.to.have.status(200)",
+              "  pm.expect(pm.response.json().data.accessToken).to.be.a('string')",
+              "})",
+              "pm.test('cấp refresh token MỚI (xoay vòng)', () => {",
+              "  pm.expect(pm.response.headers.get('set-cookie') || '').to.include('uniwork_rt')",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "09 — Gửi mã OTP",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/gui-otp",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "gui-otp"
+          ]
+        },
+        "description": "Cần đăng nhập trước (chạy 01 hoặc 04). Endpoint CỐ Ý không nhận email trong body — nếu nhận thì ai cũng gọi được và nó thành công cụ dò email + máy gửi thư rác."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Ngoài production, API trả kèm devCode để khỏi phải mở hộp thư.",
+              "// Ở production trường này không bao giờ có.",
+              "if (pm.response.code === 200 && pm.response.json().data.devCode) {",
+              "  pm.collectionVariables.set('otpCode', pm.response.json().data.devCode)",
+              "}",
+              "",
+              "pm.test('trả 200', () => pm.response.to.have.status(200))",
+              "",
+              "pm.test('mã gồm đúng 6 chữ số', () => {",
+              "  const code = pm.response.json().data.devCode",
+              "  pm.expect(code).to.match(/^\\d{6}$/)",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "10 — Xác thực email bằng mã",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/xac-thuc-email",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "xac-thuc-email"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"{{otpCode}}\"\n}"
+        },
+        "description": "Mã tự điền từ bước 11. Chạy 11 trước, nếu không {{otpCode}} sẽ rỗng."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('trả 200 và emailVerifiedAt đã có giá trị', () => {",
+              "  pm.response.to.have.status(200)",
+              "  pm.expect(pm.response.json().data.emailVerifiedAt).to.not.be.null",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "11 — Dùng LẠI mã vừa xác thực (phải 400)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{accessToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/xac-thuc-email",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "xac-thuc-email"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"code\": \"{{otpCode}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('mã đã dùng thì không dùng lại được', () => {",
+              "  pm.response.to.have.status(400)",
+              "})",
+              "",
+              "// Thông điệp phải giống hệt trường hợp sai mã và mã hết hạn.",
+              "// Phân biệt ra là chỉ đường cho người đi dò: \"mã đã dùng\" xác nhận",
+              "// rằng mã đó từng đúng.",
+              "pm.test('không tiết lộ mã từng đúng', () => {",
+              "  pm.expect(pm.response.json().error.message).to.eql('Mã xác thực không đúng hoặc đã hết hạn')",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "12 — Đăng xuất",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/dang-xuat",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "dang-xuat"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('luôn trả 200', () => pm.response.to.have.status(200))"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "13 — Refresh sau khi đăng xuất (phải 401)",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/refresh",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "auth",
+            "refresh"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('token đã thu hồi thì không refresh được', () => {",
+              "  pm.response.to.have.status(401)",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "14 — Danh mục kỹ năng (công khai)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/api/skills",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "skills"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('trả 200', () => pm.response.to.have.status(200))"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,602 @@
+// Schema đầy đủ theo BRD ba module — Auth, Đăng tin, Tìm kiếm việc.
+//
+// BRD thật (T17–T19) chưa được bàn giao. Bản dựng này bám theo phỏng đoán ghi
+// trong docs/brd-uoc-luong.md, nơi có cả danh sách điểm cần BA xác nhận. Đọc
+// tài liệu đó trước khi sửa file này.
+//
+// Ba bảng CỐ Ý chưa có: notifications, job_reports và bảng thống kê admin. Chúng
+// thuộc Sprint 5–6, chưa có luồng nghiệp vụ nào ghi vào. Bảng rỗng nằm trong
+// schema nhiều tháng thì tới lúc dùng gần như chắc chắn sai hình dạng.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+
+  // Chuỗi app dùng hằng ngày. Trên Neon đây là chuỗi CÓ chữ `-pooler` trong
+  // hostname: nó đi qua PgBouncer, cho phép nhiều request dùng chung một nắm
+  // kết nối nhỏ. Thiếu nó thì mỗi request mở một kết nối riêng và gói free của
+  // Neon hết hạn mức rất nhanh.
+  url = env("DATABASE_URL")
+
+  // Chuỗi dành riêng cho migration — chuỗi KHÔNG có `-pooler`.
+  //
+  // PgBouncer ở chế độ transaction không chạy được lệnh đổi cấu trúc bảng, nên
+  // migrate qua chuỗi pooled sẽ lỗi rất khó đoán. Prisma tự dùng directUrl cho
+  // `migrate` và `db push`, còn app lúc chạy vẫn dùng `url` ở trên.
+  //
+  // Ở máy local cả hai trỏ cùng một container, không có PgBouncer nào cả.
+  directUrl = env("DIRECT_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Bộ giá trị cố định
+//
+// Mọi enum dưới đây có một mảng `as const` sinh đôi trong packages/shared. Đây
+// là điểm dễ lệch nhất giữa hai phía: thêm giá trị ở đây phải thêm luôn bên
+// shared, và ngược lại. Không tự sinh được vì Prisma và TypeScript đọc hai định
+// dạng khác nhau — bù lại, lệch thì typecheck bên api gãy ngay.
+// ---------------------------------------------------------------------------
+
+enum Role {
+  STUDENT
+  EMPLOYER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+/// Xác thực email và đặt lại mật khẩu dùng chung một bảng, phân biệt bằng cột
+/// này. Hai luồng giống hệt nhau về cơ chế: sinh chuỗi ngẫu nhiên, gửi mail,
+/// hết hạn, dùng một lần.
+enum OneTimeTokenType {
+  EMAIL_VERIFICATION
+  PASSWORD_RESET
+}
+
+/// Nhà cung cấp danh tính ngoài. Thêm Facebook sau chỉ là thêm một giá trị.
+enum AuthProvider {
+  GOOGLE
+}
+
+enum ScheduleType {
+  RECURRING
+  SEASONAL
+  ONE_TIME
+}
+
+enum JobStatus {
+  DRAFT
+  PENDING
+  OPEN
+  CLOSED
+}
+
+enum ApplicationStatus {
+  PENDING
+  VIEWED
+  SHORTLISTED
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum SalaryUnit {
+  HOUR
+  SHIFT
+  MONTH
+}
+
+/// Ba khung giờ trong ngày. Rời rạc chứ không phải giờ tự do — nhờ vậy lịch
+/// rảnh và ca làm cùng một tập giá trị, ghép hai bên chỉ là phép giao.
+enum TimeSlot {
+  MORNING
+  AFTERNOON
+  EVENING
+}
+
+enum DocumentType {
+  BUSINESS_LICENSE
+  TAX_CODE
+  ID_CARD
+}
+
+enum ReviewStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// ---------------------------------------------------------------------------
+// Tài khoản và xác thực
+// ---------------------------------------------------------------------------
+
+/// Tài khoản đăng nhập. Thông tin riêng của từng vai trò nằm ở bảng profile
+/// tương ứng, không nhét chung vào đây — sinh viên và nhà tuyển dụng gần như
+/// không dùng chung trường nào.
+model User {
+  id String @id @default(cuid())
+
+  email String @unique
+
+  /// null nghĩa là tài khoản KHÔNG có mật khẩu — chỉ đăng nhập qua Google.
+  ///
+  /// Bắt buộc phải cho phép null. Nếu ép NOT NULL thì tài khoản Google buộc
+  /// phải mang một chuỗi băm rác, và luồng "quên mật khẩu" sẽ trông như chạy
+  /// được với họ: gửi mail, đặt mật khẩu mới, và tài khoản Google bỗng có thêm
+  /// một mật khẩu chẳng ai định tạo. Có null thì luồng đó từ chối ngay từ đầu.
+  passwordHash String?
+
+  role   Role
+  status UserStatus @default(ACTIVE)
+
+  /// null nghĩa là chưa xác thực email. Dùng mốc thời gian thay cho cờ boolean
+  /// vì nó trả lời được cả "đã xác thực chưa" lẫn "xác thực lúc nào".
+  emailVerifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  studentProfile  StudentProfile?
+  employerProfile EmployerProfile?
+
+  refreshTokens  RefreshToken[]
+  oneTimeTokens  OneTimeToken[]
+  linkedAccounts UserAccount[]
+
+  @@map("users")
+}
+
+/// Danh tính từ nhà cung cấp ngoài, hiện chỉ có Google.
+///
+/// Bảng riêng chứ không phải cột `googleId` trên `users`, vì một người có thể
+/// vừa có mật khẩu vừa liên kết Google, và sau này có thể thêm Facebook. Mỗi
+/// liên kết một hàng.
+model UserAccount {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  provider AuthProvider
+
+  /// Trường `sub` của Google — mã định danh ổn định, KHÔNG đổi kể cả khi người
+  /// dùng đổi địa chỉ Gmail. Đây mới là thứ nhận diện người dùng, không phải
+  /// email.
+  ///
+  /// Ghép tài khoản chỉ bằng email là lỗ hổng chiếm tài khoản: kẻ xấu đăng ký
+  /// trước bằng email không phải của nó, chủ thật đăng nhập Google rồi rơi vào
+  /// đúng tài khoản kẻ xấu đang giữ mật khẩu. Luật: chỉ ghép khi Google khẳng
+  /// định `email_verified`, và khi đó tài khoản cũ bị thu hồi về chủ thật.
+  providerAccountId String
+
+  createdAt DateTime @default(now())
+
+  /// CỐ Ý không lưu access token / refresh token của Google. Ta chỉ cần biết
+  /// "người này là ai", không gọi API nào thay mặt họ — không lưu thì không lộ.
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("user_accounts")
+}
+
+/// Một hàng cho mỗi phiên đăng nhập còn hiệu lực.
+///
+/// Vì sao là bảng riêng chứ không phải một cột trên `users`: có bảng thì mới
+/// đăng nhập được nhiều thiết bị cùng lúc, và mới dựng được màn hình "đăng xuất
+/// khỏi thiết bị khác" ở Sprint 6.
+model RefreshToken {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Băm SHA-256 của token, KHÔNG phải token gốc.
+  ///
+  /// Refresh token là thứ đăng nhập được. Để nguyên trong database nghĩa là ai
+  /// đọc được database thì mạo danh được bất kỳ ai — đúng thứ ta đã tránh khi
+  /// băm mật khẩu, không có lý do gì bỏ qua ở đây. Băm nhanh là đủ (khác mật
+  /// khẩu, cần Argon2) vì token vốn đã là chuỗi ngẫu nhiên dài, không dò được.
+  tokenHash String @unique
+
+  expiresAt DateTime
+
+  /// Đặt mốc khi token bị đổi lấy cặp mới, khi người dùng đăng xuất, hoặc khi
+  /// tài khoản bị khoá. Giữ lại hàng thay vì xoá để còn phát hiện được trường
+  /// hợp token đã thu hồi bị đem ra dùng lại — dấu hiệu bị đánh cắp.
+  revokedAt DateTime?
+
+  /// Ghi lại để người dùng nhận ra thiết bị nào là của mình trong danh sách
+  /// phiên đăng nhập.
+  userAgent String?
+  ipAddress String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+/// Token dùng một lần gửi qua email: xác thực tài khoản và đặt lại mật khẩu.
+///
+/// Tên bảng nói rõ "một lần" là có lý do. Bản đầu đặt là `auth_tokens`, và cái
+/// tên đó mơ hồ tới mức người đọc tưởng đây là chỗ lưu access token — trong khi
+/// access token là JWT, cố tình KHÔNG lưu ở đâu cả.
+model OneTimeToken {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tokenHash String           @unique
+  type      OneTimeTokenType
+
+  expiresAt DateTime
+
+  /// null nghĩa là chưa dùng. Đây là thứ làm token chỉ xài được một lần: đã có
+  /// mốc thì lần thứ hai bị từ chối, kể cả khi chưa hết hạn.
+  usedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, type])
+  @@map("one_time_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Hồ sơ
+// ---------------------------------------------------------------------------
+
+model StudentProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  fullName   String
+  university String?
+  major      String?
+  year       Int?
+  bio        String?
+  cvUrl      String?
+  phone      String?
+
+  /// Mức lương mong muốn theo giờ, đơn vị đồng.
+  expectedHourlyRate Int?
+
+  /// Khoảng thời gian sinh viên còn đi làm được. Dùng để lọc tin có yêu cầu
+  /// cam kết dài — sinh viên sắp về quê nghỉ hè sẽ không thấy tin đòi 6 tháng.
+  availableFrom  DateTime?
+  availableUntil DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  skills         StudentSkill[]
+  availabilities Availability[]
+  applications   Application[]
+  savedJobs      SavedJob[]
+
+  @@map("student_profiles")
+}
+
+model EmployerProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  companyName String
+  logoUrl     String?
+  website     String?
+  address     String?
+  description String?
+  contactName String?
+  phone       String?
+
+  /// null nghĩa là chưa được admin duyệt giấy tờ. Tin của nhà tuyển dụng chưa
+  /// duyệt không được hiển thị công khai.
+  ///
+  /// Đây là KẾT LUẬN cuối, còn `documents` bên dưới là hồ sơ chứng minh. Truy
+  /// vấn lọc tin đọc đúng một cột này, không phải đi rà từng giấy tờ.
+  verifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  jobs      Job[]
+  documents EmployerDocument[]
+
+  @@map("employer_profiles")
+}
+
+/// Giấy tờ nhà tuyển dụng nộp để được xác minh (mục bắt buộc của BRD Đăng tin).
+model EmployerDocument {
+  id                String          @id @default(cuid())
+  employerProfileId String
+  employerProfile   EmployerProfile @relation(fields: [employerProfileId], references: [id], onDelete: Cascade)
+
+  type DocumentType
+
+  /// Đường dẫn Cloudinary. File không đi qua database — chỉ lưu địa chỉ.
+  fileUrl String
+
+  status ReviewStatus @default(PENDING)
+
+  /// Lý do admin từ chối, để nhà tuyển dụng biết phải nộp lại thứ gì.
+  reviewNote String?
+  reviewedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Hàng đợi duyệt của admin lọc theo cột này.
+  @@index([status])
+  @@index([employerProfileId])
+  @@map("employer_documents")
+}
+
+// ---------------------------------------------------------------------------
+// Kỹ năng
+// ---------------------------------------------------------------------------
+
+/// Danh mục kỹ năng do admin quản lý. Không cho nhập tự do để tránh "Giao tiếp",
+/// "giao tiếp", "Kỹ năng giao tiếp" thành ba tag khác nhau, làm hỏng bộ lọc.
+model Skill {
+  id   String @id @default(cuid())
+  name String @unique
+  slug String @unique
+
+  createdAt DateTime @default(now())
+
+  students StudentSkill[]
+  jobs     JobSkill[]
+
+  @@map("skills")
+}
+
+/// Kỹ năng sinh viên tự khai.
+///
+/// Bảng nối chứ không phải quan hệ nhiều-nhiều ngầm của Prisma, vì sau này còn
+/// gắn thêm mức độ thành thạo và ngày tự đánh giá — bảng ngầm không thêm cột
+/// được, mà đổi sang bảng tường minh giữa chừng thì phải viết migration chuyển
+/// dữ liệu.
+model StudentSkill {
+  studentProfileId String
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+
+  skillId String
+  skill   Skill  @relation(fields: [skillId], references: [id], onDelete: Restrict)
+
+  createdAt DateTime @default(now())
+
+  @@id([studentProfileId, skillId])
+  @@index([skillId])
+  @@map("student_skills")
+}
+
+/// Kỹ năng tin tuyển dụng yêu cầu.
+model JobSkill {
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  skillId String
+  /// Restrict chứ không Cascade: xoá một kỹ năng đang có tin yêu cầu thì tin đó
+  /// lặng lẽ đổi điều kiện tuyển sau lưng nhà tuyển dụng. Danh mục này là danh
+  /// mục được chăm sóc — admin nên gộp hoặc đổi tên, không nên xoá.
+  skill   Skill  @relation(fields: [skillId], references: [id], onDelete: Restrict)
+
+  @@id([jobId, skillId])
+  @@index([skillId])
+  @@map("job_skills")
+}
+
+// ---------------------------------------------------------------------------
+// Lịch rảnh và ca làm
+//
+// Hai bảng dưới đây cố tình có cùng bộ cột `(dayOfWeek, slot)`. Nhìn qua tưởng
+// lặp, nhưng chúng mô tả hai thứ khác nhau — một cái là người, một cái là việc —
+// và chính việc cùng hình dạng làm bộ lọc lõi của UniWork chạy được bằng một
+// câu JOIN thay vì một thuật toán so khoảng thời gian.
+// ---------------------------------------------------------------------------
+
+/// Một ô sinh viên tô trong lưới 7 ngày × 3 khung giờ.
+model Availability {
+  id String @id @default(cuid())
+
+  studentProfileId String
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+
+  /// 0 = Chủ nhật ... 6 = Thứ 7, theo đúng quy ước `Date.prototype.getDay()`.
+  /// Khoảng hợp lệ do Zod canh ở tầng service; Postgres chỉ biết đây là số.
+  dayOfWeek Int
+  slot      TimeSlot
+
+  createdAt DateTime @default(now())
+
+  @@unique([studentProfileId, dayOfWeek, slot])
+  @@index([dayOfWeek, slot])
+  @@map("availabilities")
+}
+
+/// Một ca làm của tin tuyển dụng.
+model JobShift {
+  id String @id @default(cuid())
+
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  dayOfWeek Int
+  slot      TimeSlot
+
+  @@unique([jobId, dayOfWeek, slot])
+  @@index([dayOfWeek, slot])
+  @@map("job_shifts")
+}
+
+// ---------------------------------------------------------------------------
+// Tin tuyển dụng
+// ---------------------------------------------------------------------------
+
+model Job {
+  id String @id @default(cuid())
+
+  employerProfileId String
+  employerProfile   EmployerProfile @relation(fields: [employerProfileId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String
+
+  /// Danh sách gạch đầu dòng hiển thị nguyên văn. Dùng mảng text của Postgres
+  /// thay vì hai bảng con: không chỗ nào cần lọc hay đếm theo từng dòng, nên
+  /// tách bảng chỉ đổi lấy hai câu JOIN cho mỗi lần mở tin.
+  requirements String[]
+  benefits     String[]
+
+  city     String
+  district String
+
+  /// Số người cần tuyển.
+  quantity Int @default(1)
+
+  /// true = "Thoả thuận", và khi đó `salaryMin`/`salaryMax` BẮT BUỘC null.
+  ///
+  /// Dùng cờ tường minh thay vì để null mang nghĩa "thoả thuận". Null một mình
+  /// thì mơ hồ: không phân biệt được "nhà tuyển dụng cố ý không ghi số" với
+  /// "nhà tuyển dụng quên điền". Có cờ thì truy vấn lọc lương cũng đọc rõ ràng:
+  /// sinh viên đặt sàn 25k thì lọc `salaryNegotiable = false AND salaryMin >=
+  /// 25000` — tin không ghi giá bị loại, đúng ý người lọc.
+  ///
+  /// Ràng buộc chéo giữa ba cột này do CHECK `jobs_salary_check` canh ở
+  /// database, không chỉ ở tầng service.
+  salaryNegotiable Boolean @default(false)
+
+  salaryMin Int?
+  salaryMax Int?
+
+  /// Vẫn bắt buộc kể cả khi thoả thuận — "thoả thuận theo giờ" khác "thoả thuận
+  /// theo tháng", và sinh viên cần biết mình đang mặc cả trên đơn vị nào.
+  salaryUnit SalaryUnit
+
+  scheduleType ScheduleType
+
+  /// Cam kết tối thiểu bao nhiêu tháng. CHỈ dùng cho RECURRING.
+  ///
+  /// Không dùng chung với SEASONAL là quyết định của BA, và đúng: tin Tết có
+  /// `startDate`/`endDate` gói gọn 10 ngày mà lại mang `commitmentMonths = 1`
+  /// thì hai trường nói hai chuyện khác nhau, người viết giao diện không biết
+  /// tin cái nào.
+  commitmentMonths Int?
+
+  /// Số ca tối thiểu mỗi tuần. Dùng được cho cả RECURRING và SEASONAL — đây là
+  /// cách diễn đạt "cường độ" của đợt thời vụ, thay cho việc mượn tạm
+  /// `commitmentMonths`. Vô nghĩa với ONE_TIME.
+  minShiftsPerWeek Int?
+
+  /// RECURRING: ngày bắt đầu làm, có thể bỏ trống (tuyển là đi làm ngay).
+  /// SEASONAL: bắt buộc.
+  startDate DateTime?
+
+  /// CHỈ SEASONAL, và bắt buộc. RECURRING không có điểm kết thúc xác định.
+  endDate DateTime?
+
+  /// CHỈ ONE_TIME, và bắt buộc.
+  workDate DateTime?
+
+  /// Bốn cột thời gian trên loại trừ nhau theo `scheduleType`. Ở đây đều
+  /// nullable vì Prisma không diễn đạt được ràng buộc có điều kiện, nên luật
+  /// thật nằm ở CHECK `jobs_schedule_fields_check` viết tay trong migration.
+  ///
+  /// Vì sao chặn ở database chứ không chỉ ở Zod: quy ước "để trống thì hiểu là
+  /// không áp dụng" sẽ mục. Một script sửa dữ liệu, một lệnh SQL vá tay lúc
+  /// gấp, hay một endpoint viết vội ở sprint sau đều đi vòng qua Zod được.
+  /// CHECK thì không đường nào lách.
+  deadline DateTime
+
+  status JobStatus @default(DRAFT)
+
+  /// Mốc admin duyệt và tin bắt đầu hiện công khai. Khác `createdAt`: tin có thể
+  /// nằm nháp cả tuần trước khi được gửi duyệt.
+  publishedAt DateTime?
+  closedAt    DateTime?
+
+  /// Lý do admin từ chối, hiện lại cho nhà tuyển dụng sửa.
+  rejectionReason String?
+
+  viewCount Int @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shifts       JobShift[]
+  skills       JobSkill[]
+  applications Application[]
+  savedBy      SavedJob[]
+
+  /// Truy vấn xương sống của trang danh sách: lọc status OPEN, sắp theo ngày
+  /// đăng giảm dần. Không có index này thì mỗi lần mở trang chủ là một lần quét
+  /// toàn bảng.
+  @@index([status, publishedAt])
+  @@index([city, district])
+  @@index([employerProfileId, status])
+  @@map("jobs")
+}
+
+// ---------------------------------------------------------------------------
+// Ứng tuyển
+// ---------------------------------------------------------------------------
+
+model Application {
+  id String @id @default(cuid())
+
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  studentProfileId String
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+
+  status ApplicationStatus @default(PENDING)
+
+  coverLetter String?
+
+  /// Bản CV tại thời điểm nộp. Chép lại từ hồ sơ chứ không trỏ sang, vì sinh
+  /// viên thay CV sau đó thì đơn cũ vẫn phải giữ đúng file nhà tuyển dụng đã đọc.
+  cvUrl String?
+
+  /// Điểm phù hợp đóng băng tại thời điểm ứng tuyển.
+  ///
+  /// Điểm này vốn tính lúc chạy và phụ thuộc người đang xem — cùng một tin cho
+  /// ra điểm khác nhau với hai sinh viên. Lưu ở đây là ngoại lệ có chủ đích: nhà
+  /// tuyển dụng mở lại đơn tháng sau vẫn thấy đúng con số hồi đó, kể cả khi sinh
+  /// viên đã đổi lịch rảnh từ lâu.
+  matchScore Int?
+
+  /// Mốc đổi trạng thái gần nhất, để dựng cột "cập nhật lúc" trong danh sách
+  /// ứng viên mà không phải bới bảng lịch sử.
+  statusChangedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// Chặn ứng tuyển hai lần ngay ở tầng database. Kiểm ở tầng service cũng cần,
+  /// nhưng hai request bấm cùng lúc thì chỉ ràng buộc này chặn được.
+  @@unique([jobId, studentProfileId])
+  @@index([studentProfileId, status])
+  @@index([jobId, status])
+  @@map("applications")
+}
+
+/// Tin đã lưu — nút dấu trang trên mỗi thẻ việc làm.
+model SavedJob {
+  studentProfileId String
+  studentProfile   StudentProfile @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([studentProfileId, jobId])
+  @@index([jobId])
+  @@map("saved_jobs")
+}
