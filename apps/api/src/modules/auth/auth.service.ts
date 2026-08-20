@@ -45,7 +45,7 @@ function accessTtlSeconds(): number {
  * phải viết nhánh if nếu ta trả về nguyên hai object. Gộp thành một trường
  * `displayName` để web chỉ việc hiện ra.
  */
-function displayNameOf(user: {
+export function displayNameOf(user: {
   email: string
   studentProfile: { fullName: string } | null
   employerProfile: { companyName: string } | null

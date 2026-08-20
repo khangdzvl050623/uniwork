@@ -1,4 +1,4 @@
-import type { Role, ScheduleType } from './domain.js'
+import type { DayOfWeek, Role, ScheduleType, TimeSlot, UserStatus } from './domain.js'
 
 /**
  * Hợp đồng giữa web và api.
@@ -220,4 +220,94 @@ export interface AdminStatsResponse {
 
   /** Chỉ tiêu duyệt trong kỳ: đã làm được bao nhiêu trên mục tiêu bao nhiêu. */
   reviewGoals: { label: string; current: number; target: number }[]
+}
+
+/*
+ * ===========================================================================
+ * Hồ sơ — Sprint 1 tuần 3 (T51–T55)
+ * ===========================================================================
+ *
+ * Mọi endpoint dưới đây đều thao tác trên hồ sơ CỦA CHÍNH người gọi — không có
+ * id người khác trong tham số. Nhờ vậy "sửa hồ sơ người khác" không phải là
+ * một nhánh cần kiểm tra riêng, nó đơn giản là không tồn tại đường gọi nào để
+ * làm việc đó.
+ */
+
+/** Hồ sơ sinh viên, dùng cả cho GET /api/toi và GET /api/toi/ho-so-sinh-vien. */
+export interface StudentProfileResponse {
+  fullName: string
+  university: string | null
+  major: string | null
+  year: number | null
+  bio: string | null
+  phone: string | null
+  /** Đường dẫn Cloudinary tới CV đã tải lên. null nghĩa là chưa có (T56). */
+  cvUrl: string | null
+  expectedHourlyRate: number | null
+  skills: SkillResponse[]
+}
+
+/** Sửa trường, ngành, năm học, giới thiệu (T52). Không sửa kỹ năng hay CV ở đây. */
+export interface UpdateStudentProfileInput {
+  university?: string | null
+  major?: string | null
+  year?: number | null
+  bio?: string | null
+}
+
+/** Hồ sơ nhà tuyển dụng, dùng cả cho GET /api/toi và GET /api/toi/ho-so-ntd. */
+export interface EmployerProfileResponse {
+  companyName: string
+  description: string | null
+  address: string | null
+  website: string | null
+  logoUrl: string | null
+  contactName: string | null
+  phone: string | null
+  /** null nghĩa là chưa được admin duyệt giấy tờ — vẫn sửa hồ sơ được, chỉ chưa đăng tin được. */
+  verifiedAt: string | null
+}
+
+/** Sửa tên công ty, mô tả, địa chỉ, website (T53). */
+export interface UpdateEmployerProfileInput {
+  companyName: string
+  description?: string | null
+  address?: string | null
+  website?: string | null
+}
+
+/** GET /api/toi (T51) — hồ sơ đầy đủ của người đang đăng nhập. */
+export interface MeResponse {
+  id: string
+  email: string
+  role: Role
+  status: UserStatus
+  emailVerifiedAt: string | null
+  displayName: string
+  createdAt: string
+  /** Có giá trị khi role = STUDENT, ngược lại null. */
+  studentProfile: StudentProfileResponse | null
+  /** Có giá trị khi role = EMPLOYER, ngược lại null. */
+  employerProfile: EmployerProfileResponse | null
+}
+
+/** PUT /api/toi/ky-nang (T54) — thay TOÀN BỘ danh sách, không phải thêm/bớt từng cái. */
+export interface UpdateSkillsInput {
+  skillIds: string[]
+}
+
+/** Một ô trong lưới 7 ngày × 3 khung giờ. */
+export interface AvailabilitySlot {
+  dayOfWeek: DayOfWeek
+  slot: TimeSlot
+}
+
+/** GET /api/toi/lich-ranh (T55). */
+export interface AvailabilityResponse {
+  slots: AvailabilitySlot[]
+}
+
+/** PUT /api/toi/lich-ranh (T55) — thay TOÀN BỘ lưới trong một lần gọi. */
+export interface UpdateAvailabilityInput {
+  slots: AvailabilitySlot[]
 }
