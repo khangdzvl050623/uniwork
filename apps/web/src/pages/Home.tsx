@@ -44,8 +44,13 @@ import { DISTRICTS, JOBS } from '@/data/mock'
 import { useSiteStats } from '@/hooks/useSiteStats'
 import { cn, formatDate } from '@/lib/utils'
 
+<<<<<<< HEAD
 const JOB_TABS = ['IT', 'Logistics', 'Marketing', 'Sales']
 const HOT_KEYWORDS = ['IT', 'Logistics', 'Marketing', 'Sales']
+=======
+const JOB_TABS = ['Phù hợp lịch của bạn', 'Việc mới nhất', 'Lương cao', 'Làm từ xa', 'Cuối tuần']
+const HOT_KEYWORDS = ['Phục vụ quán', 'Gia sư', 'Trực page', 'Sự kiện', 'Nhập liệu', 'Bán hàng']
+>>>>>>> dev
 
 const HERO_POINTS = [
   'Lọc việc theo đúng khung giờ bạn rảnh',
@@ -56,10 +61,20 @@ const HERO_POINTS = [
 
 const BRAND_TABS = [
   'Tất cả',
+<<<<<<< HEAD
   'IT',
   'Logistics',
   'Marketing',
   'Sales',
+=======
+  'Quán ăn & cà phê',
+  'Giáo dục',
+  'Bán lẻ',
+  'Sự kiện',
+  'Công nghệ',
+  'Kho vận',
+  'Dịch vụ ăn uống',
+>>>>>>> dev
 ]
 
 const BRANDS = [
@@ -130,10 +145,21 @@ const BRANDS = [
 ]
 
 const CATEGORIES = [
+<<<<<<< HEAD
   { icon: Laptop, label: 'IT', count: 158 },
   { icon: Truck, label: 'Logistcs', count: 97 },
   { icon: BookOpen, label: 'Marketing', count: 84 },
   { icon: Headphones, label: 'Sales', count: 132 },
+=======
+  { icon: Coffee, label: 'Phục vụ, pha chế', count: 312 },
+  { icon: GraduationCap, label: 'Gia sư, trợ giảng', count: 248 },
+  { icon: ShoppingBag, label: 'Bán hàng, thu ngân', count: 196 },
+  { icon: PartyPopper, label: 'Sự kiện, PG/PB', count: 174 },
+  { icon: Laptop, label: 'Nhập liệu, online', count: 158 },
+  { icon: Headphones, label: 'Chăm sóc khách hàng', count: 132 },
+  { icon: Truck, label: 'Kho vận, giao hàng', count: 97 },
+  { icon: BookOpen, label: 'Thiết kế, nội dung', count: 84 },
+>>>>>>> dev
 ]
 
 const TOOLS = [
@@ -217,7 +243,11 @@ export function Home() {
             className="hero-rise mx-auto mt-5 max-w-3xl text-center text-[1.75rem] leading-[1.15] font-black tracking-tight text-white sm:text-4xl lg:text-[2.6rem]"
             style={{ animationDelay: '80ms' }}
           >
+<<<<<<< HEAD
             Việc làm <span className="text-gradient-fresh">khớp đúng lịch</span>{' '}
+=======
+            Việc làm bán thời gian <span className="text-gradient-fresh">khớp đúng lịch học</span>{' '}
+>>>>>>> dev
             của bạn
           </h1>
 
@@ -225,7 +255,11 @@ export function Home() {
             className="hero-rise mx-auto mt-4 max-w-xl text-center text-sm text-white/70 sm:text-base"
             style={{ animationDelay: '140ms' }}
           >
+<<<<<<< HEAD
             Khai lịch rảnh một lần - Miễn phí toàn bộ với sinh viên
+=======
+            Khai lịch rảnh một lần. Miễn phí toàn bộ với sinh viên.
+>>>>>>> dev
           </p>
 
           <form
@@ -307,6 +341,7 @@ export function Home() {
         </div>
       </section>
 
+<<<<<<< HEAD
       {/* ================================================= TOP NGÀNH NGHỀ */}
       <section className="mx-auto mt-10 max-w-[1180px] px-4">
         <Reveal>
@@ -338,11 +373,17 @@ export function Home() {
         </div>
       </section>
 
+=======
+>>>>>>> dev
       {/* ==================================================== VIỆC LÀM TỐT NHẤT */}
       <section className="mx-auto mt-7 max-w-[1180px] px-4">
         <Reveal className="rounded-xl bg-white p-5 shadow-sm">
           <div className="flex flex-wrap items-center gap-3">
+<<<<<<< HEAD
             <h2 className="text-lg font-bold text-slate-900">Việc thực tập cho sinh viên</h2>
+=======
+            <h2 className="text-lg font-bold text-slate-900">Việc làm tốt nhất</h2>
+>>>>>>> dev
             <div className="scroll-x flex gap-1.5 overflow-x-auto">
               {JOB_TABS.map((t, i) => (
                 <button
@@ -534,7 +575,91 @@ export function Home() {
         </Reveal>
       </section>
 
+<<<<<<< HEAD
       
+=======
+      {/* ================================================== DẢI KHUYẾN KHÍCH */}
+      <section className="mx-auto mt-5 max-w-[1180px] px-4">
+        <Reveal className="relative overflow-hidden rounded-2xl bg-brand-deep p-6 sm:p-8">
+          <div className="pattern-hex absolute inset-0 opacity-70" />
+          <div className="relative grid gap-6 lg:grid-cols-[1.2fr_1fr] lg:items-center">
+            <div>
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-accent-500/20 px-3 py-1 text-xs font-semibold text-accent-400">
+                <Zap size={13} /> Đợt tuyển đầu học kỳ
+              </span>
+              <h2 className="mt-3 text-2xl font-extrabold text-white sm:text-3xl">
+                Huy hiệu <span className="text-gradient-gold">Ứng viên uy tín</span>
+              </h2>
+              <p className="mt-2 max-w-lg text-sm leading-relaxed text-brand-50/85">
+                Hoàn thiện hồ sơ và khai đủ lịch rảnh trước hạn để nhận huy hiệu — hồ sơ có huy hiệu
+                được nhà tuyển dụng xem trước tiên.
+              </p>
+
+              <ul className="mt-4 grid gap-2 sm:grid-cols-2">
+                {[
+                  'Ưu tiên hiển thị trong danh sách',
+                  'Tăng 40% tỉ lệ được phản hồi',
+                  'Mở khoá bộ lọc nâng cao',
+                  'Nhận gợi ý việc riêng mỗi tuần',
+                ].map((b) => (
+                  <li key={b} className="flex items-start gap-2 text-sm text-brand-50/90">
+                    <Star size={15} className="mt-0.5 shrink-0 text-accent-400" />
+                    {b}
+                  </li>
+                ))}
+              </ul>
+            </div>
+
+            <div className="rounded-xl bg-white/10 p-5 ring-1 ring-white/20">
+              <p className="text-xs uppercase tracking-wide text-brand-100/80">Thời gian còn lại</p>
+              <div className="mt-3">
+                <Countdown />
+              </div>
+              <p className="mt-4 text-sm text-brand-50/85">
+                <strong className="text-white">4.057</strong> sinh viên đã nhận huy hiệu trong đợt
+                này
+              </p>
+              <Link to="/dang-ky" className="mt-4 block">
+                <Button variant="accent" size="lg" className="w-full">
+                  Nhận huy hiệu ngay
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </Reveal>
+      </section>
+
+      {/* ================================================= TOP NGÀNH NGHỀ */}
+      <section className="mx-auto mt-10 max-w-[1180px] px-4">
+        <Reveal>
+          <h2 className="text-center text-xl font-bold text-slate-900">Top ngành nghề nổi bật</h2>
+          <p className="mt-1 text-center text-sm text-slate-500">
+            Nhóm việc được sinh viên tìm nhiều nhất tháng này
+          </p>
+        </Reveal>
+
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {CATEGORIES.map((c, i) => (
+            <Reveal key={c.label} delay={i * 45}>
+              <Link
+                to="/viec-lam"
+                className="card-lift group flex h-full items-center gap-3 rounded-xl bg-white p-4 shadow-sm"
+              >
+                <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-brand-50 text-brand-600 transition-colors group-hover:bg-brand-500 group-hover:text-white">
+                  <c.icon size={20} />
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-semibold text-slate-800">
+                    {c.label}
+                  </span>
+                  <span className="text-xs text-slate-400">{c.count} tin tuyển</span>
+                </span>
+              </Link>
+            </Reveal>
+          ))}
+        </div>
+      </section>
+>>>>>>> dev
 
       {/* ==================================================== KHẨU HIỆU */}
       {/* Đặt ở giữa trang, ngay sau khi người đọc đã xem việc làm và nhóm nghề:
@@ -649,6 +774,120 @@ export function Home() {
         </div>
       </section>
 
+<<<<<<< HEAD
+=======
+      {/* ================================================ GIẢI THƯỞNG & TẢI APP */}
+      <section className="bg-brand-deep px-4 py-12">
+        <div className="mx-auto grid max-w-[1180px] gap-8 lg:grid-cols-2">
+          <Reveal>
+            <h2 className="text-xl font-bold text-white">Giải thưởng & ghi nhận</h2>
+            <div className="mt-5 space-y-3">
+              {AWARDS.map((a) => (
+                <div
+                  key={a.title}
+                  className="flex items-start gap-3 rounded-xl bg-white/10 p-4 ring-1 ring-white/15"
+                >
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-accent-500/20 text-accent-400">
+                    <Award size={18} />
+                  </span>
+                  <span>
+                    <span className="block text-sm font-semibold text-white">{a.title}</span>
+                    <span className="text-xs text-brand-50/70">
+                      {a.org} · {a.year}
+                    </span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Reveal>
+
+          <Reveal delay={100}>
+            <h2 className="text-xl font-bold text-white">Tải ứng dụng UniWork</h2>
+            <p className="mt-2 text-sm text-brand-50/85">
+              Nhận thông báo ngay khi nhà tuyển dụng xem hồ sơ, kể cả lúc không mở web.
+            </p>
+
+            <div className="mt-5 flex flex-wrap items-center gap-5">
+              <div className="grid grid-cols-7 gap-0.5 rounded-lg bg-white p-2.5">
+                {Array.from({ length: 49 }).map((_, i) => (
+                  <span
+                    key={i}
+                    className={cn(
+                      'h-2.5 w-2.5 rounded-[1px]',
+                      [
+                        0, 1, 2, 5, 6, 7, 9, 11, 13, 14, 16, 18, 20, 21, 23, 24, 26, 28, 30, 33, 35,
+                        36, 37, 40, 42, 44, 46, 47, 48,
+                      ].includes(i)
+                        ? 'bg-slate-900'
+                        : 'bg-white',
+                    )}
+                  />
+                ))}
+              </div>
+
+              <div className="space-y-2">
+                {['App Store', 'Google Play'].map((store) => (
+                  <a
+                    key={store}
+                    href="#"
+                    className="card-lift flex w-44 items-center gap-2.5 rounded-lg bg-white/10 px-3 py-2.5 ring-1 ring-white/20"
+                  >
+                    <Smartphone size={18} className="shrink-0 text-white" />
+                    <span>
+                      <span className="block text-[10px] text-brand-50/70">Tải về trên</span>
+                      <span className="block text-sm font-semibold text-white">{store}</span>
+                    </span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ================================================== CON SỐ ẤN TƯỢNG */}
+      <section className="relative overflow-hidden bg-brand-950 px-4 py-14">
+        <div className="pattern-hex absolute inset-0" />
+        <div className="relative mx-auto max-w-[1180px]">
+          <Reveal>
+            <h2 className="text-center text-2xl font-extrabold text-white">Con số ấn tượng</h2>
+            <p className="mx-auto mt-2 max-w-2xl text-center text-sm text-brand-50/75">
+              Số liệu mô phỏng phục vụ trình bày đồ án
+            </p>
+          </Reveal>
+
+          <div className="mt-9 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { value: stats.lifetime.jobSearches, label: 'lượt tìm việc' },
+              { value: stats.lifetime.studentProfiles, label: 'hồ sơ sinh viên' },
+              { value: stats.lifetime.matchedHours, label: 'giờ làm đã ghép' },
+              { value: stats.lifetime.jobViews, label: 'lượt xem tin' },
+            ].map((s, i) => (
+              <Reveal key={s.label} delay={i * 80}>
+                <div className="card-lift rounded-2xl bg-white/8 px-5 py-7 text-center ring-1 ring-white/15">
+                  <div className="text-gradient-gold text-2xl font-extrabold">
+                    <CountUp to={s.value} suffix="+" />
+                  </div>
+                  <div className="mt-1.5 text-sm text-brand-50/80">{s.label}</div>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+
+          <Reveal delay={200}>
+            <div className="mt-12 flex flex-col items-center">
+              <Earth>
+                <button className="pulse-ring relative grid h-20 w-20 place-items-center rounded-full bg-brand-500/30 ring-1 ring-brand-200/50 backdrop-blur-sm transition-[transform,background-color] duration-200 ease-out hover:scale-105 hover:bg-brand-500/45 active:scale-95">
+                  <Play size={28} className="ml-1 text-white" fill="currentColor" />
+                </button>
+              </Earth>
+              <p className="mt-4 text-sm text-brand-50/80">Xem video giới thiệu sản phẩm</p>
+            </div>
+          </Reveal>
+        </div>
+      </section>
+
+>>>>>>> dev
       {/* ==================================================== HỆ SINH THÁI */}
       <section className="mx-auto mt-12 max-w-[1180px] px-4">
         <Reveal>

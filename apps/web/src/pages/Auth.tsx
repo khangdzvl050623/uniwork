@@ -62,8 +62,14 @@ function AuthShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="mx-auto flex max-w-md flex-col justify-center px-4 py-12">
       <Link to="/" className="mb-6 flex items-center justify-center gap-2">
+<<<<<<< HEAD
+=======
+        <span className="grid h-10 w-10 place-items-center rounded-lg bg-brand-600 text-white">
+          <UniWorkMark size={20} />
+        </span>
+>>>>>>> dev
         <span className="text-xl font-bold text-slate-900">
-          Uni<span className="text-brand-600">Work</span>
+          Uni<span className="tSext-brand-600">Work</span>
         </span>
       </Link>
       <div className="rounded-xl border border-slate-200 bg-white p-6">{children}</div>
@@ -125,14 +131,28 @@ export function Register() {
       <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
         {role === 'STUDENT' ? (
           <>
+<<<<<<< HEAD
             <Field label="Họ tên" placeholder="Nguyễn Văn A" />
             <Field label="Email" type="email" placeholder="ten@sinhvien.edu.vn" />
+=======
+            <Field label="Họ và tên" placeholder="Nguyễn Văn A" />
+            <Field label="Email" type="email" placeholder="ten@sinhvien.edu.vn" />
+            <Field label="Trường đang học" placeholder="ĐH Kinh tế TP.HCM" />
+>>>>>>> dev
           </>
         ) : (
           <>
             <Field label="Tên công ty / cửa hàng" placeholder="The Corner Coffee" />
             <Field label="Email liên hệ" type="email" placeholder="tuyendung@congty.vn" />
+<<<<<<< HEAD
             
+=======
+            <Field
+              label="Mã số thuế hoặc giấy phép kinh doanh"
+              placeholder="0312345678"
+              hint="Dùng để xác minh, tin chỉ hiển thị sau khi được duyệt"
+            />
+>>>>>>> dev
           </>
         )}
 
