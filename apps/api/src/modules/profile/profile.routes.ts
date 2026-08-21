@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { requireAuth, requireRole } from '../../middlewares/auth.js'
 import {
   getAvailabilityController,
+  getDocumentViewUrlController,
   getEmployerProfileController,
   getMeController,
   getStudentProfileController,
@@ -11,6 +12,8 @@ import {
   updateStudentProfileController,
   uploadCvController,
   uploadCvMiddleware,
+  uploadDocumentController,
+  uploadDocumentMiddleware,
 } from './profile.controller.js'
 
 export const profileRoutes = Router()
@@ -34,6 +37,15 @@ profileRoutes.put('/ky-nang', requireRole('STUDENT'), updateSkillsController)
 
 /* T56 */
 profileRoutes.post('/cv', requireRole('STUDENT'), uploadCvMiddleware, uploadCvController)
+
+/* T57 — chỉ nhà tuyển dụng. */
+profileRoutes.post(
+  '/giay-to',
+  requireRole('EMPLOYER'),
+  uploadDocumentMiddleware,
+  uploadDocumentController,
+)
+profileRoutes.get('/giay-to/:type/xem', requireRole('EMPLOYER'), getDocumentViewUrlController)
 
 /* T55 */
 profileRoutes.get('/lich-ranh', requireRole('STUDENT'), getAvailabilityController)

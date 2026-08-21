@@ -1,5 +1,8 @@
+import type { DocumentType } from '@prisma/client'
 import type {
   AvailabilitySlot,
+  DocumentViewUrlResponse,
+  EmployerDocumentResponse,
   EmployerProfileResponse,
   MeResponse,
   StudentProfileResponse,
@@ -8,7 +11,13 @@ import type {
 } from '@uniwork/shared'
 import { prisma } from '../../lib/prisma.js'
 import { badRequest, forbidden, notFound } from '../../lib/errors.js'
-import { uploadCvFile } from '../../lib/cloudinary.js'
+import {
+  getSignedDocumentUrl,
+  uploadCvFile,
+  uploadDocumentFile,
+  type DocumentFileFormat,
+} from '../../lib/cloudinary.js'
+import { sniffFileKind } from '../../lib/file-sniff.js'
 import { displayNameOf } from '../auth/auth.service.js'
 
 /**
@@ -44,6 +53,22 @@ function toStudentProfileResponse(profile: {
   }
 }
 
+function toEmployerDocumentResponse(doc: {
+  type: DocumentType
+  status: EmployerDocumentResponse['status']
+  reviewNote: string | null
+  reviewedAt: Date | null
+  updatedAt: Date
+}): EmployerDocumentResponse {
+  return {
+    type: doc.type,
+    status: doc.status,
+    reviewNote: doc.reviewNote,
+    reviewedAt: doc.reviewedAt?.toISOString() ?? null,
+    submittedAt: doc.updatedAt.toISOString(),
+  }
+}
+
 function toEmployerProfileResponse(profile: {
   companyName: string
   description: string | null
@@ -53,6 +78,7 @@ function toEmployerProfileResponse(profile: {
   contactName: string | null
   phone: string | null
   verifiedAt: Date | null
+  documents: Parameters<typeof toEmployerDocumentResponse>[0][]
 }): EmployerProfileResponse {
   return {
     companyName: profile.companyName,
@@ -63,8 +89,18 @@ function toEmployerProfileResponse(profile: {
     contactName: profile.contactName,
     phone: profile.phone,
     verifiedAt: profile.verifiedAt?.toISOString() ?? null,
+    documents: profile.documents.map(toEmployerDocumentResponse),
   }
 }
+
+/** Chọn đúng cột cần cho `EmployerDocumentResponse`, dùng lại ở mọi truy vấn hồ sơ NTD. */
+const DOCUMENT_SELECT = {
+  type: true,
+  status: true,
+  reviewNote: true,
+  reviewedAt: true,
+  updatedAt: true,
+} as const
 
 /* ------------------------------------------------------------------ T51 -- */
 
@@ -101,6 +137,7 @@ export async function getMe(userId: string): Promise<MeResponse> {
           contactName: true,
           phone: true,
           verifiedAt: true,
+          documents: { select: DOCUMENT_SELECT },
         },
       },
     },
@@ -211,10 +248,90 @@ export async function updateEmployerProfile(
       contactName: true,
       phone: true,
       verifiedAt: true,
+      documents: { select: DOCUMENT_SELECT },
     },
   })
 
   return toEmployerProfileResponse(updated)
+}
+
+/**
+ * `requireRole('EMPLOYER')` ở tầng route đã đảm bảo vai đúng, nên profile ở
+ * đây PHẢI tồn tại — cùng lý do `requireStudentProfileId` ở T52.
+ */
+async function requireEmployerProfileId(userId: string): Promise<string> {
+  const profile = await prisma.employerProfile.findUnique({
+    where: { userId },
+    select: { id: true },
+  })
+  if (!profile) throw notFound('Không tìm thấy hồ sơ nhà tuyển dụng')
+  return profile.id
+}
+
+/* ------------------------------------------------------------------ T57 -- */
+
+const FORMAT_BY_KIND: Record<NonNullable<ReturnType<typeof sniffFileKind>>, DocumentFileFormat> = {
+  pdf: 'pdf',
+  jpeg: 'jpg',
+  png: 'png',
+}
+
+/**
+ * Nộp một loại giấy tờ. Nộp lại cùng loại thì GHI ĐÈ bản cũ (upsert theo
+ * ràng buộc `@@unique([employerProfileId, type])`) và trạng thái reset về
+ * PENDING — bản bị admin từ chối trước đó không nên tồn đọng vĩnh viễn cùng
+ * bản mới vừa nộp.
+ */
+export async function uploadEmployerDocument(
+  userId: string,
+  type: DocumentType,
+  buffer: Buffer,
+): Promise<EmployerProfileResponse> {
+  const kind = sniffFileKind(buffer)
+  if (!kind) {
+    throw badRequest('File phải là PDF, JPG hoặc PNG hợp lệ')
+  }
+  const format = FORMAT_BY_KIND[kind]
+
+  const employerProfileId = await requireEmployerProfileId(userId)
+  const publicId = `uniwork/documents/${employerProfileId}/${type}`
+
+  await uploadDocumentFile(buffer, publicId, format)
+
+  await prisma.employerDocument.upsert({
+    where: { employerProfileId_type: { employerProfileId, type } },
+    create: { employerProfileId, type, cloudinaryPublicId: publicId, fileFormat: format },
+    update: {
+      cloudinaryPublicId: publicId,
+      fileFormat: format,
+      status: 'PENDING',
+      reviewNote: null,
+      reviewedAt: null,
+    },
+  })
+
+  return getEmployerProfile(userId)
+}
+
+/** Cấp URL xem tạm cho một giấy tờ đã nộp — chỉ chủ hồ sơ mới gọi được (route đã kiểm vai). */
+export async function getDocumentViewUrl(
+  userId: string,
+  type: DocumentType,
+): Promise<DocumentViewUrlResponse> {
+  const employerProfileId = await requireEmployerProfileId(userId)
+
+  const doc = await prisma.employerDocument.findUnique({
+    where: { employerProfileId_type: { employerProfileId, type } },
+    select: { cloudinaryPublicId: true, fileFormat: true },
+  })
+  if (!doc) throw notFound('Chưa nộp giấy tờ loại này')
+
+  const { url, expiresAt } = getSignedDocumentUrl(
+    doc.cloudinaryPublicId,
+    doc.fileFormat as DocumentFileFormat,
+  )
+
+  return { url, expiresAt: expiresAt.toISOString() }
 }
 
 /* ------------------------------------------------------------------ T54 -- */
@@ -251,22 +368,8 @@ export async function replaceSkills(userId: string, skillIds: string[]): Promise
 
 /* ------------------------------------------------------------------ T56 -- */
 
-/**
- * Chữ ký đầu file PDF thật: 5 byte `%PDF-`.
- *
- * KHÔNG tin `mimetype` mà trình duyệt gửi kèm — nó suy ra từ ĐUÔI FILE, không
- * đọc nội dung. Một file `virus.exe` đổi tên thành `virus.pdf` vẫn được trình
- * duyệt gắn `mimetype: application/pdf`, lọt qua mọi kiểm tra dựa trên tên hay
- * mimetype. Đọc đúng 5 byte đầu là cách duy nhất biết chắc nội dung thật.
- */
-const PDF_MAGIC_BYTES = Buffer.from('%PDF-')
-
-function isPdfContent(buffer: Buffer): boolean {
-  return buffer.subarray(0, PDF_MAGIC_BYTES.length).equals(PDF_MAGIC_BYTES)
-}
-
 export async function uploadCv(userId: string, buffer: Buffer): Promise<StudentProfileResponse> {
-  if (!isPdfContent(buffer)) {
+  if (sniffFileKind(buffer) !== 'pdf') {
     throw badRequest('File phải là PDF hợp lệ')
   }
 

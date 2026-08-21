@@ -4,7 +4,7 @@
 
 1. Mở Postman → **Import** → chọn `uniwork.postman_collection.json`
 2. Chạy API ở máy: `pnpm --filter @uniwork/api dev` (cổng 4000)
-3. Bấm **Run collection** để chạy cả 17 request từ trên xuống, hoặc bấm từng cái
+3. Bấm **Run collection** để chạy cả 19 request từ trên xuống, hoặc bấm từng cái
 
 Mỗi request có sẵn phần kiểm ở tab **Scripts → Post-response**, nên chạy xong là thấy xanh/đỏ ngay chứ không phải tự đọc JSON đoán đúng sai.
 
@@ -64,6 +64,8 @@ Bộ này cố ý xếp thành một câu chuyện, không phải danh sách r�
 | 14 | Danh mục kỹ năng | Endpoint công khai vẫn chạy |
 | 15 | Tải CV lên | PDF thật → `200` kèm `cvUrl` |
 | 16 | Tải CV giả mạo đổi đuôi | `.exe` đổi tên thành `.pdf` → `400`, dù mimetype khai báo vẫn là `application/pdf` |
+| 17 | Nộp giấy tờ CCCD | Đăng nhập riêng bằng tài khoản NTD demo, `200` kèm giấy tờ ở trạng thái `PENDING`, không lộ `cloudinaryPublicId` |
+| 18 | Xem giấy tờ bằng signed URL | `200` kèm `url` + `expiresAt` — URL sống vài phút, không phải link vĩnh viễn |
 
 Ba bước dễ bị bỏ qua nhưng quan trọng nhất:
 
@@ -91,6 +93,15 @@ Hai request này gửi file đính kèm (`formdata`, key `cv`), khác mọi requ
 
 - **Chạy bằng `npx newman run docs/postman/uniwork.postman_collection.json` (từ gốc repo):** chạy được ngay, không cần làm gì thêm. Hai file mẫu đã có sẵn ở `docs/postman/fixtures/`, đường dẫn trong collection trỏ đúng vào đó — nhưng đường dẫn này tính TỪ THƯ MỤC CHẠY LỆNH, nên nếu `cd` vào `docs/postman` rồi chạy `newman run uniwork.postman_collection.json` thì phải sửa lại đường dẫn, không thì request 15/16 báo thiếu file.
 - **Chạy trong Postman (giao diện desktop):** Postman KHÔNG tự đọc được đường dẫn file từ máy người khác — mỗi người mở collection trên máy mình phải tự bấm chọn lại file cho ô `cv` một lần. Chọn `docs/postman/fixtures/cv-mau.pdf` cho request 15 (PDF thật, phải trả 200) và `docs/postman/fixtures/gia-mao-doi-duoi.pdf` cho request 16 (nội dung không phải PDF dù đặt tên `.pdf`, phải trả 400).
+
+## Request 17–18 dùng tài khoản NTD riêng, và giấy tờ ở chế độ riêng tư (T57)
+
+Giấy tờ NTD (CCCD, giấy phép KD, mã số thuế) nhạy cảm hơn CV nên lưu ở Cloudinary chế độ `authenticated`, khác hẳn CV vốn public — xem lý do đầy đủ trong `lib/cloudinary.ts`. Vài điểm khác biệt cần biết:
+
+- Request 17 có script **prerequest** tự đăng nhập bằng tài khoản demo `ntd@uniwork.dev` và lưu token vào biến `employerAccessToken` riêng — không đụng tới `accessToken` (tài khoản sinh viên) mà các request khác đang dùng. Nên chạy request 17–18 độc lập, không phụ thuộc thứ tự với các request 01–16 phía trên.
+- Response của request 17 **không có trường URL hay đường dẫn Cloudinary nào cả** — đó là chủ đích, không phải thiếu sót. Muốn xem giấy tờ vừa nộp, phải gọi riêng request 18 để xin một signed URL.
+- URL trả về ở request 18 chỉ sống **5 phút**. Dán vào tab trình duyệt mới để xem ảnh CCCD thật; hết hạn thì gọi lại request 18 để xin URL mới, không có cách nào "gia hạn" một URL cũ.
+- File mẫu `docs/postman/fixtures/cccd-mau.jpg` là ảnh JPEG thật hợp lệ (không phải giả mạo) — dùng để test luồng thành công. Muốn tự thử ca bị từ chối, đổi `src` sang `docs/postman/fixtures/gia-mao-doi-duoi.pdf` và đặt tên `.jpg` — nội dung không đúng chữ ký ảnh/PDF nào nên bị chặn giống hệt cơ chế của CV.
 
 ## Khi nào dùng Postman, khi nào dùng test tự động
 

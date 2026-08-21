@@ -27,6 +27,11 @@
       "key": "otpCode",
       "value": "",
       "description": "Tự điền từ bước 11"
+    },
+    {
+      "key": "employerAccessToken",
+      "value": "",
+      "description": "Tự điền ở request 17 — mọi request khác dùng tài khoản sinh viên, nhưng T57 cần vai EMPLOYER nên đăng nhập riêng bằng tài khoản demo ntd@uniwork.dev"
     }
   ],
   "item": [
@@ -721,6 +726,139 @@
               "pm.test('trả 400 VALIDATION_ERROR', () => {",
               "  pm.response.to.have.status(400)",
               "  pm.expect(pm.response.json().error.code).to.eql('VALIDATION_ERROR')",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "17 — Nộp giấy tờ CCCD (T57)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{employerAccessToken}}"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            {
+              "key": "type",
+              "type": "text",
+              "value": "ID_CARD"
+            },
+            {
+              "key": "file",
+              "type": "file",
+              "src": "docs/postman/fixtures/cccd-mau.jpg"
+            }
+          ]
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/toi/giay-to",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "toi",
+            "giay-to"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Mọi request khác trong bộ này đăng nhập bằng tài khoản sinh viên (role",
+              "// STUDENT), nhưng nộp giấy tờ đòi vai EMPLOYER — nên đăng nhập riêng bằng",
+              "// tài khoản demo, độc lập với biến accessToken các request kia đang dùng.",
+              "pm.sendRequest({",
+              "  url: pm.collectionVariables.get('baseUrl') + '/api/auth/dang-nhap',",
+              "  method: 'POST',",
+              "  header: { 'Content-Type': 'application/json' },",
+              "  body: {",
+              "    mode: 'raw',",
+              "    raw: JSON.stringify({ email: 'ntd@uniwork.dev', password: 'Uniwork@123' })",
+              "  }",
+              "}, (err, res) => {",
+              "  if (!err && res.code === 200) {",
+              "    pm.collectionVariables.set('employerAccessToken', res.json().data.accessToken)",
+              "  }",
+              "})"
+            ]
+          }
+        },
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('trả 200, giấy tờ ở trạng thái PENDING', () => {",
+              "  pm.response.to.have.status(200)",
+              "  const docs = pm.response.json().data.documents",
+              "  const cccd = docs.find((d) => d.type === 'ID_CARD')",
+              "  pm.expect(cccd).to.exist",
+              "  pm.expect(cccd.status).to.eql('PENDING')",
+              "})",
+              "",
+              "pm.test('không lộ đường dẫn Cloudinary trong response', () => {",
+              "  // Giấy tờ ở chế độ authenticated — không có trường URL nào lộ ra ở đây,",
+              "  // phải xin riêng qua request 18.",
+              "  pm.expect(pm.response.text()).to.not.include('cloudinaryPublicId')",
+              "  pm.expect(pm.response.text()).to.not.include('res.cloudinary.com')",
+              "})"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "18 — Xem giấy tờ vừa nộp bằng signed URL (T57)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{employerAccessToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/toi/giay-to/ID_CARD/xem",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "api",
+            "toi",
+            "giay-to",
+            "ID_CARD",
+            "xem"
+          ]
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('trả URL xem tạm kèm hạn dùng', () => {",
+              "  pm.response.to.have.status(200)",
+              "  const body = pm.response.json().data",
+              "  pm.expect(body.url).to.be.a('string')",
+              "  pm.expect(body.expiresAt).to.be.a('string')",
+              "})",
+              "",
+              "// Mở thử URL này trên trình duyệt (dán vào tab mới) để thấy tận mắt ảnh CCCD",
+              "// vừa nộp — hết hạn sau 5 phút thì phải gọi lại request này để xin URL mới.",
+              "pm.test('URL trỏ đúng miền Cloudinary', () => {",
+              "  pm.expect(pm.response.json().data.url).to.include('cloudinary.com')",
               "})"
             ]
           }

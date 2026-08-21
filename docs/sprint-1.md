@@ -222,6 +222,23 @@ Render gói miễn phí có filesystem **tạm**: mỗi lần service khởi đ�
 
 Đề xuất: **Cloudinary**. Đồ án cần chứng minh biết xử lý file thật, mà 0.5GB của Neon còn phải dành cho dữ liệu nghiệp vụ.
 
+**Đã chốt và đã làm: Cloudinary**, chế độ `type: upload` (công khai) — xem `lib/cloudinary.ts`. CV không nhạy cảm bằng giấy tờ tuỳ thân (T57 bên dưới) nên public URL là đủ, không cần signed URL.
+
+## Ghi chú cho T57 — giấy tờ NTD dùng chế độ Cloudinary khác CV
+
+CV (T56) và giấy tờ NTD (T57) đều lưu trên Cloudinary nhưng **cố ý khác chế độ**, vì độ nhạy cảm khác nhau:
+
+| | CV (T56) | Giấy tờ NTD (T57) |
+| --- | --- | --- |
+| Chế độ Cloudinary | `type: upload` (công khai) | `type: authenticated` (riêng tư) |
+| Vì sao | CV vốn là tài liệu bán công khai — các trang tuyển dụng khác đều cho xem link CV thoải mái | CCCD lộ ra là nguy cơ giả mạo danh tính thật; giấy phép KD/mã số thuế cũng là thông tin doanh nghiệp không nên public |
+| Cách xem | `cvUrl` trả thẳng trong `GET /api/toi`, dùng được mãi | Không có URL nào trong response hồ sơ — phải gọi riêng `GET /api/toi/giay-to/:type/xem` để xin signed URL sống 5 phút |
+| Ai xem được | Bất kỳ ai có link | Chỉ NTD chủ giấy tờ đó (và sau này ADMIN lúc duyệt, xem `getDocumentViewUrl` trong `profile.service.ts`) |
+
+Cột `cloudinaryPublicId` trong bảng `EmployerDocument` **không phải URL xem được** — chỉ là định danh để dựng lại signed URL lúc cần, ký bằng `CLOUDINARY_API_SECRET`. Biết đúng giá trị này cũng không xem được gì nếu không đi qua backend.
+
+Mỗi NTD chỉ có **một bản hiện hành cho mỗi loại giấy tờ** (`@@unique([employerProfileId, type])` trong schema) — nộp lại thì ghi đè bản cũ, kể cả bản đã bị admin từ chối, không tồn đọng nhiều bản cùng loại.
+
 ## Ghi chú cho T41 — email và cold start
 
 **Đã chốt: Brevo.** Timeline ghi Brevo, Excel ghi Resend — chọn Brevo và đã sửa code cho khớp.

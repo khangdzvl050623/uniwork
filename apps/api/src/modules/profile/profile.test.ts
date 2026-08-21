@@ -9,6 +9,7 @@ vi.mock('../../lib/prisma.js', () => ({
     user: { findUnique: vi.fn() },
     studentProfile: { findUnique: vi.fn(), update: vi.fn() },
     employerProfile: { findUnique: vi.fn(), update: vi.fn() },
+    employerDocument: { findUnique: vi.fn(), upsert: vi.fn() },
     skill: { count: vi.fn() },
     studentSkill: { deleteMany: vi.fn(), createMany: vi.fn() },
     availability: { findMany: vi.fn(), deleteMany: vi.fn(), createMany: vi.fn() },
@@ -24,6 +25,11 @@ vi.mock('../../lib/prisma.js', () => ({
  */
 vi.mock('../../lib/cloudinary.js', () => ({
   uploadCvFile: vi.fn().mockResolvedValue('https://res.cloudinary.com/test/raw/upload/cv.pdf'),
+  uploadDocumentFile: vi.fn().mockResolvedValue(undefined),
+  getSignedDocumentUrl: vi.fn().mockReturnValue({
+    url: 'https://res.cloudinary.com/test/raw/authenticated/doc.pdf',
+    expiresAt: new Date('2026-01-01T00:05:00.000Z'),
+  }),
 }))
 
 const userFindUnique = prisma.user.findUnique as unknown as Mock
@@ -31,6 +37,8 @@ const studentProfileFindUnique = prisma.studentProfile.findUnique as unknown as 
 const studentProfileUpdate = prisma.studentProfile.update as unknown as Mock
 const employerProfileFindUnique = prisma.employerProfile.findUnique as unknown as Mock
 const employerProfileUpdate = prisma.employerProfile.update as unknown as Mock
+const employerDocumentFindUnique = prisma.employerDocument.findUnique as unknown as Mock
+const employerDocumentUpsert = prisma.employerDocument.upsert as unknown as Mock
 const skillCount = prisma.skill.count as unknown as Mock
 const availabilityFindMany = prisma.availability.findMany as unknown as Mock
 const transaction = prisma.$transaction as unknown as Mock
@@ -76,6 +84,7 @@ const NTD_FULL = {
     contactName: null,
     phone: null,
     verifiedAt: null,
+    documents: [],
   },
 }
 
@@ -172,6 +181,7 @@ describe('PUT /api/toi/ho-so-ntd (T53)', () => {
       contactName: null,
       phone: null,
       verifiedAt: null, // vẫn PENDING
+      documents: [],
     })
 
     const res = await request(createApp())
@@ -326,5 +336,89 @@ describe('POST /api/toi/cv (T56)', () => {
       .attach('cv', PDF_BYTES, { filename: 'cv.docx', contentType: 'application/msword' })
 
     expect(res.status).toBe(400)
+  })
+})
+
+describe('POST /api/toi/giay-to (T57)', () => {
+  const JPEG_BYTES = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.from('gia lap anh CCCD')])
+
+  it('nộp giấy tờ hợp lệ thì lưu (upsert theo employerProfileId + type)', async () => {
+    employerProfileFindUnique.mockResolvedValue({ id: 'ep-1' })
+    userFindUnique.mockResolvedValue(NTD_FULL)
+
+    const res = await request(createApp())
+      .post('/api/toi/giay-to')
+      .set('Authorization', `Bearer ${employerToken}`)
+      .field('type', 'ID_CARD')
+      .attach('file', JPEG_BYTES, { filename: 'cccd.jpg', contentType: 'image/jpeg' })
+
+    expect(res.status).toBe(200)
+    expect(employerDocumentUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { employerProfileId_type: { employerProfileId: 'ep-1', type: 'ID_CARD' } },
+      }),
+    )
+  })
+
+  it('nội dung không đúng chữ ký ảnh/PDF (dù mimetype khai đúng) bị từ chối', async () => {
+    const fakeJpeg = Buffer.from('day khong phai anh that, chi doi mimetype')
+
+    const res = await request(createApp())
+      .post('/api/toi/giay-to')
+      .set('Authorization', `Bearer ${employerToken}`)
+      .field('type', 'ID_CARD')
+      .attach('file', fakeJpeg, { filename: 'cccd.jpg', contentType: 'image/jpeg' })
+
+    expect(res.status).toBe(400)
+    expect(employerDocumentUpsert).not.toHaveBeenCalled()
+  })
+
+  it('loại giấy tờ không nằm trong danh mục bị chặn bởi Zod', async () => {
+    const res = await request(createApp())
+      .post('/api/toi/giay-to')
+      .set('Authorization', `Bearer ${employerToken}`)
+      .field('type', 'KHONG_TON_TAI')
+      .attach('file', JPEG_BYTES, { filename: 'cccd.jpg', contentType: 'image/jpeg' })
+
+    expect(res.status).toBe(400)
+  })
+
+  it('sinh viên gọi vào thì bị FORBIDDEN', async () => {
+    const res = await request(createApp())
+      .post('/api/toi/giay-to')
+      .set('Authorization', `Bearer ${studentToken}`)
+      .field('type', 'ID_CARD')
+      .attach('file', JPEG_BYTES, { filename: 'cccd.jpg', contentType: 'image/jpeg' })
+
+    expect(res.status).toBe(403)
+  })
+})
+
+describe('GET /api/toi/giay-to/:type/xem (T57)', () => {
+  it('trả signed URL sống ngắn cho giấy tờ đã nộp', async () => {
+    employerProfileFindUnique.mockResolvedValue({ id: 'ep-1' })
+    employerDocumentFindUnique.mockResolvedValue({
+      cloudinaryPublicId: 'uniwork/documents/ep-1/ID_CARD',
+      fileFormat: 'jpg',
+    })
+
+    const res = await request(createApp())
+      .get('/api/toi/giay-to/ID_CARD/xem')
+      .set('Authorization', `Bearer ${employerToken}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.url).toContain('authenticated')
+    expect(res.body.data.expiresAt).toBeTruthy()
+  })
+
+  it('chưa nộp loại giấy tờ đó thì trả 404', async () => {
+    employerProfileFindUnique.mockResolvedValue({ id: 'ep-1' })
+    employerDocumentFindUnique.mockResolvedValue(null)
+
+    const res = await request(createApp())
+      .get('/api/toi/giay-to/TAX_CODE/xem')
+      .set('Authorization', `Bearer ${employerToken}`)
+
+    expect(res.status).toBe(404)
   })
 })

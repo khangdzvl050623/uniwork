@@ -1,4 +1,4 @@
-import type { DayOfWeek, Role, ScheduleType, TimeSlot, UserStatus } from './domain.js'
+import type { DayOfWeek, DocumentType, ReviewStatus, Role, ScheduleType, TimeSlot, UserStatus } from './domain.js'
 
 /**
  * Hợp đồng giữa web và api.
@@ -255,6 +255,29 @@ export interface UpdateStudentProfileInput {
   bio?: string | null
 }
 
+/**
+ * Một giấy tờ NTD đã nộp (T57).
+ *
+ * KHÔNG có trường URL/đường dẫn file ở đây — giấy tờ lưu ở chế độ Cloudinary
+ * `authenticated` (riêng tư, khác CV công khai ở T56), nên không có địa chỉ
+ * nào xem được trực tiếp. Muốn xem phải gọi riêng
+ * `GET /api/toi/giay-to/:type/xem` để xin một signed URL sống vài phút.
+ */
+export interface EmployerDocumentResponse {
+  type: DocumentType
+  status: ReviewStatus
+  /** Lý do admin từ chối, có giá trị khi status = REJECTED. */
+  reviewNote: string | null
+  reviewedAt: string | null
+  submittedAt: string
+}
+
+/** Trả về khi xin xem một giấy tờ (T57) — URL chỉ sống trong vài phút. */
+export interface DocumentViewUrlResponse {
+  url: string
+  expiresAt: string
+}
+
 /** Hồ sơ nhà tuyển dụng, dùng cả cho GET /api/toi và GET /api/toi/ho-so-ntd. */
 export interface EmployerProfileResponse {
   companyName: string
@@ -266,6 +289,8 @@ export interface EmployerProfileResponse {
   phone: string | null
   /** null nghĩa là chưa được admin duyệt giấy tờ — vẫn sửa hồ sơ được, chỉ chưa đăng tin được. */
   verifiedAt: string | null
+  /** Giấy tờ đã nộp, tối đa 3 (mỗi DocumentType một bản hiện hành). */
+  documents: EmployerDocumentResponse[]
 }
 
 /** Sửa tên công ty, mô tả, địa chỉ, website (T53). */

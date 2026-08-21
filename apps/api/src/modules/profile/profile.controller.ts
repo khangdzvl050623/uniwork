@@ -1,7 +1,7 @@
 import type { Request, RequestHandler } from 'express'
 import multer from 'multer'
 import { z } from 'zod'
-import { TIME_SLOTS } from '@uniwork/shared'
+import { DOCUMENT_TYPES, TIME_SLOTS } from '@uniwork/shared'
 import { ok } from '../../lib/respond.js'
 import { badRequest, unauthorized } from '../../lib/errors.js'
 import * as profileService from './profile.service.js'
@@ -130,6 +130,40 @@ export const uploadCvController: RequestHandler = async (req, res) => {
   const userId = requireUserId(req)
   if (!req.file) throw badRequest('Thiếu file CV')
   ok(res, await profileService.uploadCv(userId, req.file.buffer))
+}
+
+/* ------------------------------------------------------------------ T57 -- */
+
+const documentTypeSchema = z.enum(DOCUMENT_TYPES)
+
+/** Ba loại giấy tờ có thể là ảnh chụp (CCCD) hoặc PDF (giấy phép, mã số thuế). */
+const DOCUMENT_MIME_TYPES = new Set(['application/pdf', 'image/jpeg', 'image/png'])
+
+const uploadDocumentMemory = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (!DOCUMENT_MIME_TYPES.has(file.mimetype)) {
+      cb(badRequest('Chỉ nhận file PDF, JPG hoặc PNG'))
+      return
+    }
+    cb(null, true)
+  },
+})
+
+export const uploadDocumentMiddleware = uploadDocumentMemory.single('file')
+
+export const uploadDocumentController: RequestHandler = async (req, res) => {
+  const userId = requireUserId(req)
+  if (!req.file) throw badRequest('Thiếu file giấy tờ')
+  const { type } = parse(z.object({ type: documentTypeSchema }), req.body)
+  ok(res, await profileService.uploadEmployerDocument(userId, type, req.file.buffer))
+}
+
+export const getDocumentViewUrlController: RequestHandler = async (req, res) => {
+  const userId = requireUserId(req)
+  const { type } = parse(z.object({ type: documentTypeSchema }), req.params)
+  ok(res, await profileService.getDocumentViewUrl(userId, type))
 }
 
 /* ------------------------------------------------------------------ T55 -- */
