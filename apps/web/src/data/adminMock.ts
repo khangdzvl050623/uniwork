@@ -9,16 +9,17 @@ import type { ScheduleType } from '@uniwork/shared'
  * loại giấy tờ, trạng thái đơn ứng tuyển — chứ không phải bịa cho đầy bảng.
  *
  * Khi có API thật, mỗi mảng dưới đây tương ứng một endpoint:
- *   PENDING_JOBS       -> GET /api/admin/tin-tuyen-dung?status=PENDING
- *   PENDING_EMPLOYERS  -> GET /api/admin/nha-tuyen-dung?review=PENDING
- *   ADMIN_SKILLS       -> GET /api/skills  (đã có sẵn ở api)
+ *   PENDING_JOBS       -> GET /api/admin/tin-tuyen-dung?status=PENDING  (Sprint 2)
+ *   EMPLOYER_JOBS      -> GET /api/ntd/tin-tuyen-dung                   (Sprint 2)
+ *   EMPLOYER_APPLICANTS-> GET /api/ntd/don-ung-tuyen                    (Sprint 4)
+ *   ADMIN_SKILLS       -> GET /api/skills  (api đã có phần đọc, chưa có phần sửa)
+ *
+ * Đã thay bằng dữ liệu thật và xoá khỏi file này:
  *   ADMIN_USERS        -> GET /api/admin/nguoi-dung
- *   EMPLOYER_JOBS      -> GET /api/ntd/tin-tuyen-dung
- *   EMPLOYER_APPLICANTS-> GET /api/ntd/don-ung-tuyen
+ *   PENDING_EMPLOYERS  -> GET /api/admin/nha-tuyen-dung
  */
 
 export type JobReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
-export type EmployerReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 export type ApplicationStatus = 'SUBMITTED' | 'REVIEWING' | 'ACCEPTED' | 'REJECTED'
 
 export interface PendingJob {
@@ -133,103 +134,6 @@ export const PENDING_JOBS: PendingJob[] = [
     flags: [],
   },
 ]
-
-export interface PendingEmployer {
-  id: string
-  name: string
-  taxCode: string
-  contact: string
-  district: string
-  submittedAt: string
-  status: EmployerReviewStatus
-  /** Giấy tờ đã nộp — ba loại BA đã chốt. */
-  documents: { type: 'BUSINESS_LICENSE' | 'TAX_CODE' | 'ID_CARD'; uploaded: boolean }[]
-  openJobs: number
-}
-
-export const PENDING_EMPLOYERS: PendingEmployer[] = [
-  {
-    id: 'e-201',
-    name: 'The Corner Coffee',
-    taxCode: '0312345678',
-    contact: 'lien.nguyen@cornercoffee.vn',
-    district: 'Quận 1',
-    submittedAt: '2 giờ trước',
-    status: 'PENDING',
-    documents: [
-      { type: 'BUSINESS_LICENSE', uploaded: true },
-      { type: 'TAX_CODE', uploaded: true },
-      { type: 'ID_CARD', uploaded: true },
-    ],
-    openJobs: 8,
-  },
-  {
-    id: 'e-202',
-    name: 'Sao Việt Event',
-    taxCode: '0398765432',
-    contact: 'tuyendung@saovietevent.com',
-    district: 'Quận 7',
-    submittedAt: '5 giờ trước',
-    status: 'PENDING',
-    documents: [
-      { type: 'BUSINESS_LICENSE', uploaded: true },
-      { type: 'TAX_CODE', uploaded: false },
-      { type: 'ID_CARD', uploaded: true },
-    ],
-    openJobs: 21,
-  },
-  {
-    id: 'e-203',
-    name: 'Công ty TNHH An Phát Lộc',
-    taxCode: '0301122334',
-    contact: 'hr.anphatloc@gmail.com',
-    district: 'Chưa khai',
-    submittedAt: '1 ngày trước',
-    status: 'PENDING',
-    documents: [
-      { type: 'BUSINESS_LICENSE', uploaded: false },
-      { type: 'TAX_CODE', uploaded: false },
-      { type: 'ID_CARD', uploaded: true },
-    ],
-    openJobs: 3,
-  },
-  {
-    id: 'e-204',
-    name: 'GreenBox Logistics',
-    taxCode: '0355667788',
-    contact: 'ops@greenbox.vn',
-    district: 'Quận Bình Tân',
-    submittedAt: '2 ngày trước',
-    status: 'APPROVED',
-    documents: [
-      { type: 'BUSINESS_LICENSE', uploaded: true },
-      { type: 'TAX_CODE', uploaded: true },
-      { type: 'ID_CARD', uploaded: true },
-    ],
-    openJobs: 15,
-  },
-  {
-    id: 'e-205',
-    name: 'Thương mại Đại Lợi',
-    taxCode: '—',
-    contact: 'dailoi.tuyendung@outlook.com',
-    district: 'Chưa khai',
-    submittedAt: '3 ngày trước',
-    status: 'REJECTED',
-    documents: [
-      { type: 'BUSINESS_LICENSE', uploaded: false },
-      { type: 'TAX_CODE', uploaded: false },
-      { type: 'ID_CARD', uploaded: false },
-    ],
-    openJobs: 0,
-  },
-]
-
-export const DOCUMENT_LABELS = {
-  BUSINESS_LICENSE: 'Giấy phép KD',
-  TAX_CODE: 'Mã số thuế',
-  ID_CARD: 'CCCD người đại diện',
-} as const
 
 export interface AdminSkill {
   id: string

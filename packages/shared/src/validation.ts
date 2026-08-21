@@ -171,3 +171,34 @@ export const MAX_FILE_SIZE_LABEL = '5MB'
 export const updateUserStatusSchema = z.object({
   status: z.enum(USER_STATUSES),
 })
+
+/**
+ * Duyệt hoặc từ chối một giấy tờ của nhà tuyển dụng.
+ *
+ * `PENDING` KHÔNG nằm trong tập giá trị nhận vào, dù nó là một `ReviewStatus`
+ * hợp lệ: đó là trạng thái ban đầu do hệ thống đặt lúc NTD nộp file, không phải
+ * một quyết định admin có thể ra. Cho phép đặt lại về PENDING chỉ tạo ra một
+ * đường xoá dấu vết đã xem xét mà không ai đọc được lý do.
+ *
+ * Từ chối thì BẮT BUỘC có lý do — `superRefine` bên dưới. Từ chối im lặng đẩy
+ * nhà tuyển dụng vào chỗ nộp lại đúng cái file cũ vì không biết mình sai ở đâu.
+ */
+export const reviewDocumentSchema = z
+  .object({
+    status: z.enum(['APPROVED', 'REJECTED']),
+    reviewNote: z.string().trim().max(500, 'Lý do tối đa 500 ký tự').nullish(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.status === 'REJECTED' && !val.reviewNote) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['reviewNote'],
+        message: 'Cần ghi lý do từ chối để nhà tuyển dụng biết phải nộp lại gì',
+      })
+    }
+  })
+
+/** Chốt hoặc thu hồi xác minh của một nhà tuyển dụng. */
+export const verifyEmployerSchema = z.object({
+  verified: z.boolean(),
+})
