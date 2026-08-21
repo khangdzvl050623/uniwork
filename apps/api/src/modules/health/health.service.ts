@@ -1,5 +1,6 @@
 import type { HealthResponse } from '@uniwork/shared'
 import { APP_VERSION } from '../../config/env.js'
+import { GOOGLE_SAN_SANG } from '../auth/google.service.js'
 
 /**
  * Endpoint này bị cron-job.org gọi mỗi 5 phút suốt ngày đêm để Render không ngủ.
@@ -16,5 +17,8 @@ export function getHealth(): HealthResponse {
     status: 'ok',
     uptime: Math.round(process.uptime()),
     version: APP_VERSION,
+    // Chỉ là một hằng số đọc từ biến môi trường, không chạm database — giữ
+    // đúng cam kết "cực nhẹ" ở trên.
+    googleSanSang: GOOGLE_SAN_SANG,
   }
 }

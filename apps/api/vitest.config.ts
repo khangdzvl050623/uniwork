@@ -36,6 +36,12 @@ export default defineConfig({
       CLOUDINARY_CLOUD_NAME: 'test-cloud',
       CLOUDINARY_API_KEY: 'test-key',
       CLOUDINARY_API_SECRET: 'test-secret',
+      API_URL: 'http://localhost:4000',
+      // Cố ý ĐỂ TRỐNG hai biến Google: test chạy đúng như máy của người chưa
+      // tạo project trên Google Cloud, tức là phần lớn thành viên trong nhóm.
+      // Nhánh "chưa cấu hình" nhờ vậy được đi qua thật chứ không chỉ nằm đó.
+      GOOGLE_CLIENT_ID: '',
+      GOOGLE_CLIENT_SECRET: '',
     },
   },
 })

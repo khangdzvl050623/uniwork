@@ -3,6 +3,8 @@ import { requireAuth } from '../../middlewares/auth.js'
 import { ipAndEmail, rateLimit } from '../../middlewares/rate-limit.js'
 import {
   forgotPasswordController,
+  googleCallbackController,
+  googleStartController,
   loginController,
   logoutController,
   refreshController,
@@ -84,6 +86,21 @@ authRoutes.post('/dang-xuat', logoutController)
  */
 authRoutes.post('/quen-mat-khau', forgotPasswordLimit, forgotPasswordController)
 authRoutes.post('/dat-lai-mat-khau', resetPasswordLimit, resetPasswordController)
+
+/*
+ * Đăng nhập Google — hai chặng, và cả hai đều là GET.
+ *
+ * Khác mọi endpoint khác của module này ở chỗ chúng là điểm đến của TRÌNH DUYỆT
+ * chứ không phải lời gọi API: người dùng bấm nút, trình duyệt rời khỏi trang
+ * web sang google.com, rồi Google chuyển hướng ngược về `/callback`. Cả hai
+ * chặng vì thế phải là GET và kết thúc bằng `redirect`, không phải JSON.
+ *
+ * Đây cũng là lý do không đặt giới hạn tần suất ở đây: người dùng bị chặn giữa
+ * chuỗi chuyển hướng sẽ thấy một trang lỗi trơ trọi không rõ vì sao. Chống lạm
+ * dụng ở luồng này do chính Google lo.
+ */
+authRoutes.get('/google', googleStartController)
+authRoutes.get('/google/callback', googleCallbackController)
 
 /*
  * Hai endpoint OTP đều yêu cầu đăng nhập.

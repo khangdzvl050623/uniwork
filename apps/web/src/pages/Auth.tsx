@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { AlertCircle, Building2, CheckCircle2, GraduationCap, Loader2 } from 'lucide-react'
 import { loginSchema, registerSchema, type SignupRole } from '@uniwork/shared'
+import { GoogleButton } from '@/components/GoogleButton'
 import { Button } from '@/components/ui/Button'
 import { Field } from '@/components/ui/Field'
 import { useAuth, useLogin, useRegister } from '@/hooks/useAuth'
@@ -135,6 +136,10 @@ export function Login() {
   // Thông báo do trang khác chuyển sang, ví dụ vừa đặt lại mật khẩu xong.
   const thongBao = (location.state as { thongBao?: string } | null)?.thongBao
 
+  // Lỗi từ luồng Google. Api chuyển hướng về đây kèm ?loi=... vì lúc đó người
+  // dùng đang ở giữa chuỗi chuyển hướng, không có chỗ nào khác để báo.
+  const loiGoogle = new URLSearchParams(location.search).get('loi') ?? undefined
+
   return (
     <AuthShell title="Đăng nhập" subtitle="Chào mừng bạn quay lại UniWork">
       {thongBao && (
@@ -147,7 +152,9 @@ export function Login() {
         </div>
       )}
 
-      <LoiChung message={form.errors._} />
+      <LoiChung message={form.errors._ ?? loiGoogle} />
+
+      <GoogleButton />
 
       <form className="space-y-4" onSubmit={guiForm} noValidate>
         <Field
@@ -250,6 +257,11 @@ export function Register() {
       <RoleTabs role={role} onChange={doiVaiTro} disabled={register.isPending} />
 
       <LoiChung message={form.errors._} />
+
+      {/* Chỉ hiện ở luồng sinh viên. Tài khoản tạo qua Google mặc định là sinh
+          viên (api không có chỗ hỏi vai trò giữa chuỗi chuyển hướng), nên đặt
+          nút này ở tab nhà tuyển dụng sẽ tạo ra tài khoản sai vai. */}
+      {laSinhVien && <GoogleButton label="Đăng ký bằng Google" />}
 
       <form className="space-y-4" onSubmit={guiForm} noValidate>
         <Field

@@ -81,8 +81,15 @@ function toAuthUser(
   }
 }
 
-/** Cấp một cặp token mới và ghi phiên vào database. */
-async function issueSession(
+/**
+ * Cấp một cặp token mới và ghi phiên vào database.
+ *
+ * Xuất ra ngoài để luồng đăng nhập Google dùng lại (`google.service.ts`). Nhờ
+ * vậy phiên tạo từ Google giống hệt phiên tạo từ form — cùng hạn, cùng cách
+ * xoay vòng, cùng cơ chế phát hiện token bị trộm. Viết một bản riêng cho Google
+ * là cách chắc chắn nhất để hai đường sớm muộn lệch nhau.
+ */
+export async function issueSession(
   user: Parameters<typeof toAuthUser>[0],
   device: DeviceInfo,
 ): Promise<SessionResult> {

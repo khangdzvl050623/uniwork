@@ -51,6 +51,17 @@ export interface HealthResponse {
   /** Số giây process đã chạy. Reset về gần 0 nghĩa là instance vừa bị đánh thức. */
   uptime: number
   version: string
+  /**
+   * Máy chủ có cấu hình đăng nhập Google hay không.
+   *
+   * Đặt ở đây thay vì dựng một endpoint riêng vì web vốn đã gọi /api/health
+   * ngay lúc mở trang (để đánh thức Render) — nhờ vậy biết được thông tin này
+   * mà không tốn thêm một vòng mạng nào.
+   *
+   * Web dùng nó để quyết định có hiện nút "Đăng nhập bằng Google" không. Hiện
+   * một nút bấm vào là lỗi thì tệ hơn hẳn so với không hiện.
+   */
+  googleSanSang: boolean
 }
 
 /**

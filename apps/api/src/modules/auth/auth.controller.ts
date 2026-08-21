@@ -8,9 +8,10 @@ import {
   resetPasswordSchema,
 } from '@uniwork/shared'
 import { ok } from '../../lib/respond.js'
-import { badRequest, unauthorized } from '../../lib/errors.js'
+import { AppError, badRequest, unauthorized } from '../../lib/errors.js'
 import { env, isProduction } from '../../config/env.js'
 import * as authService from './auth.service.js'
+import * as googleService from './google.service.js'
 import * as otpService from './otp.service.js'
 import * as passwordResetService from './password-reset.service.js'
 import type { DeviceInfo, SessionResult } from './auth.service.js'
@@ -144,6 +145,94 @@ export const logoutController: RequestHandler = async (req, res) => {
 }
 
 /* --------------------------------------------------------------- OTP (T42) */
+
+/* --------------------------------------------------- đăng nhập Google --- */
+
+/**
+ * Cookie giữ chuỗi `state` giữa hai chặng của luồng OAuth.
+ *
+ * Sống rất ngắn: người dùng chỉ mất vài giây bấm chọn tài khoản Google. Để lâu
+ * hơn thì một chuỗi `state` cũ còn dùng lại được, làm yếu chính thứ nó sinh ra
+ * để bảo vệ.
+ */
+const STATE_COOKIE = 'uniwork_oauth_state'
+const STATE_TTL_MS = 10 * 60 * 1000
+
+export const googleStartController: RequestHandler = (_req, res) => {
+  if (!googleService.GOOGLE_SAN_SANG) {
+    throw badRequest('Đăng nhập Google chưa được cấu hình trên máy chủ này')
+  }
+
+  const state = googleService.taoState()
+
+  res.cookie(STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: isProduction,
+    /*
+     * `lax` chứ KHÔNG phải `strict`.
+     *
+     * Cookie này phải sống sót qua cú chuyển hướng TỪ google.com quay về đây.
+     * Với `strict`, trình duyệt không gửi cookie trong request đến từ trang
+     * khác — nên lúc callback chạy thì không có state để đối chiếu, và mọi lần
+     * đăng nhập đều thất bại.
+     */
+    sameSite: 'lax',
+    path: '/api/auth',
+    maxAge: STATE_TTL_MS,
+  })
+
+  res.redirect(googleService.urlDangNhap(state))
+}
+
+/**
+ * Google gọi ngược về đây sau khi người dùng bấm đồng ý.
+ *
+ * Kết thúc bằng `redirect` về web chứ không trả JSON: đây là một điểm đến của
+ * trình duyệt, không phải lời gọi API. Người dùng đang nhìn thanh địa chỉ đổi,
+ * và thứ họ cần thấy tiếp theo là một trang, không phải một khối JSON.
+ */
+export const googleCallbackController: RequestHandler = async (req, res) => {
+  const veTrangLoi = (ly: string) =>
+    res.redirect(`${env.APP_URL}/dang-nhap?loi=${encodeURIComponent(ly)}`)
+
+  const stateTrongCookie = req.cookies?.[STATE_COOKIE] as string | undefined
+  const stateTraVe = typeof req.query.state === 'string' ? req.query.state : undefined
+  const code = typeof req.query.code === 'string' ? req.query.code : undefined
+
+  // Dọn cookie ngay: nó dùng đúng một lần, giữ lại chỉ tạo cơ hội dùng lại.
+  res.clearCookie(STATE_COOKIE, { path: '/api/auth' })
+
+  // Người dùng bấm "Huỷ" trên màn hình của Google.
+  if (req.query.error) return veTrangLoi('Bạn đã huỷ đăng nhập bằng Google')
+
+  if (!code || !stateTraVe || !stateTrongCookie || stateTraVe !== stateTrongCookie) {
+    // Không nói rõ sai ở đâu: người dùng thật không sửa được gì, còn người đang
+    // dò thì không cần biết mình hỏng ở bước nào.
+    return veTrangLoi('Phiên đăng nhập Google không hợp lệ, vui lòng thử lại')
+  }
+
+  try {
+    const danhTinh = await googleService.docDanhTinh(code)
+    const user = await googleService.timHoacTao(danhTinh)
+    const session = await authService.issueSession(user, deviceOf(req))
+
+    setRefreshCookie(res, session.refreshToken)
+
+    /*
+     * Không nhét access token vào URL.
+     *
+     * URL lọt vào lịch sử duyệt web, log proxy, và header `Referer` gửi sang
+     * mọi trang bấm tiếp theo. Web chỉ cần biết "vừa đăng nhập xong" rồi tự gọi
+     * /refresh bằng cookie httpOnly vừa đặt — đúng cơ chế nó đã làm mỗi lần
+     * tải lại trang.
+     */
+    res.redirect(`${env.APP_URL}/dang-nhap-google-xong`)
+  } catch (err) {
+    const message =
+      err instanceof AppError ? err.message : 'Không đăng nhập được bằng Google, thử lại sau'
+    veTrangLoi(message)
+  }
+}
 
 /* ------------------------------------------------------- quên mật khẩu --- */
 

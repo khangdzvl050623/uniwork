@@ -103,6 +103,18 @@ const schema = z.object({
   APP_URL: z.string().url(),
 
   /*
+   * Địa chỉ công khai của chính API này.
+   *
+   * Cần vì Google OAuth bắt khai `redirect_uri` tuyệt đối, và chuỗi đó phải
+   * TRÙNG KHÍT với chuỗi đã khai trong Google Cloud Console — lệch một dấu gạch
+   * chéo là Google từ chối với lỗi `redirect_uri_mismatch`.
+   *
+   * Không suy ra được từ request: sau proxy của Render thì `req.host` là tên
+   * miền nội bộ, không phải tên miền người dùng nhìn thấy.
+   */
+  API_URL: z.string().url().default('http://localhost:4000'),
+
+  /*
    * Ba biến Cloudinary — nơi lưu CV thật (T56).
    *
    * CỐ TÌNH không mặc định, cùng lý do BREVO_API_KEY: đây là bí mật, và Render
@@ -113,6 +125,21 @@ const schema = z.object({
   CLOUDINARY_CLOUD_NAME: z.string().min(1),
   CLOUDINARY_API_KEY: z.string().min(1),
   CLOUDINARY_API_SECRET: z.string().min(1),
+
+  /*
+   * Đăng nhập Google.
+   *
+   * KHÁC các biến bí mật ở trên: hai biến này CÓ giá trị mặc định rỗng, và đó
+   * là chủ đích. Đăng nhập Google là tính năng THÊM — thiếu khoá thì chỉ nút
+   * "Đăng nhập bằng Google" biến mất, còn đăng nhập bằng mật khẩu vẫn chạy
+   * bình thường. Bắt buộc phải có sẽ khiến cả nhóm không chạy được dự án chỉ
+   * vì chưa ai tạo project trên Google Cloud.
+   *
+   * Ngược lại, JWT_ACCESS_SECRET mà thiếu thì không có gì chạy được cả — nên
+   * biến đó không có mặc định.
+   */
+  GOOGLE_CLIENT_ID: z.string().default(''),
+  GOOGLE_CLIENT_SECRET: z.string().default(''),
 })
 
 const parsed = schema.safeParse(process.env)

@@ -195,7 +195,25 @@ Thêm mức độ bây giờ nghĩa là: sửa schema, viết migration, sửa `
 
 Đã chốt với Khang: bỏ, để dành. Khi nào làm thì làm cùng lúc với bộ lọc tìm ứng viên theo kỹ năng — lúc đó mới biết cần bao nhiêu bậc và bậc nào thật sự dùng để lọc.
 
-## Ghi chú cho Đăng nhập Google — thiết kế đã chốt, chưa có mã T
+## Đăng nhập Google — ĐÃ LÀM XONG phần code, chờ khoá
+
+Code đã hoàn chỉnh và test được ở mọi nhánh trừ nhánh cần Google thật. **Chưa chạy được cho tới khi có `GOOGLE_CLIENT_ID` và `GOOGLE_CLIENT_SECRET`.**
+
+Cách lấy khoá (miễn phí, khoảng 5 phút):
+
+1. Vào [console.cloud.google.com](https://console.cloud.google.com) → tạo project mới (tên gì cũng được).
+2. **APIs & Services → OAuth consent screen** → chọn **External** → điền tên ứng dụng, email hỗ trợ, email liên hệ. Không cần submit để Google xét duyệt — ở chế độ *Testing* vẫn đăng nhập được, chỉ giới hạn 100 tài khoản và phải thêm email người dùng thử vào mục **Test users**.
+3. **APIs & Services → Credentials → Create credentials → OAuth client ID → Web application**.
+4. Mục **Authorized redirect URIs**, thêm CHÍNH XÁC hai dòng (kể cả dấu gạch chéo — lệch một ký tự là Google trả `redirect_uri_mismatch`):
+   - `http://localhost:4000/api/auth/google/callback`
+   - `https://<tên-service>.onrender.com/api/auth/google/callback`
+5. Copy **Client ID** và **Client secret** vào `apps/api/.env`, rồi khởi động lại API.
+
+Trong lúc chưa có khoá, mọi thứ vẫn chạy: `googleSanSang` trong `/api/health` trả `false`, web tự ẩn nút Google, đăng nhập bằng mật khẩu không ảnh hưởng gì. Đây là lý do hai biến này là hai biến DUY NHẤT có giá trị mặc định rỗng — xem `config/env.ts`.
+
+Nhớ khai thêm `API_URL` (địa chỉ công khai của chính API) — Google bắt `redirect_uri` phải tuyệt đối, và không suy ra được từ request vì sau proxy của Render thì `req.host` là tên miền nội bộ.
+
+## Ghi chú cho Đăng nhập Google — thiết kế đã chốt
 
 Không thuộc T51–T58, để làm sau khi xong hồ sơ. Chốt trước để khi bắt tay vào không phải dừng giữa chừng hỏi lại.
 
