@@ -377,3 +377,54 @@ export interface AdminUserListResponse {
 export interface UpdateUserStatusInput {
   status: UserStatus
 }
+
+/**
+ * Một hồ sơ nhà tuyển dụng trong hàng đợi duyệt giấy tờ của admin.
+ *
+ * Cố ý KHÔNG có `taxCode` hay `openJobs` như bản dựng giả trước đây: mã số thuế
+ * là một GIẤY TỜ (`DocumentType.TAX_CODE`) chứ không phải một cột, và số tin
+ * đang mở thì chưa tồn tại vì module tin tuyển dụng thuộc Sprint 2.
+ */
+export interface AdminEmployerResponse {
+  /** id của `EmployerProfile`. Dùng cho mọi endpoint duyệt bên dưới. */
+  id: string
+  /** id của `User` — cần cho việc khoá tài khoản, khác với `id` ở trên. */
+  userId: string
+  companyName: string
+  email: string
+  contactName: string | null
+  phone: string | null
+  address: string | null
+  website: string | null
+  /** null nghĩa là chưa được xác minh. Đây là KẾT LUẬN, `documents` là chứng cứ. */
+  verifiedAt: string | null
+  /** Tài khoản đã bị khoá hay chưa — admin cần thấy ngay trong cùng một bảng. */
+  accountStatus: UserStatus
+  /** CHỈ những giấy tờ đã nộp. Loại chưa nộp thì vắng mặt, không có hàng giả. */
+  documents: EmployerDocumentResponse[]
+  createdAt: string
+}
+
+/** GET /api/admin/nha-tuyen-dung. */
+export interface AdminEmployerListResponse {
+  employers: AdminEmployerResponse[]
+}
+
+/** PUT /api/admin/nha-tuyen-dung/:id/giay-to/:type — duyệt hoặc từ chối MỘT giấy tờ. */
+export interface ReviewDocumentInput {
+  status: Extract<ReviewStatus, 'APPROVED' | 'REJECTED'>
+  /** Bắt buộc khi từ chối: nhà tuyển dụng cần biết phải nộp lại thứ gì. */
+  reviewNote?: string | null
+}
+
+/**
+ * PUT /api/admin/nha-tuyen-dung/:id/xac-minh — chốt hoặc thu hồi xác minh.
+ *
+ * Tách khỏi việc duyệt từng giấy tờ vì đây là hai hành động khác hẳn nhau: duyệt
+ * giấy tờ là ghi nhận chứng cứ, xác minh là kết luận. Tách ra thì "thu hồi xác
+ * minh" (chế tài với NTD có dấu hiệu lừa đảo) không đòi phải bịa ra một lý do
+ * từ chối giấy tờ nào cả.
+ */
+export interface VerifyEmployerInput {
+  verified: boolean
+}

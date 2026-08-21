@@ -1,6 +1,11 @@
 import type { RequestHandler } from 'express'
 import { z } from 'zod'
-import { updateUserStatusSchema } from '@uniwork/shared'
+import {
+  DOCUMENT_TYPES,
+  reviewDocumentSchema,
+  updateUserStatusSchema,
+  verifyEmployerSchema,
+} from '@uniwork/shared'
 import { ok } from '../../lib/respond.js'
 import { badRequest } from '../../lib/errors.js'
 import * as adminService from './admin.service.js'
@@ -32,4 +37,40 @@ export const updateUserStatusController: RequestHandler = async (req, res) => {
   const { status } = parse(updateUserStatusSchema, req.body)
   const { id } = parse(z.object({ id: z.string().min(1) }), req.params)
   ok(res, await adminService.updateUserStatus(id, status))
+}
+
+/* ------------------------------------------------- duyệt nhà tuyển dụng -- */
+
+/**
+ * `:type` phải kiểm bằng enum, không nhận chuỗi tự do.
+ *
+ * Nó đi thẳng vào khoá tra cứu `employerProfileId_type` của Prisma. Không kiểm
+ * thì một giá trị lạ chỉ trả về "không tìm thấy" — đúng kết quả nhưng sai lý do,
+ * và log không cho biết là người gọi gõ sai loại giấy tờ.
+ */
+const thamSoNtd = z.object({ id: z.string().min(1) })
+const thamSoGiayTo = z.object({
+  id: z.string().min(1),
+  type: z.enum(DOCUMENT_TYPES),
+})
+
+export const listEmployersController: RequestHandler = async (_req, res) => {
+  ok(res, { employers: await adminService.listEmployers() })
+}
+
+export const getEmployerDocumentUrlController: RequestHandler = async (req, res) => {
+  const { id, type } = parse(thamSoGiayTo, req.params)
+  ok(res, await adminService.getEmployerDocumentUrl(id, type))
+}
+
+export const reviewDocumentController: RequestHandler = async (req, res) => {
+  const { id, type } = parse(thamSoGiayTo, req.params)
+  const input = parse(reviewDocumentSchema, req.body)
+  ok(res, await adminService.reviewDocument(id, type, input))
+}
+
+export const verifyEmployerController: RequestHandler = async (req, res) => {
+  const { id } = parse(thamSoNtd, req.params)
+  const { verified } = parse(verifyEmployerSchema, req.body)
+  ok(res, await adminService.setEmployerVerified(id, verified))
 }
