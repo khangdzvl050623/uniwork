@@ -12,6 +12,30 @@ import { logger } from '../lib/logger.js'
  * buổi demo. Chết sớm lúc khởi động thì lỗi hiện ngay trên log deploy, kèm
  * đúng tên biến bị thiếu.
  */
+
+/**
+ * Coi chuỗi RỖNG cũng là "chưa khai" — thay thẳng bằng giá trị mặc định trước
+ * khi đưa vào kiểm.
+ *
+ * ---------------------------------------------------------------------------
+ * BUG THẬT ĐÃ GẶP: `.default()` của Zod chỉ kích hoạt khi giá trị là
+ * `undefined` — KHÔNG kích hoạt khi giá trị là chuỗi rỗng `''`.
+ * ---------------------------------------------------------------------------
+ * `.env.example` hướng dẫn "để trống thì dùng mặc định" cho vài biến (Google,
+ * admin). Nhưng để trống một dòng `KEY=` trong `.env` thì `dotenv` gán
+ * `process.env.KEY = ''` — một chuỗi RỖNG, không phải biến vắng mặt. Với schema
+ * `z.string().email().default(...)`, chuỗi rỗng đi thẳng vào `.email()` và bị
+ * từ chối — server từ chối khởi động, đúng ngay sau khi làm theo hướng dẫn của
+ * chính tài liệu.
+ *
+ * Thử bọc bằng `z.preprocess((v) => v === '' ? undefined : v, schema.default(...))`
+ * TƯỞNG là đủ nhưng KHÔNG chạy đúng — `.default()` áp lên kết quả `preprocess`
+ * không kích hoạt như mong đợi. Cách chắc chắn hoạt động: `preprocess` tự thay
+ * luôn giá trị mặc định, không nhờ `.default()` nữa.
+ */
+function chuoiCoMacDinh<T extends z.ZodTypeAny>(kiemTra: T, macDinh: string) {
+  return z.preprocess((v) => (v === '' || v === undefined ? macDinh : v), kiemTra)
+}
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
 
@@ -140,6 +164,29 @@ const schema = z.object({
    */
   GOOGLE_CLIENT_ID: z.string().default(''),
   GOOGLE_CLIENT_SECRET: z.string().default(''),
+
+  /*
+   * Tài khoản admin tự tạo lúc khởi động, nếu chưa có ai (xem lib/bootstrap-admin.ts).
+   *
+   * ---------------------------------------------------------------------------
+   * VÌ SAO CẦN CÁI NÀY
+   * ---------------------------------------------------------------------------
+   * Không có đường nào khác tạo được tài khoản ADMIN trên production: form đăng
+   * ký công khai cố ý chỉ nhận vai STUDENT/EMPLOYER, và `prisma/seed.ts` bỏ qua
+   * mọi tài khoản demo khi `DATABASE_URL` không trỏ vào máy local. Gói free của
+   * Render lại không có Shell để tự chạy script tay. Không có cơ chế này thì
+   * production vĩnh viễn không admin nào đăng nhập được.
+   *
+   * ---------------------------------------------------------------------------
+   * CẢNH BÁO BẢO MẬT — ĐÂY LÀ ĐÁNH ĐỔI CÓ CHỦ Ý, KHÔNG PHẢI SƠ SUẤT
+   * ---------------------------------------------------------------------------
+   * Giá trị mặc định bên dưới nằm trong mã nguồn của một repo GitHub PUBLIC —
+   * bất kỳ ai cũng đọc được. Đổi mật khẩu qua "Quên mật khẩu" NGAY sau lần đăng
+   * nhập đầu tiên trên production. Muốn an toàn hơn ngay từ đầu thì khai đè hai
+   * biến này trên Render Dashboard trước khi service chạy lần đầu.
+   */
+  ADMIN_EMAIL: chuoiCoMacDinh(z.string().email(), 'AdminUniWork@gmail.com'),
+  ADMIN_PASSWORD: chuoiCoMacDinh(z.string().min(1), 'admin@123'),
 })
 
 const parsed = schema.safeParse(process.env)

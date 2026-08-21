@@ -1,6 +1,7 @@
 import { createServer } from 'node:http'
 import { createApp } from './app.js'
 import { env } from './config/env.js'
+import { taoAdminMacDinhNeuChua } from './lib/bootstrap-admin.js'
 import { logger } from './lib/logger.js'
 import { prisma } from './lib/prisma.js'
 
@@ -12,6 +13,16 @@ server.listen(env.PORT, env.HOST, () => {
     port: env.PORT,
     host: env.HOST,
     url: `http://localhost:${env.PORT}/api/health`,
+  })
+})
+
+/*
+ * KHÔNG await ở đây — xem giải thích đầy đủ trong bootstrap-admin.ts.
+ * Server phải nghe cổng ngay, không được đợi việc này xong.
+ */
+void taoAdminMacDinhNeuChua().catch((err: unknown) => {
+  logger.error('Không tự tạo được tài khoản admin mặc định', {
+    message: err instanceof Error ? err.message : String(err),
   })
 })
 
