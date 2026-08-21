@@ -36,9 +36,21 @@ interface OtpInputProps {
 export function OtpInput({ value, onChange, onComplete, disabled, error }: OtpInputProps) {
   const refs = useRef<(HTMLInputElement | null)[]>([])
 
+  /*
+   * Ô trống Ở GIỮA được giữ chỗ bằng dấu cách, không phải bị xoá hẳn.
+   *
+   * Không giữ chỗ thì xoá ô số 1 của "123456" sẽ cho ra "23456" — các chữ số
+   * phía sau dồn lên một ô, và người dùng thấy ô vừa xoá bỗng hiện số khác.
+   * Trông y như lỗi hiển thị.
+   *
+   * Dấu cách thừa ở cuối thì cắt đi, nên gõ dở "12" vẫn là "12" chứ không phải
+   * "12    ".
+   */
   const capNhat = (moi: string) => {
     onChange(moi)
-    if (moi.length === SO_O) onComplete?.(moi)
+    // Đủ 6 và TOÀN chữ số mới coi là xong — chuỗi " 23456" cũng dài 6 nhưng
+    // đang khuyết một ô.
+    if (/^\d{6}$/.test(moi)) onComplete?.(moi)
   }
 
   const focus = (index: number) => {
@@ -67,15 +79,16 @@ export function OtpInput({ value, onChange, onComplete, disabled, error }: OtpIn
     if (e.key === 'Backspace') {
       e.preventDefault()
 
-      const kyTu = value.split('')
+      // Đệm đủ 6 ô TRƯỚC khi sửa, để xoá ô giữa không làm dồn các số phía sau.
+      const kyTu = value.padEnd(SO_O, ' ').split('')
 
-      if (kyTu[index]) {
+      if (kyTu[index] !== ' ') {
         // Ô đang có chữ: xoá tại chỗ, con trỏ ở nguyên đó.
-        kyTu[index] = ''
+        kyTu[index] = ' '
         capNhat(kyTu.join('').trimEnd())
       } else if (index > 0) {
         // Ô rỗng: lùi về ô trước và xoá chữ ở đó, gộp hai thao tác làm một.
-        kyTu[index - 1] = ''
+        kyTu[index - 1] = ' '
         capNhat(kyTu.join('').trimEnd())
         focus(index - 1)
       }
@@ -103,7 +116,17 @@ export function OtpInput({ value, onChange, onComplete, disabled, error }: OtpIn
   }
 
   return (
-    <div className="flex justify-center gap-2" role="group" aria-label="Mã xác thực 6 chữ số">
+    // Ô co giãn theo bề ngang màn hình thay vì cố định 48px.
+    //
+    // Sáu ô cố định `w-12` cộng khoảng cách là 328px. Trên iPhone SE (bề ngang
+    // 320px), sau padding của trang và của thẻ chỉ còn khoảng 240px — tràn ra
+    // ngoài và cả trang bị cuộn ngang. Dùng `flex-1` kèm trần `max-w-12` thì ô
+    // giữ đúng kích thước cũ ở màn rộng, và tự thu lại vừa đủ ở màn hẹp.
+    <div
+      className="flex justify-center gap-1.5 sm:gap-2"
+      role="group"
+      aria-label="Mã xác thực 6 chữ số"
+    >
       {Array.from({ length: SO_O }, (_, i) => (
         <input
           key={i}
@@ -118,7 +141,9 @@ export function OtpInput({ value, onChange, onComplete, disabled, error }: OtpIn
           maxLength={1}
           autoComplete={i === 0 ? 'one-time-code' : 'off'}
           aria-label={`Chữ số thứ ${i + 1}`}
-          value={value[i] ?? ''}
+          // `trim()` vì ô khuyết ở giữa được giữ chỗ bằng dấu cách — hiện dấu
+          // cách ra thì ô trông như có nội dung mà lại trống.
+          value={value[i]?.trim() ?? ''}
           disabled={disabled}
           onChange={(e) => goChu(i, e.target.value)}
           onKeyDown={(e) => goPhim(i, e)}
@@ -127,7 +152,8 @@ export function OtpInput({ value, onChange, onComplete, disabled, error }: OtpIn
           // phải xoá trước.
           onFocus={(e) => e.target.select()}
           className={cn(
-            'h-14 w-12 rounded-lg border bg-white text-center text-xl font-semibold text-slate-900',
+            'h-12 min-w-0 flex-1 basis-0 rounded-lg border bg-white text-center text-lg font-semibold text-slate-900',
+            'max-w-12 sm:h-14 sm:text-xl',
             'outline-none transition-[border-color,box-shadow] duration-150 ease-out',
             'focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20',
             'disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400',

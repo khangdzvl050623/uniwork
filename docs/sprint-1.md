@@ -75,7 +75,7 @@ Mã tiếp nối Sprint 0 (kết thúc ở T32).
 | T57 | 9 | DEV1 | NTD nộp giấy tờ vào `EmployerDocument` (3 loại: giấy phép KD, mã số thuế, CCCD) | Nộp đủ 3 loại thì hồ sơ chuyển sang chờ admin duyệt |
 | T58 | 9–10 | DEV1 | Test: đăng ký, đăng nhập, xoay vòng refresh token, phân quyền, hồ sơ | `pnpm test` xanh, có ca test cho **dùng lại refresh token cũ** |
 | T59 | 6–7 | DEV2 | Trang hồ sơ sinh viên: thông tin cơ bản + upload CV có thanh tiến độ | Tải file 5MB thấy tiến độ, không tưởng trang treo |
-| T60 | 7–8 | DEV2 | Màn khai kỹ năng: chọn từ danh mục `GET /api/skills` + chọn mức độ | Chọn 10 kỹ năng rồi lưu, tải lại trang vẫn còn |
+| T60 | 7–8 | DEV2 | Màn khai kỹ năng: chọn từ danh mục `GET /api/skills` (**bỏ phần chọn mức độ**, xem ghi chú bên dưới) | Chọn 10 kỹ năng rồi lưu, tải lại trang vẫn còn |
 | T61 | 8–9 | DEV2 | Hoàn thiện lưới khai lịch rảnh trên khung `Availability.tsx` có sẵn: 7 ngày × 3 buổi, kéo chọn nhiều ô | Kéo chuột qua nhiều ô chọn được cả vùng, không phải bấm từng ô |
 | T62 | 9 | DEV2 | Trang hồ sơ NTD: thông tin công ty + nộp 3 loại giấy tờ, hiện rõ trạng thái duyệt | NTD nhìn phát biết mình đang thiếu giấy tờ nào |
 | T63 | 10 | DEV2 | Kiểm tra responsive toàn bộ màn hình sprint này trên máy thật | Dùng được bằng một tay trên điện thoại |
@@ -186,6 +186,14 @@ Câu tự hỏi khi phân loại: *lộ chuỗi này ra thì kẻ xấu làm đ�
 **Xoay vòng token, và phát hiện dùng lại.** Mỗi lần refresh thì token cũ bị huỷ, cấp token mới. Nếu có ai đó gọi refresh bằng một token **đã bị huỷ**, nghĩa là token đó đã bị đánh cắp — lúc này huỷ toàn bộ phiên của user đó và bắt đăng nhập lại. Không có bước này thì kẻ trộm dùng token vô thời hạn mà chủ tài khoản không hề biết.
 
 Vì web ở domain Vercel còn API ở domain Render, cookie phải có `SameSite=None; Secure`, và API phải bật `credentials: true` trong CORS. Thiếu một trong hai thì trình duyệt lặng lẽ không gửi cookie — đăng nhập trên máy thì được, lên bản deploy thì hỏng.
+
+## Ghi chú cho T60 — vì sao bỏ phần "chọn mức độ"
+
+Bảng `StudentSkill` chỉ có `(studentProfileId, skillId)`, KHÔNG có cột mức độ thành thạo. Comment trong `schema.prisma` từ Sprint 0 đã nói đây là thứ để dành: bảng nối được khai tường minh thay vì quan hệ ngầm của Prisma chính là để sau này thêm cột mà không phải viết migration chuyển dữ liệu.
+
+Thêm mức độ bây giờ nghĩa là: sửa schema, viết migration, sửa `replaceSkills` ở T54 (đã merge, đã có test), sửa cả kiểu dùng chung. Đổi lại được gì thì chưa rõ — điều kiện nghiệm thu của chính T60 không nhắc tới mức độ, và mức độ do người dùng **tự khai** thì nhà tuyển dụng cũng khó tin: ai cũng chọn "thành thạo".
+
+Đã chốt với Khang: bỏ, để dành. Khi nào làm thì làm cùng lúc với bộ lọc tìm ứng viên theo kỹ năng — lúc đó mới biết cần bao nhiêu bậc và bậc nào thật sự dùng để lọc.
 
 ## Ghi chú cho Đăng nhập Google — thiết kế đã chốt, chưa có mã T
 

@@ -144,7 +144,9 @@ export function VerifyEmail() {
           size="lg"
           className="mt-5 w-full"
           onClick={() => xacThuc(code)}
-          disabled={code.length !== 6 || verify.isPending}
+          // Kiểm ĐỦ 6 CHỮ SỐ, không chỉ đếm độ dài: ô khuyết ở giữa được giữ
+          // chỗ bằng dấu cách nên " 23456" cũng dài 6.
+          disabled={!/^\d{6}$/.test(code) || verify.isPending}
         >
           {verify.isPending && <Loader2 size={16} className="animate-spin" />}
           {verify.isPending ? 'Đang kiểm tra…' : 'Xác thực'}

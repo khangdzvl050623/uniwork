@@ -73,7 +73,9 @@ export function Availability() {
               giờ trong tuần
             </p>
 
-            <div className="flex items-center gap-2">
+            {/* `flex-wrap`: trên màn 320px, hai nút cộng nhãn "Đã lưu" vượt quá
+                bề ngang còn lại và đẩy cả trang cuộn ngang. */}
+            <div className="flex flex-wrap items-center gap-2">
               {luu.isSuccess && !coThayDoi && !luu.isPending && (
                 <span className="animate-in fade-in mr-1 flex items-center gap-1 text-sm text-brand-600 duration-150">
                   <CheckCircle2 size={15} />
