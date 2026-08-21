@@ -318,8 +318,19 @@ model EmployerDocument {
 
   type DocumentType
 
-  /// Đường dẫn Cloudinary. File không đi qua database — chỉ lưu địa chỉ.
-  fileUrl String
+  /// public_id trên Cloudinary — KHÔNG phải URL xem được trực tiếp.
+  ///
+  /// Giấy tờ tuỳ thân (CCCD) nhạy cảm hơn nhiều so với CV (T56), nên lưu ở chế
+  /// độ `type: authenticated`: không ai xem được chỉ bằng biết địa chỉ, phải
+  /// đi qua backend xin một signed URL sống vài phút mỗi lần cần xem. Xem
+  /// `lib/cloudinary.ts`.
+  cloudinaryPublicId String
+
+  /// Định dạng file thật ('pdf' | 'jpg' | 'png'), xác nhận bằng byte đầu file
+  /// lúc nhận — không tin đuôi file hay mimetype trình duyệt khai (cùng lý do
+  /// CV ở T56). Phải lưu lại vì Cloudinary đòi đúng định dạng khi dựng lại
+  /// signed URL sau này, không tự suy ra được từ public_id.
+  fileFormat String
 
   status ReviewStatus @default(PENDING)
 
@@ -330,6 +341,10 @@ model EmployerDocument {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  /// Mỗi loại giấy tờ chỉ có đúng MỘT bản hiện hành cho mỗi NTD — nộp lại thì
+  /// ghi đè, không tạo thêm hàng. Thiếu ràng buộc này thì nộp lại 3 lần để lại
+  /// 3 hàng cũ, và "đủ 3 loại" (T57) đếm nhầm vì hai hàng cùng type.
+  @@unique([employerProfileId, type])
   /// Hàng đợi duyệt của admin lọc theo cột này.
   @@index([status])
   @@index([employerProfileId])

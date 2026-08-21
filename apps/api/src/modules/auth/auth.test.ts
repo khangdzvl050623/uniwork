@@ -3,7 +3,7 @@ import request from 'supertest'
 import { createApp } from '../../app.js'
 import { prisma } from '../../lib/prisma.js'
 import { hashPassword } from '../../lib/password.js'
-import { hashToken, signAccessToken } from '../../lib/token.js'
+import { hashToken } from '../../lib/token.js'
 
 /**
  * Giả lập Prisma, cùng lý do với skills.test.ts: CI không có Postgres chạy.
@@ -31,8 +31,6 @@ const tokenFindUnique = prisma.refreshToken.findUnique as unknown as Mock
 const tokenCreate = prisma.refreshToken.create as unknown as Mock
 const tokenUpdateMany = prisma.refreshToken.updateMany as unknown as Mock
 const transaction = prisma.$transaction as unknown as Mock
-
-const HO_SO_RONG = { studentProfile: null, employerProfile: null }
 
 const SINH_VIEN = {
   id: 'u-1',
@@ -272,62 +270,8 @@ describe('POST /api/auth/dang-xuat', () => {
   })
 })
 
-describe('GET /api/auth/toi — requireAuth', () => {
-  it('không có token trả 401', async () => {
-    const res = await request(createApp()).get('/api/auth/toi')
-    expect(res.status).toBe(401)
-    expect(res.body.error.code).toBe('UNAUTHORIZED')
-  })
-
-  it('token rác trả 401 chứ không sập', async () => {
-    const res = await request(createApp())
-      .get('/api/auth/toi')
-      .set('Authorization', 'Bearer khong-phai-jwt')
-
-    expect(res.status).toBe(401)
-  })
-
-  it('token hợp lệ trả về hồ sơ, không kèm trường nhạy cảm', async () => {
-    userFindUnique.mockResolvedValue({ ...SINH_VIEN, ...{ status: undefined } })
-
-    const token = signAccessToken({ sub: 'u-1', role: 'STUDENT' })
-    const res = await request(createApp())
-      .get('/api/auth/toi')
-      .set('Authorization', `Bearer ${token}`)
-
-    expect(res.status).toBe(200)
-    expect(res.body.data.id).toBe('u-1')
-    expect(JSON.stringify(res.body)).not.toContain('passwordHash')
-  })
-
-  it('cookie KHÔNG thay được header Authorization', async () => {
-    // Xác thực bằng cookie là mở cửa cho CSRF: cookie tự động đi kèm mọi
-    // request, kể cả request do trang khác kích hoạt.
-    const token = signAccessToken({ sub: 'u-1', role: 'STUDENT' })
-    const res = await request(createApp())
-      .get('/api/auth/toi')
-      .set('Cookie', [`uniwork_rt=${token}`])
-
-    expect(res.status).toBe(401)
-  })
-})
-
-describe('hồ sơ nhà tuyển dụng', () => {
-  it('displayName lấy tên công ty thay vì họ tên', async () => {
-    userFindUnique.mockResolvedValue({
-      id: 'u-2',
-      email: 'tuyendung@corner.vn',
-      role: 'EMPLOYER',
-      emailVerifiedAt: null,
-      ...HO_SO_RONG,
-      employerProfile: { companyName: 'The Corner Coffee' },
-    })
-
-    const token = signAccessToken({ sub: 'u-2', role: 'EMPLOYER' })
-    const res = await request(createApp())
-      .get('/api/auth/toi')
-      .set('Authorization', `Bearer ${token}`)
-
-    expect(res.body.data.displayName).toBe('The Corner Coffee')
-  })
-})
+/*
+ * "GET /api/auth/toi" đã chuyển sang "GET /api/toi" (modules/profile), vì T51
+ * đổi endpoint này sang trả kèm hồ sơ đầy đủ theo vai trò, không chỉ AuthUser
+ * rút gọn. Test tương ứng nằm ở modules/profile/profile.test.ts.
+ */

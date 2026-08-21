@@ -173,15 +173,7 @@ export const verifyEmailController: RequestHandler = async (req, res) => {
   const { code } = parse(otpSchema, req.body)
   await otpService.verifyEmailOtp(req.user.id, code)
 
-  // Trả lại hồ sơ đã cập nhật để phía web không phải gọi thêm /toi chỉ để biết
-  // `emailVerifiedAt` giờ đã có giá trị.
-  ok(res, await authService.currentUser(req.user.id))
-}
-
-export const meController: RequestHandler = async (req, res) => {
-  // requireAuth đã chạy trước nên req.user chắc chắn có. Vẫn kiểm để TypeScript
-  // yên tâm, và để nếu ai đó gắn nhầm route mà quên requireAuth thì lỗi là 401
-  // rõ ràng chứ không phải crash vì đọc thuộc tính của undefined.
-  if (!req.user) throw unauthorized()
+  // Trả lại hồ sơ đã cập nhật để phía web không phải gọi thêm /api/toi chỉ để
+  // biết `emailVerifiedAt` giờ đã có giá trị.
   ok(res, await authService.currentUser(req.user.id))
 }

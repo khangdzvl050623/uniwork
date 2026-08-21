@@ -269,4 +269,22 @@ describe('ràng buộc unique', () => {
       }),
     ).rejects.toThrow()
   })
+
+  it('mỗi loại giấy tờ chỉ có một bản hiện hành cho mỗi nhà tuyển dụng (T57)', async () => {
+    // Nộp lại cùng loại phải GHI ĐÈ (upsert ở profile.service.ts), không tạo
+    // thêm hàng — chặn ở đây để lỡ ai đó bỏ qua upsert mà gọi create thẳng thì
+    // database vẫn không cho ra hai bản PENDING/REJECTED cùng loại chồng nhau.
+    const daCo = await prisma.employerDocument.findFirstOrThrow()
+
+    await expect(
+      prisma.employerDocument.create({
+        data: {
+          employerProfileId: daCo.employerProfileId,
+          type: daCo.type,
+          cloudinaryPublicId: `${TIEN_TO}trung-loai-giay-to`,
+          fileFormat: 'jpg',
+        },
+      }),
+    ).rejects.toThrow()
+  })
 })

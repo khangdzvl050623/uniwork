@@ -4,7 +4,6 @@ import { ipAndEmail, rateLimit } from '../../middlewares/rate-limit.js'
 import {
   loginController,
   logoutController,
-  meController,
   refreshController,
   registerController,
   sendOtpController,
@@ -60,6 +59,3 @@ authRoutes.post('/dang-xuat', logoutController)
  */
 authRoutes.post('/gui-otp', requireAuth, otpSendLimit, sendOtpController)
 authRoutes.post('/xac-thuc-email', requireAuth, otpVerifyLimit, verifyEmailController)
-
-/* Endpoint duy nhất còn lại cần đăng nhập: hỏi "tôi là ai". */
-authRoutes.get('/toi', requireAuth, meController)

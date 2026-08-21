@@ -101,6 +101,18 @@ const schema = z.object({
 
   /* Địa chỉ web, dùng ghép link trong email. */
   APP_URL: z.string().url(),
+
+  /*
+   * Ba biến Cloudinary — nơi lưu CV thật (T56).
+   *
+   * CỐ TÌNH không mặc định, cùng lý do BREVO_API_KEY: đây là bí mật, và Render
+   * có filesystem tạm nên không thể lưu CV lên đĩa của service — thiếu ba biến
+   * này thì tính năng upload không có cách nào chạy đúng, phải chết ngay lúc
+   * khởi động thay vì lộ ra lúc sinh viên đầu tiên bấm "Tải CV lên".
+   */
+  CLOUDINARY_CLOUD_NAME: z.string().min(1),
+  CLOUDINARY_API_KEY: z.string().min(1),
+  CLOUDINARY_API_SECRET: z.string().min(1),
 })
 
 const parsed = schema.safeParse(process.env)

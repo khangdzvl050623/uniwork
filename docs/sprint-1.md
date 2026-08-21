@@ -187,6 +187,27 @@ Câu tự hỏi khi phân loại: *lộ chuỗi này ra thì kẻ xấu làm đ�
 
 Vì web ở domain Vercel còn API ở domain Render, cookie phải có `SameSite=None; Secure`, và API phải bật `credentials: true` trong CORS. Thiếu một trong hai thì trình duyệt lặng lẽ không gửi cookie — đăng nhập trên máy thì được, lên bản deploy thì hỏng.
 
+## Ghi chú cho Đăng nhập Google — thiết kế đã chốt, chưa có mã T
+
+Không thuộc T51–T58, để làm sau khi xong hồ sơ. Chốt trước để khi bắt tay vào không phải dừng giữa chừng hỏi lại.
+
+- **Authorization Code Flow**, `redirect_uri` trỏ về backend (`/api/auth/google/callback`), không phải frontend. Token thật của Google không bao giờ chạm trình duyệt. Client chỉ nhận access/refresh token do UniWork tự phát hành — dùng chung cơ chế JWT đã có (access 15 phút, refresh 7 ngày, cookie httpOnly).
+- Scope xin: `openid email profile`. Không xin thêm Calendar/Drive nếu không dùng.
+- **Dùng bảng `UserAccount` đã có sẵn trong schema** (không đổi tên thành `OAuthAccount`, không đổi `providerAccountId` thành `providerUserId`, không đổi sang `uuid()` — giữ nguyên `cuid()` và enum `AuthProvider` cho khớp phần còn lại của schema). Không lưu access_token/id_token của Google, chỉ đọc `email`, `email_verified`, `sub`, `name`, `picture` từ id_token rồi bỏ.
+- Gộp tài khoản theo email: **chỉ tự động liên kết khi Google trả `email_verified: true`**. Nếu `false` thì từ chối, báo lỗi rõ, không tự gộp — tránh chiếm tài khoản bằng email chưa xác thực.
+- **Đặt mật khẩu lần đầu cho tài khoản chỉ đăng nhập Google**: dùng lại luồng "quên mật khẩu" (OTP qua email, chưa có mã T — xem mục dưới), không dựng endpoint `POST /api/auth/dat-mat-khau` riêng chỉ dựa vào access token còn hiệu lực. Lý do: access token hợp lệ không đủ đảm bảo — phiên bị chiếm (XSS đọc token trong bộ nhớ, hoặc lộ máy chưa khoá) thì kẻ đó gắn được mật khẩu vĩnh viễn, sống lâu hơn phiên 15 phút đã chiếm được. Đi qua email lại thì phải chứng minh còn giữ hộp thư, giống hệt lúc đăng ký.
+- `state` param chống CSRF ở bước redirect: lưu vào cookie httpOnly sống ngắn (vài phút) lúc redirect, đối chiếu query param lúc callback — không cần thêm session store.
+- Verify id_token bằng `google-auth-library` (`OAuth2Client.verifyIdToken()`), không tự viết decode/verify JWT tay.
+- Refresh token đã là bảng riêng theo từng thiết bị từ đầu, nên đăng nhập song song nhiều thiết bị bằng nhiều phương thức khác nhau (điện thoại Google, laptop mật khẩu) không cần xử lý gì thêm.
+
+## Ghi chú cho quên mật khẩu — chưa có mã T
+
+Không thuộc T51–T58. Dùng lại đúng cơ chế OTP 6 số đã có ở T42 (bảng `OneTimeToken`, type `PASSWORD_RESET` đã có sẵn trong schema), không phải link trong email.
+
+- `POST /api/auth/quen-mat-khau { email }` → luôn trả cùng một thông điệp bất kể email có tồn tại hay không, tránh dò email.
+- `POST /api/auth/dat-lai-mat-khau { email, code, matKhauMoi }` → đúng mã thì ghi `passwordHash` mới, đánh dấu mã đã dùng, và **thu hồi toàn bộ refresh token đang sống của user đó** (đăng xuất mọi thiết bị) — phòng trường hợp người yêu cầu đổi mật khẩu vì nghi tài khoản đã bị lộ.
+- Hai điểm sau **chưa chốt, phải hỏi lại trước khi code**: ngưỡng rate limit cho `/quen-mat-khau` (theo email hay IP, bao nhiêu lần/khoảng thời gian), và giới hạn số lần nhập sai OTP ở `/dat-lai-mat-khau` (khoá sau mấy lần sai, khoá bao lâu, có cần thêm captcha không).
+
 ## Ghi chú cho T56 — CV lưu ở đâu
 
 **Phải chốt trước khi viết code, không vừa code vừa nghĩ.**
@@ -200,6 +221,23 @@ Render gói miễn phí có filesystem **tạm**: mỗi lần service khởi đ�
 | Chỉ lưu **đường dẫn** tới CV người dùng tự host (Google Drive) | Không tốn gì | Không kiểm soát được link còn sống hay không |
 
 Đề xuất: **Cloudinary**. Đồ án cần chứng minh biết xử lý file thật, mà 0.5GB của Neon còn phải dành cho dữ liệu nghiệp vụ.
+
+**Đã chốt và đã làm: Cloudinary**, chế độ `type: upload` (công khai) — xem `lib/cloudinary.ts`. CV không nhạy cảm bằng giấy tờ tuỳ thân (T57 bên dưới) nên public URL là đủ, không cần signed URL.
+
+## Ghi chú cho T57 — giấy tờ NTD dùng chế độ Cloudinary khác CV
+
+CV (T56) và giấy tờ NTD (T57) đều lưu trên Cloudinary nhưng **cố ý khác chế độ**, vì độ nhạy cảm khác nhau:
+
+| | CV (T56) | Giấy tờ NTD (T57) |
+| --- | --- | --- |
+| Chế độ Cloudinary | `type: upload` (công khai) | `type: authenticated` (riêng tư) |
+| Vì sao | CV vốn là tài liệu bán công khai — các trang tuyển dụng khác đều cho xem link CV thoải mái | CCCD lộ ra là nguy cơ giả mạo danh tính thật; giấy phép KD/mã số thuế cũng là thông tin doanh nghiệp không nên public |
+| Cách xem | `cvUrl` trả thẳng trong `GET /api/toi`, dùng được mãi | Không có URL nào trong response hồ sơ — phải gọi riêng `GET /api/toi/giay-to/:type/xem` để xin signed URL sống 5 phút |
+| Ai xem được | Bất kỳ ai có link | Chỉ NTD chủ giấy tờ đó (và sau này ADMIN lúc duyệt, xem `getDocumentViewUrl` trong `profile.service.ts`) |
+
+Cột `cloudinaryPublicId` trong bảng `EmployerDocument` **không phải URL xem được** — chỉ là định danh để dựng lại signed URL lúc cần, ký bằng `CLOUDINARY_API_SECRET`. Biết đúng giá trị này cũng không xem được gì nếu không đi qua backend.
+
+Mỗi NTD chỉ có **một bản hiện hành cho mỗi loại giấy tờ** (`@@unique([employerProfileId, type])` trong schema) — nộp lại thì ghi đè bản cũ, kể cả bản đã bị admin từ chối, không tồn đọng nhiều bản cùng loại.
 
 ## Ghi chú cho T41 — email và cold start
 

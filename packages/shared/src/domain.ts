@@ -10,6 +10,10 @@
 export const ROLES = ['STUDENT', 'EMPLOYER', 'ADMIN'] as const
 export type Role = (typeof ROLES)[number]
 
+/** Trạng thái tài khoản. SUSPENDED chặn đăng nhập, không xoá dữ liệu. */
+export const USER_STATUSES = ['ACTIVE', 'SUSPENDED'] as const
+export type UserStatus = (typeof USER_STATUSES)[number]
+
 /** Cách bố trí thời gian của tin tuyển dụng (README mục 5). */
 export const SCHEDULE_TYPES = ['RECURRING', 'SEASONAL', 'ONE_TIME'] as const
 export type ScheduleType = (typeof SCHEDULE_TYPES)[number]
