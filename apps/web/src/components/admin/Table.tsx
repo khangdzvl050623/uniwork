@@ -177,18 +177,22 @@ export function EmptyRow({ colSpan, children }: { colSpan: number; children: Rea
 export function RowAction({
   tone = 'plain',
   onClick,
+  disabled,
   children,
 }: {
   tone?: 'plain' | 'ok' | 'bad'
   onClick?: () => void
+  disabled?: boolean
   children: React.ReactNode
 }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={cn(
         'rounded-lg px-2.5 py-1.5 text-xs font-medium whitespace-nowrap',
         'transition-[transform,background-color,color] duration-150 ease-out active:scale-[0.95]',
+        'disabled:pointer-events-none disabled:opacity-50',
         tone === 'plain' && 'text-dash-muted hover:bg-dash-raised hover:text-dash-text',
         tone === 'ok' && 'text-dash-ok hover:bg-dash-ok/12',
         tone === 'bad' && 'text-dash-bad hover:bg-dash-bad/12',
