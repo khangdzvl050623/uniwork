@@ -310,7 +310,30 @@ export function Register() {
               disabled={register.isPending}
               className="mt-0.5 h-4 w-4 shrink-0 accent-brand-600"
             />
-            Tôi đồng ý với điều khoản sử dụng và chính sách bảo mật của UniWork
+            <span>
+              Tôi đồng ý với{' '}
+              {/* Mở tab mới thay vì rời trang: người dùng đang điền dở form,
+                  bấm vào link mà mất hết những gì vừa gõ là kiểu hỏng khó chịu
+                  nhất — và họ sẽ bỏ luôn việc đăng ký. */}
+              <Link
+                to="/dieu-khoan"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-brand-600 hover:underline"
+              >
+                điều khoản sử dụng
+              </Link>{' '}
+              và{' '}
+              <Link
+                to="/chinh-sach-bao-mat"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-brand-600 hover:underline"
+              >
+                chính sách bảo mật
+              </Link>{' '}
+              của UniWork
+            </span>
           </label>
           {loiDongY && (
             <p role="alert" className="mt-1.5 text-xs text-red-600">

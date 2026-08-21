@@ -13,6 +13,8 @@ import { JobList } from '@/pages/JobList'
 import { JobDetail } from '@/pages/JobDetail'
 import { Login, Register } from '@/pages/Auth'
 import { ForgotPassword } from '@/pages/ForgotPassword'
+import { PrivacyPolicy } from '@/pages/PrivacyPolicy'
+import { Terms } from '@/pages/Terms'
 import { GoogleCallback } from '@/pages/GoogleCallback'
 import { VerifyEmail } from '@/pages/VerifyEmail'
 import { Profile } from '@/pages/Profile'
@@ -41,6 +43,12 @@ export function App() {
           <Route path="/dang-nhap" element={<Login />} />
           <Route path="/dang-ky" element={<Register />} />
           <Route path="/quen-mat-khau" element={<ForgotPassword />} />
+
+          {/* Hai trang này phải công khai và KHÔNG cần đăng nhập: Google đọc
+              trang chính sách khi xét ứng dụng OAuth, và người chưa có tài
+              khoản cũng cần đọc được trước khi quyết định đăng ký. */}
+          <Route path="/chinh-sach-bao-mat" element={<PrivacyPolicy />} />
+          <Route path="/dieu-khoan" element={<Terms />} />
           {/* Nơi api chuyển hướng về sau khi Google xác nhận xong. */}
           <Route path="/dang-nhap-google-xong" element={<GoogleCallback />} />
 

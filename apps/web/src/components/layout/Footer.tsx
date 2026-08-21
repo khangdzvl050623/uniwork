@@ -7,9 +7,8 @@ const COLUMNS = [
     title: 'Về UniWork',
     links: [
       { to: '/', label: 'Giới thiệu' },
-      { to: '/', label: 'Điều khoản sử dụng' },
-      { to: '/', label: 'Chính sách bảo mật' },
-      { to: '/', label: 'Quy chế hoạt động' },
+      { to: '/dieu-khoan', label: 'Điều khoản sử dụng' },
+      { to: '/chinh-sach-bao-mat', label: 'Chính sách bảo mật' },
     ],
   },
   {
