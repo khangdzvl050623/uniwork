@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Request, Response } from 'express'
+import { MulterError } from 'multer'
 
 /**
  * Ép middleware tin rằng nó đang chạy trên production.
@@ -59,6 +60,36 @@ describe('errorHandler khi chạy production', () => {
     expect(res.json.mock.calls[0][0]).toMatchObject({
       ok: false,
       error: { code: 'INTERNAL_ERROR' },
+    })
+  })
+})
+
+describe('errorHandler với lỗi từ multer (T56/T57)', () => {
+  it('file vượt giới hạn dung lượng trả 400, không phải 500', () => {
+    const res = taoResGia()
+
+    // Đây là lỗi phía người gửi (chọn file quá lớn), không phải lỗi server —
+    // trước khi có nhánh riêng trong error-handler.ts, lỗi này rơi vào nhánh
+    // "ngoài ý muốn" và trả nhầm 500 cho một request hoàn toàn hợp lệ về phía
+    // server.
+    errorHandler(new MulterError('LIMIT_FILE_SIZE', 'cv'), reqGia, res, vi.fn())
+
+    expect(res.status).toHaveBeenCalledWith(400)
+    expect(res.json.mock.calls[0][0]).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION_ERROR' },
+    })
+  })
+
+  it('lỗi multer khác (vd sai tên field) cũng trả 400 với thông điệp chung', () => {
+    const res = taoResGia()
+
+    errorHandler(new MulterError('LIMIT_UNEXPECTED_FILE', 'file'), reqGia, res, vi.fn())
+
+    expect(res.status).toHaveBeenCalledWith(400)
+    expect(res.json.mock.calls[0][0]).toMatchObject({
+      ok: false,
+      error: { code: 'VALIDATION_ERROR' },
     })
   })
 })
