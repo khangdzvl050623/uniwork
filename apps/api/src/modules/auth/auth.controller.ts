@@ -19,15 +19,27 @@ import type { DeviceInfo, SessionResult } from './auth.service.js'
 /**
  * Tên cookie chứa refresh token.
  *
- * Tiền tố `__Host-` không phải để cho đẹp: trình duyệt chỉ chấp nhận cookie
- * mang tiền tố này khi nó có `Secure`, `Path=/`, và KHÔNG có `Domain`. Nhờ ràng
- * buộc đó, một subdomain bị chiếm cũng không ghi đè được cookie này.
+ * ---------------------------------------------------------------------------
+ * VÌ SAO `__Secure-` CHỨ KHÔNG PHẢI `__Host-`
+ * ---------------------------------------------------------------------------
+ * Bản đầu dùng `__Host-`, và đó là một lỗi thật đã lên tới production: tiền tố
+ * `__Host-` buộc cookie phải có `Path=/` CHÍNH XÁC, trong khi ta cố ý giới hạn
+ * `path: '/api/auth'`. Hai điều kiện loại trừ nhau, nên trình duyệt LẶNG LẼ vứt
+ * cookie — không lỗi, không cảnh báo, không gì cả.
  *
- * Chỉ dùng ở production. Trên máy chạy http://localhost thì `Secure` không gửi
- * được, nên tiền tố sẽ khiến trình duyệt lặng lẽ bỏ cookie — lỗi rất khó đoán
- * vì không có thông báo nào cả.
+ * Hậu quả: mọi lần đăng nhập trên bản deploy đều "thành công" (server trả 200,
+ * log sạch bong) rồi lời gọi /refresh ngay sau đó nhận 401 vì cookie chưa bao
+ * giờ được lưu. Ở máy dev thì không lộ, vì tên cookie khi đó không mang tiền tố
+ * nào nên không bị ràng buộc path.
+ *
+ * `__Secure-` chỉ đòi thuộc tính `Secure` (tức là phải đặt qua HTTPS) và không
+ * nói gì tới path. Vẫn giữ được lời bảo đảm quan trọng — cookie này không thể
+ * do một trang http:// nào đặt — mà không mâu thuẫn với việc giới hạn path.
+ *
+ * Chỉ gắn tiền tố ở production. Trên http://localhost thì `Secure` không gửi
+ * được, nên mọi tiền tố đều khiến cookie bị bỏ.
  */
-const REFRESH_COOKIE = isProduction ? '__Host-uniwork_rt' : 'uniwork_rt'
+const REFRESH_COOKIE = isProduction ? '__Secure-uniwork_rt' : 'uniwork_rt'
 
 /**
  * Đặt refresh token vào cookie httpOnly.
