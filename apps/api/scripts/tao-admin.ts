@@ -20,18 +20,23 @@ import { hashPassword } from '../src/lib/password.js'
  * VÌ SAO CHẠY QUA `tsx`, KHÔNG PHẢI QUA MỘT ENDPOINT API
  * ---------------------------------------------------------------------------
  * Dựng thêm một endpoint `POST /api/admin/tao` chỉ để dùng đúng một lần lúc
- * khởi tạo hệ thống là thêm bề mặt tấn công sống mãi mãi. Script chạy tay qua
- * Render Shell thì không có URL nào tồn tại để ai đó dò ra.
+ * khởi tạo hệ thống là thêm bề mặt tấn công sống mãi mãi. Chạy script tay thì
+ * không có URL nào tồn tại để ai đó dò ra.
  *
  * ---------------------------------------------------------------------------
- * CHẠY Ở ĐÂU
+ * CHẠY Ở ĐÂU — KHÔNG PHẢI RENDER SHELL
  * ---------------------------------------------------------------------------
- * Render Dashboard → service uniwork-api → tab Shell:
+ * Gói free của Render không có Shell/SSH (đã xác nhận thật khi thử: "Free
+ * instances... do not support SSH access"). Tài khoản admin ĐẦU TIÊN không cần
+ * script này nữa — server tự tạo lúc khởi động nếu chưa có, xem
+ * `src/lib/bootstrap-admin.ts` và biến `ADMIN_EMAIL`/`ADMIN_PASSWORD`.
+ *
+ * Script này giờ chỉ còn dùng để tạo THÊM admin khác, hoặc đổi vai trò một tài
+ * khoản có sẵn thành ADMIN, chạy từ máy local — trỏ `DATABASE_URL` trong
+ * `apps/api/.env` vào đúng database muốn sửa (Neon production hoặc local đều
+ * được, tuỳ bạn đổi giá trị trong file đó trước khi chạy):
  *
  *   pnpm --filter @uniwork/api db:tao-admin -- ten@email.com "MatKhauManh123"
- *
- * `DATABASE_URL` production đã có sẵn trong môi trường của Shell đó — không
- * cần dán connection string vào đâu cả.
  *
  * Idempotent: chạy lại với cùng email chỉ cập nhật mật khẩu/vai trò của đúng
  * người đó, không tạo trùng, không đụng tài khoản khác.
@@ -67,7 +72,8 @@ async function main() {
       passwordHash,
       role: 'ADMIN',
       // Admin không cần đi qua luồng OTP xác thực email — người tự tay chạy
-      // script này trên Shell của Render đã là người có quyền cao nhất rồi.
+      // script này (có quyền sửa trực tiếp database) đã là người có quyền cao
+      // nhất rồi.
       emailVerifiedAt: new Date(),
     },
     select: { id: true, email: true, role: true },

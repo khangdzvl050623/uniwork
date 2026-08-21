@@ -37,6 +37,7 @@ BA luôn chạy trước hai dev **một sprint**: trong lúc dev làm sprint hi
 | Đánh giá hai chiều sau khi làm việc | Vốn đã là nice-to-have |
 | E2E test diện rộng | Chỉ giữ 2 luồng: đăng tin và ứng tuyển |
 | Tuần riêng cho tài liệu | Gộp vào tuần 8; BA viết rải suốt 8 tuần thay vì dồn cuối |
+| Role phụ dưới ADMIN (kiểu "moderator"/"editor" quản lý student, employer riêng) | Nice-to-have, đề xuất 2026-08-21. Team hiện chỉ 2 dev, chưa có ai thật sự cần phân quyền kiểu này. Cần thêm giá trị enum `Role`, viết lại `requireRole` theo từng nhánh quyền hạn cụ thể, và test lại toàn bộ ca phân quyền — chi phí không nhỏ cho nhu cầu chưa xuất hiện. Cân nhắc lại nếu sau này có thêm người (vd. CTV kiểm duyệt tin) cần vai trò trung gian thật sự |
 
 ## Rủi ro
 
