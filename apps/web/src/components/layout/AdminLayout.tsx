@@ -6,6 +6,7 @@ import {
   Building2,
   ClipboardCheck,
   LayoutDashboard,
+  type LucideIcon,
   Menu,
   Moon,
   Plus,
@@ -15,6 +16,8 @@ import {
   Users,
   X,
 } from 'lucide-react'
+import type { Role } from '@uniwork/shared'
+import { useAuth } from '@/hooks/useAuth'
 import { useDashTheme } from '@/hooks/useDashTheme'
 import { cn } from '@/lib/utils'
 
@@ -31,16 +34,44 @@ import { cn } from '@/lib/utils'
  * thẻ <html> lúc điều hướng.
  */
 
-const NAV_SECTIONS = [
+interface MucSidebar {
+  to: string
+  label: string
+  icon: LucideIcon
+  end?: boolean
+}
+
+interface NhomSidebar {
+  title: string
+  items: MucSidebar[]
+}
+
+/**
+ * Sidebar chia theo vai, KHÔNG dùng chung một danh sách.
+ *
+ * Khung tối này phục vụ hai vai khác hẳn nhau: admin và nhà tuyển dụng (route
+ * /ntd/quan-ly cũng nằm trong `AdminLayout`). Trước đây danh sách là một hằng
+ * số tĩnh dựng cho mọi người, nên nhà tuyển dụng mở trang quản lý tin của mình
+ * là nhìn thấy nguyên menu quản trị: "Duyệt tin tuyển dụng", "Duyệt nhà tuyển
+ * dụng", "Người dùng". Bấm vào thì `RequireRole` chặn — nhưng họ đã kịp biết hệ
+ * thống có những khu nào. Chiều ngược lại admin thấy "Tin đăng của tôi" trỏ tới
+ * một route chỉ EMPLOYER vào được.
+ *
+ * Đây không phải lớp bảo mật (lớp thật nằm ở middleware phía api). Nó là chuyện
+ * đừng bày ra trước mắt người dùng những cánh cửa họ không mở được.
+ */
+const NAV_ADMIN: NhomSidebar[] = [
   {
     title: 'Tổng quan',
+    // `end` là bắt buộc riêng cho mục này: mọi route admin khác đều bắt đầu
+    // bằng '/admin', thiếu nó thì "Bảng điều khiển" sáng lên ở cả 4 trang.
     items: [{ to: '/admin', label: 'Bảng điều khiển', icon: LayoutDashboard, end: true }],
   },
   {
     title: 'Chờ xử lý',
     items: [
-      { to: '/admin/duyet-tin', label: 'Duyệt tin tuyển dụng', icon: ClipboardCheck, badge: 34 },
-      { to: '/admin/duyet-ntd', label: 'Duyệt nhà tuyển dụng', icon: Building2, badge: 12 },
+      { to: '/admin/duyet-tin', label: 'Duyệt tin tuyển dụng', icon: ClipboardCheck },
+      { to: '/admin/duyet-ntd', label: 'Duyệt nhà tuyển dụng', icon: Building2 },
     ],
   },
   {
@@ -50,15 +81,47 @@ const NAV_SECTIONS = [
       { to: '/admin/nguoi-dung', label: 'Người dùng', icon: Users },
     ],
   },
+]
+
+const NAV_EMPLOYER: NhomSidebar[] = [
   {
-    title: 'Nhà tuyển dụng',
-    items: [{ to: '/ntd/quan-ly', label: 'Tin đăng của tôi', icon: BriefcaseBusiness }],
+    title: 'Tuyển dụng',
+    items: [
+      { to: '/ntd/quan-ly', label: 'Tin đăng của tôi', icon: BriefcaseBusiness },
+      { to: '/ntd/dang-tin', label: 'Đăng tin mới', icon: Plus },
+      { to: '/ntd/ung-vien', label: 'Ứng viên', icon: Users },
+    ],
   },
-] as const
+  {
+    title: 'Doanh nghiệp',
+    items: [{ to: '/ntd/ho-so', label: 'Hồ sơ & giấy tờ', icon: Building2 }],
+  },
+]
+
+const NAV_THEO_VAI: Partial<Record<Role, NhomSidebar[]>> = {
+  ADMIN: NAV_ADMIN,
+  EMPLOYER: NAV_EMPLOYER,
+}
+
+/** Chữ nhỏ cạnh logo — người đang đứng ở khu nào. */
+const TEN_KHU: Partial<Record<Role, string>> = {
+  ADMIN: 'Quản trị',
+  EMPLOYER: 'Nhà tuyển dụng',
+}
 
 export function AdminLayout() {
   const [menuOpen, setMenuOpen] = useState(false)
   const { theme, toggle } = useDashTheme()
+  const { user } = useAuth()
+
+  /*
+   * `AdminLayout` nằm NGOÀI `RequireAuth` trong cây route, nên nó dựng xong
+   * trước khi biết người dùng là ai. Lúc đó `user` còn null và sidebar rỗng —
+   * chấp nhận được, vì phần nội dung bên phải đang hiện vòng quay chờ của
+   * `RequireAuth`. Đoán bừa một vai để lấp chỗ trống thì lại quay về đúng lỗi
+   * vừa sửa: bày menu sai cho người xem.
+   */
+  const sections = (user && NAV_THEO_VAI[user.role]) || []
 
   return (
     // data-dash-theme là chỗ duy nhất quyết định chế độ sáng/tối. Mọi biến màu
@@ -69,7 +132,12 @@ export function AdminLayout() {
     // độ sáng, để lên <html> thì admin đổi màu sẽ kéo cả trang chủ đổi theo.
     <div data-dash-theme={theme} className="bg-dash-bg text-dash-text min-h-screen">
       <div className="mx-auto flex max-w-[1600px]">
-        <Sidebar open={menuOpen} onNavigate={() => setMenuOpen(false)} />
+        <Sidebar
+          open={menuOpen}
+          onNavigate={() => setMenuOpen(false)}
+          sections={sections}
+          tenKhu={(user && TEN_KHU[user.role]) || ''}
+        />
 
         {/* min-w-0 là bắt buộc, không phải cho đẹp: mặc định một item của flex
             không co nhỏ hơn nội dung bên trong nó, nên chỉ cần một bảng rộng là
@@ -80,6 +148,7 @@ export function AdminLayout() {
             menuOpen={menuOpen}
             theme={theme}
             onToggleTheme={toggle}
+            tenNguoiDung={user?.displayName ?? ''}
           />
           <main className="flex-1 px-4 py-6 sm:px-6 lg:px-8">
             <Outlet />
@@ -90,7 +159,17 @@ export function AdminLayout() {
   )
 }
 
-function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }) {
+function Sidebar({
+  open,
+  onNavigate,
+  sections,
+  tenKhu,
+}: {
+  open: boolean
+  onNavigate: () => void
+  sections: NhomSidebar[]
+  tenKhu: string
+}) {
   return (
     <>
       {/* Lớp phủ chỉ có trên màn hình nhỏ, nơi sidebar trượt đè lên nội dung. */}
@@ -115,12 +194,12 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
           </span>
           <span className="text-[15px] font-bold tracking-tight">
             UniWork
-            <span className="text-dash-muted ml-1.5 font-medium">Quản trị</span>
+            <span className="text-dash-muted ml-1.5 font-medium">{tenKhu}</span>
           </span>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-3 py-5">
-          {NAV_SECTIONS.map((section) => (
+          {sections.map((section) => (
             <div key={section.title} className="mb-6 last:mb-0">
               <p className="text-dash-muted px-3 pb-2 text-[11px] font-semibold tracking-[0.12em] uppercase">
                 {section.title}
@@ -131,7 +210,7 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
                   <li key={item.to}>
                     <NavLink
                       to={item.to}
-                      end={'end' in item ? item.end : false}
+                      end={item.end ?? false}
                       onClick={onNavigate}
                       className={({ isActive }) =>
                         cn(
@@ -150,12 +229,11 @@ function Sidebar({ open, onNavigate }: { open: boolean; onNavigate: () => void }
                         size={17}
                         className="shrink-0 transition-transform duration-150 ease-out group-hover:translate-x-0.5"
                       />
+                      {/* Hai mục "Chờ xử lý" từng có huy hiệu 34 và 12 ghi cứng
+                          trong mã. Bỏ đi: hệ thống chưa có tin tuyển dụng nào,
+                          nên con số đó nói dối ngay trên thanh điều hướng. Gắn
+                          lại khi có API đếm thật. */}
                       <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                      {'badge' in item && item.badge ? (
-                        <span className="bg-dash-wait/15 text-dash-wait shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums">
-                          {item.badge}
-                        </span>
-                      ) : null}
                     </NavLink>
                   </li>
                 ))}
@@ -185,11 +263,13 @@ function TopBar({
   menuOpen,
   theme,
   onToggleTheme,
+  tenNguoiDung,
 }: {
   onToggleMenu: () => void
   menuOpen: boolean
   theme: 'dark' | 'light'
   onToggleTheme: () => void
+  tenNguoiDung: string
 }) {
   return (
     <header className="border-dash-line bg-dash-bg/85 sticky top-0 z-20 flex h-16 items-center gap-3 border-b px-4 backdrop-blur sm:px-6 lg:px-8">
@@ -238,20 +318,21 @@ function TopBar({
           </span>
         </IconButton>
 
+        {/* Chuông từng đeo một chấm đỏ "5" ghi cứng. Bảng `notifications` còn
+            chưa tồn tại (cố ý, xem đầu schema.prisma) nên con số đó thuần tuý
+            là bịa — và một chấm đỏ thì người dùng buộc phải bấm vào để kiểm. */}
         <IconButton label="Thông báo">
           <Bell size={17} />
-          {/* Chấm báo nằm ngoài luồng và có viền cùng màu nền, nên nó tách khỏi
-              biểu tượng chuông thay vì dính vào thành một khối nhoè. */}
-          <span className="border-dash-bg bg-dash-bad absolute -top-0.5 -right-0.5 grid h-4 min-w-4 place-items-center rounded-full border-2 px-1 text-[9px] font-bold text-white">
-            5
-          </span>
         </IconButton>
 
         <span className="bg-dash-line mx-1 h-6 w-px" />
 
-        <button className="bg-dash-violet/25 text-dash-violet ring-dash-line hover:ring-dash-muted/50 grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-bold ring-1 transition-[transform,box-shadow] duration-150 ease-out active:scale-95">
-          KH
-        </button>
+        <span
+          title={tenNguoiDung}
+          className="bg-dash-violet/25 text-dash-violet ring-dash-line grid h-8 w-8 shrink-0 place-items-center rounded-full text-xs font-bold ring-1"
+        >
+          {tenNguoiDung.slice(0, 2).toUpperCase() || '—'}
+        </span>
       </div>
     </header>
   )
