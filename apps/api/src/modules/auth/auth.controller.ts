@@ -1,11 +1,19 @@
 import type { Request, RequestHandler, Response } from 'express'
 import { z } from 'zod'
-import { SIGNUP_ROLES } from '@uniwork/shared'
+import {
+  forgotPasswordSchema,
+  loginSchema,
+  otpSchema,
+  registerSchema,
+  resetPasswordSchema,
+} from '@uniwork/shared'
 import { ok } from '../../lib/respond.js'
-import { badRequest, unauthorized } from '../../lib/errors.js'
+import { AppError, badRequest, unauthorized } from '../../lib/errors.js'
 import { env, isProduction } from '../../config/env.js'
 import * as authService from './auth.service.js'
+import * as googleService from './google.service.js'
 import * as otpService from './otp.service.js'
+import * as passwordResetService from './password-reset.service.js'
 import type { DeviceInfo, SessionResult } from './auth.service.js'
 
 /**
@@ -99,32 +107,13 @@ function parse<T extends z.ZodTypeAny>(schema: T, data: unknown): z.infer<T> {
 }
 
 /*
- * Quy tắc mật khẩu: tối thiểu 8 ký tự, có chữ và có số.
+ * Luật kiểm dữ liệu lấy từ `@uniwork/shared` chứ không khai lại ở đây.
  *
- * Cố ý KHÔNG bắt ký tự đặc biệt. Nghiên cứu của NIST cho thấy luật càng rườm
- * rà thì người dùng càng đối phó bằng những mẫu dễ đoán (`Password1!`), trong
- * khi độ dài mới là thứ thật sự làm tăng độ khó dò.
+ * Trước đây file này giữ bản riêng, và phía web chưa có gì. Khi DEV2 dựng form
+ * ở T46, hai bên sẽ có hai bản luật — chúng lệch nhau chỉ là vấn đề thời gian,
+ * và lúc đó người dùng sẽ điền form hợp lệ rồi nhận lỗi từ server. Xem giải
+ * thích đầy đủ trong `packages/shared/src/validation.ts`.
  */
-const passwordRule = z
-  .string()
-  .min(8, 'Mật khẩu cần ít nhất 8 ký tự')
-  .regex(/[a-zA-Z]/, 'Mật khẩu cần có ít nhất một chữ cái')
-  .regex(/[0-9]/, 'Mật khẩu cần có ít nhất một chữ số')
-
-const registerSchema = z.object({
-  email: z.string().email('Email không đúng định dạng'),
-  password: passwordRule,
-  role: z.enum(SIGNUP_ROLES),
-  name: z.string().trim().min(2, 'Tên cần ít nhất 2 ký tự').max(120),
-})
-
-const loginSchema = z.object({
-  email: z.string().email('Email không đúng định dạng'),
-  // Không áp `passwordRule` ở đây: người đăng ký từ trước có thể đang dùng mật
-  // khẩu theo luật cũ. Bắt đúng luật mới sẽ khoá họ ra ngoài chính tài khoản
-  // của mình, và thông báo lỗi còn tiết lộ luật mật khẩu cho người dò.
-  password: z.string().min(1, 'Vui lòng nhập mật khẩu'),
-})
 
 export const registerController: RequestHandler = async (req, res) => {
   const input = parse(registerSchema, req.body)
@@ -157,11 +146,128 @@ export const logoutController: RequestHandler = async (req, res) => {
 
 /* --------------------------------------------------------------- OTP (T42) */
 
-const otpSchema = z.object({
-  // Đúng 6 chữ số. `regex` chứ không phải `min(6).max(6)`: chuỗi 'abcdef' cũng
-  // dài 6 nhưng không bao giờ khớp mã, chặn sớm ở đây thì đỡ một câu truy vấn.
-  code: z.string().regex(/^\d{6}$/, 'Mã xác thực gồm đúng 6 chữ số'),
-})
+/* --------------------------------------------------- đăng nhập Google --- */
+
+/**
+ * Cookie giữ chuỗi `state` giữa hai chặng của luồng OAuth.
+ *
+ * Sống rất ngắn: người dùng chỉ mất vài giây bấm chọn tài khoản Google. Để lâu
+ * hơn thì một chuỗi `state` cũ còn dùng lại được, làm yếu chính thứ nó sinh ra
+ * để bảo vệ.
+ */
+const STATE_COOKIE = 'uniwork_oauth_state'
+const STATE_TTL_MS = 10 * 60 * 1000
+
+export const googleStartController: RequestHandler = (_req, res) => {
+  if (!googleService.GOOGLE_SAN_SANG) {
+    throw badRequest('Đăng nhập Google chưa được cấu hình trên máy chủ này')
+  }
+
+  const state = googleService.taoState()
+
+  res.cookie(STATE_COOKIE, state, {
+    httpOnly: true,
+    secure: isProduction,
+    /*
+     * `lax` chứ KHÔNG phải `strict`.
+     *
+     * Cookie này phải sống sót qua cú chuyển hướng TỪ google.com quay về đây.
+     * Với `strict`, trình duyệt không gửi cookie trong request đến từ trang
+     * khác — nên lúc callback chạy thì không có state để đối chiếu, và mọi lần
+     * đăng nhập đều thất bại.
+     */
+    sameSite: 'lax',
+    path: '/api/auth',
+    maxAge: STATE_TTL_MS,
+  })
+
+  res.redirect(googleService.urlDangNhap(state))
+}
+
+/**
+ * Google gọi ngược về đây sau khi người dùng bấm đồng ý.
+ *
+ * Kết thúc bằng `redirect` về web chứ không trả JSON: đây là một điểm đến của
+ * trình duyệt, không phải lời gọi API. Người dùng đang nhìn thanh địa chỉ đổi,
+ * và thứ họ cần thấy tiếp theo là một trang, không phải một khối JSON.
+ */
+export const googleCallbackController: RequestHandler = async (req, res) => {
+  const veTrangLoi = (ly: string) =>
+    res.redirect(`${env.APP_URL}/dang-nhap?loi=${encodeURIComponent(ly)}`)
+
+  const stateTrongCookie = req.cookies?.[STATE_COOKIE] as string | undefined
+  const stateTraVe = typeof req.query.state === 'string' ? req.query.state : undefined
+  const code = typeof req.query.code === 'string' ? req.query.code : undefined
+
+  // Dọn cookie ngay: nó dùng đúng một lần, giữ lại chỉ tạo cơ hội dùng lại.
+  res.clearCookie(STATE_COOKIE, { path: '/api/auth' })
+
+  // Người dùng bấm "Huỷ" trên màn hình của Google.
+  if (req.query.error) return veTrangLoi('Bạn đã huỷ đăng nhập bằng Google')
+
+  if (!code || !stateTraVe || !stateTrongCookie || stateTraVe !== stateTrongCookie) {
+    // Không nói rõ sai ở đâu: người dùng thật không sửa được gì, còn người đang
+    // dò thì không cần biết mình hỏng ở bước nào.
+    return veTrangLoi('Phiên đăng nhập Google không hợp lệ, vui lòng thử lại')
+  }
+
+  try {
+    const danhTinh = await googleService.docDanhTinh(code)
+    const user = await googleService.timHoacTao(danhTinh)
+    const session = await authService.issueSession(user, deviceOf(req))
+
+    setRefreshCookie(res, session.refreshToken)
+
+    /*
+     * Không nhét access token vào URL.
+     *
+     * URL lọt vào lịch sử duyệt web, log proxy, và header `Referer` gửi sang
+     * mọi trang bấm tiếp theo. Web chỉ cần biết "vừa đăng nhập xong" rồi tự gọi
+     * /refresh bằng cookie httpOnly vừa đặt — đúng cơ chế nó đã làm mỗi lần
+     * tải lại trang.
+     */
+    res.redirect(`${env.APP_URL}/dang-nhap-google-xong`)
+  } catch (err) {
+    const message =
+      err instanceof AppError ? err.message : 'Không đăng nhập được bằng Google, thử lại sau'
+    veTrangLoi(message)
+  }
+}
+
+/* ------------------------------------------------------- quên mật khẩu --- */
+
+/**
+ * Cùng một thông điệp cho mọi kết quả, kể cả khi email không tồn tại.
+ *
+ * Đây là endpoint công khai. Trả lời khác nhau cho "có tài khoản" và "không có
+ * tài khoản" là biến nó thành công cụ kiểm tra ai đã đăng ký — và danh sách đó
+ * đủ để nhắm mục tiêu cho những đợt thử mật khẩu về sau.
+ */
+export const forgotPasswordController: RequestHandler = async (req, res) => {
+  const { email } = parse(forgotPasswordSchema, req.body)
+  const ketQua = await passwordResetService.requestPasswordReset(email)
+
+  ok(res, {
+    message: 'Nếu email này có tài khoản, chúng tôi đã gửi mã đặt lại mật khẩu.',
+    // Chỉ có ngoài production, để lập trình viên và người demo không phải mở
+    // hộp thư. Ở production trường này không bao giờ xuất hiện.
+    ...(ketQua.devCode ? { devCode: ketQua.devCode } : {}),
+  })
+}
+
+export const resetPasswordController: RequestHandler = async (req, res) => {
+  const { email, code, password } = parse(resetPasswordSchema, req.body)
+  await passwordResetService.resetPassword(email, code, password)
+
+  /*
+   * KHÔNG tự đăng nhập sau khi đổi mật khẩu.
+   *
+   * Vừa thu hồi sạch mọi phiên xong mà lại cấp ngay một phiên mới thì mất phần
+   * lớn ý nghĩa của việc thu hồi. Bắt đăng nhập lại cũng là cách để người dùng
+   * xác nhận họ nhớ đúng mật khẩu vừa đặt.
+   */
+  ok(res, { message: 'Đặt lại mật khẩu thành công. Mời bạn đăng nhập lại.' })
+}
 
 export const sendOtpController: RequestHandler = async (req, res) => {
   if (!req.user) throw unauthorized()

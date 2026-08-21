@@ -239,6 +239,18 @@ model OneTimeToken {
   /// mốc thì lần thứ hai bị từ chối, kể cả khi chưa hết hạn.
   usedAt DateTime?
 
+  /// Số lần nhập sai mã này. Quá ngưỡng thì mã bị huỷ, phải xin mã mới.
+  ///
+  /// Cần thiết vì mã chỉ có 6 chữ số — một triệu khả năng, và mã sống 10 phút.
+  /// Chặn theo IP thôi thì không đủ: đổi IP là bộ đếm về 0, trong khi bộ đếm
+  /// gắn vào chính mã thì đi đâu cũng mang theo.
+  ///
+  /// Huỷ mã thay vì khoá tạm là có chủ đích: kẻ dò mất sạch tiến độ và phải
+  /// bắt đầu lại với một mã hoàn toàn khác, còn người dùng thật chỉ cần bấm
+  /// "gửi lại". Khoá tạm thì ngược lại — kẻ dò chỉ việc chờ, còn người thật bị
+  /// chặn ngoài chính tài khoản của mình.
+  failedAttempts Int @default(0)
+
   createdAt DateTime @default(now())
 
   @@index([userId, type])

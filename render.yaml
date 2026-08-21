@@ -135,3 +135,23 @@ services:
         sync: false
       - key: CLOUDINARY_API_SECRET
         sync: false
+
+      # Địa chỉ công khai của chính service này, dùng dựng redirect_uri cho
+      # Google. Phải TRÙNG KHÍT chuỗi khai trong Google Cloud Console — lệch
+      # một dấu gạch chéo là Google trả `redirect_uri_mismatch`.
+      #
+      # sync: false vì giá trị phụ thuộc tên service Render, chỉ biết sau khi
+      # tạo: https://<ten>.onrender.com
+      - key: API_URL
+        sync: false
+
+      # Đăng nhập Google. KHÔNG bắt buộc — để trống thì nút Google tự ẩn và
+      # đăng nhập bằng mật khẩu vẫn chạy bình thường.
+      #
+      # CLIENT_SECRET là bí mật thật, nhập tay trên dashboard. CLIENT_ID thì
+      # công khai theo thiết kế của OAuth (nó nằm ngay trong URL người dùng
+      # nhìn thấy), nhưng vẫn để sync: false cho cùng một chỗ với secret.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false

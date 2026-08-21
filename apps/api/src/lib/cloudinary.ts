@@ -46,9 +46,25 @@ function toError(cloudinaryError: unknown): Error {
  * Tải CV (đã xác nhận là PDF hợp lệ ở tầng gọi) lên Cloudinary.
  *
  * `resource_type: 'raw'` vì CV là PDF, không phải ảnh — để mặc định 'image' thì
- * Cloudinary từ chối. `public_id` cố định bằng `userId` và `overwrite: true` để
- * CV mới ghi đè đúng CV cũ tại cùng một URL, thay vì để lại file mồ côi mỗi lần
- * sinh viên tải CV mới lên.
+ * Cloudinary từ chối. `overwrite: true` cùng `public_id` cố định theo `userId`
+ * để CV mới ghi đè đúng CV cũ tại cùng một URL, thay vì để lại file mồ côi mỗi
+ * lần sinh viên tải CV mới lên.
+ *
+ * ---------------------------------------------------------------------------
+ * ĐUÔI `.pdf` TRONG public_id LÀ BẮT BUỘC
+ * ---------------------------------------------------------------------------
+ * Với `resource_type: 'raw'`, Cloudinary dùng `public_id` làm NGUYÊN TÊN FILE
+ * chứ không tự thêm đuôi — khác hẳn ảnh (`image`), nơi đuôi được suy ra từ định
+ * dạng và gắn vào URL giúp.
+ *
+ * Thiếu đuôi thì Cloudinary không biết đây là kiểu file gì và trả về
+ * `Content-Type: application/octet-stream` kèm `Content-Disposition: attachment`.
+ * Hậu quả: bấm "Xem CV" thì trình duyệt TẢI VỀ một file không đuôi, tên là một
+ * chuỗi cuid khó hiểu, mở lên máy không biết dùng ứng dụng nào — người dùng
+ * tưởng chức năng tải CV bị hỏng, dù file hoàn toàn nguyên vẹn.
+ *
+ * Có đuôi `.pdf` thì Cloudinary trả `application/pdf`, và trình duyệt mở thẳng
+ * trong trình xem PDF sẵn có.
  */
 export async function uploadCvFile(buffer: Buffer, userId: string): Promise<string> {
   if (!HAS_REAL_KEY) {
@@ -62,7 +78,7 @@ export async function uploadCvFile(buffer: Buffer, userId: string): Promise<stri
 
   return new Promise<string>((resolve, reject) => {
     const stream = cloudinary.uploader.upload_stream(
-      { resource_type: 'raw', folder: 'uniwork/cv', public_id: userId, overwrite: true },
+      { resource_type: 'raw', folder: 'uniwork/cv', public_id: `${userId}.pdf`, overwrite: true },
       (error, result) => {
         if (error || !result) {
           reject(error ? toError(error) : new Error('Cloudinary không trả kết quả'))

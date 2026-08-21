@@ -109,6 +109,44 @@ export async function sendMail(mail: Mail): Promise<void> {
  * ở đầu trang: Gmail cắt bỏ khối `<style>` trong nhiều trường hợp, nên email
  * sẽ hiện ra trần trụi không định dạng.
  */
+/**
+ * Mẫu email đặt lại mật khẩu.
+ *
+ * Khác mẫu xác thực ở một chỗ quan trọng: dòng cảnh báo cuối nói rõ "ai đó vừa
+ * yêu cầu". Người nhận mà không hề bấm gì thì đó là dấu hiệu có người biết
+ * email của họ và đang thử vào tài khoản — cần biết để đổi mật khẩu chỗ khác,
+ * chứ không phải chỉ "bỏ qua email này".
+ *
+ * Cũng như mẫu kia: KHÔNG có link bấm được. Email đặt lại mật khẩu là loại thư
+ * bị giả mạo nhiều nhất, nên tốt hơn hết là đừng tập cho người dùng thói quen
+ * bấm vào link trong đó.
+ */
+export function passwordResetEmail(code: string): Pick<Mail, 'subject' | 'html'> {
+  return {
+    subject: `${code} là mã đặt lại mật khẩu UniWork`,
+    html: `
+<div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;color:#14161b">
+  <h1 style="margin:0 0 8px;font-size:20px;color:#00857a">UniWork</h1>
+  <p style="margin:0 0 24px;font-size:14px;color:#5d636e">Đặt lại mật khẩu</p>
+
+  <p style="margin:0 0 16px;font-size:15px">Nhập mã dưới đây để đặt mật khẩu mới:</p>
+
+  <div style="font-size:32px;font-weight:700;letter-spacing:8px;padding:16px;background:#e6fbf7;border-radius:12px;text-align:center;color:#00857a">
+    ${code}
+  </div>
+
+  <p style="margin:24px 0 0;font-size:14px;color:#5d636e">
+    Mã có hiệu lực trong <strong>10 phút</strong> và chỉ dùng được một lần.
+  </p>
+  <p style="margin:8px 0 0;font-size:14px;color:#5d636e">
+    Nếu bạn <strong>không</strong> yêu cầu đặt lại mật khẩu, có thể ai đó đang thử
+    truy cập tài khoản của bạn. Mật khẩu hiện tại vẫn nguyên vẹn, nhưng bạn nên
+    đổi sang mật khẩu khác nếu đang dùng chung mật khẩu này ở nơi khác.
+  </p>
+</div>`.trim(),
+  }
+}
+
 export function otpEmail(code: string): Pick<Mail, 'subject' | 'html'> {
   return {
     subject: `${code} là mã xác thực UniWork của bạn`,

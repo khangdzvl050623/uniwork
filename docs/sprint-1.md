@@ -75,7 +75,7 @@ Mã tiếp nối Sprint 0 (kết thúc ở T32).
 | T57 | 9 | DEV1 | NTD nộp giấy tờ vào `EmployerDocument` (3 loại: giấy phép KD, mã số thuế, CCCD) | Nộp đủ 3 loại thì hồ sơ chuyển sang chờ admin duyệt |
 | T58 | 9–10 | DEV1 | Test: đăng ký, đăng nhập, xoay vòng refresh token, phân quyền, hồ sơ | `pnpm test` xanh, có ca test cho **dùng lại refresh token cũ** |
 | T59 | 6–7 | DEV2 | Trang hồ sơ sinh viên: thông tin cơ bản + upload CV có thanh tiến độ | Tải file 5MB thấy tiến độ, không tưởng trang treo |
-| T60 | 7–8 | DEV2 | Màn khai kỹ năng: chọn từ danh mục `GET /api/skills` + chọn mức độ | Chọn 10 kỹ năng rồi lưu, tải lại trang vẫn còn |
+| T60 | 7–8 | DEV2 | Màn khai kỹ năng: chọn từ danh mục `GET /api/skills` (**bỏ phần chọn mức độ**, xem ghi chú bên dưới) | Chọn 10 kỹ năng rồi lưu, tải lại trang vẫn còn |
 | T61 | 8–9 | DEV2 | Hoàn thiện lưới khai lịch rảnh trên khung `Availability.tsx` có sẵn: 7 ngày × 3 buổi, kéo chọn nhiều ô | Kéo chuột qua nhiều ô chọn được cả vùng, không phải bấm từng ô |
 | T62 | 9 | DEV2 | Trang hồ sơ NTD: thông tin công ty + nộp 3 loại giấy tờ, hiện rõ trạng thái duyệt | NTD nhìn phát biết mình đang thiếu giấy tờ nào |
 | T63 | 10 | DEV2 | Kiểm tra responsive toàn bộ màn hình sprint này trên máy thật | Dùng được bằng một tay trên điện thoại |
@@ -187,7 +187,33 @@ Câu tự hỏi khi phân loại: *lộ chuỗi này ra thì kẻ xấu làm đ�
 
 Vì web ở domain Vercel còn API ở domain Render, cookie phải có `SameSite=None; Secure`, và API phải bật `credentials: true` trong CORS. Thiếu một trong hai thì trình duyệt lặng lẽ không gửi cookie — đăng nhập trên máy thì được, lên bản deploy thì hỏng.
 
-## Ghi chú cho Đăng nhập Google — thiết kế đã chốt, chưa có mã T
+## Ghi chú cho T60 — vì sao bỏ phần "chọn mức độ"
+
+Bảng `StudentSkill` chỉ có `(studentProfileId, skillId)`, KHÔNG có cột mức độ thành thạo. Comment trong `schema.prisma` từ Sprint 0 đã nói đây là thứ để dành: bảng nối được khai tường minh thay vì quan hệ ngầm của Prisma chính là để sau này thêm cột mà không phải viết migration chuyển dữ liệu.
+
+Thêm mức độ bây giờ nghĩa là: sửa schema, viết migration, sửa `replaceSkills` ở T54 (đã merge, đã có test), sửa cả kiểu dùng chung. Đổi lại được gì thì chưa rõ — điều kiện nghiệm thu của chính T60 không nhắc tới mức độ, và mức độ do người dùng **tự khai** thì nhà tuyển dụng cũng khó tin: ai cũng chọn "thành thạo".
+
+Đã chốt với Khang: bỏ, để dành. Khi nào làm thì làm cùng lúc với bộ lọc tìm ứng viên theo kỹ năng — lúc đó mới biết cần bao nhiêu bậc và bậc nào thật sự dùng để lọc.
+
+## Đăng nhập Google — ĐÃ LÀM XONG phần code, chờ khoá
+
+Code đã hoàn chỉnh và test được ở mọi nhánh trừ nhánh cần Google thật. **Chưa chạy được cho tới khi có `GOOGLE_CLIENT_ID` và `GOOGLE_CLIENT_SECRET`.**
+
+Cách lấy khoá (miễn phí, khoảng 5 phút):
+
+1. Vào [console.cloud.google.com](https://console.cloud.google.com) → tạo project mới (tên gì cũng được).
+2. **APIs & Services → OAuth consent screen** → chọn **External** → điền tên ứng dụng, email hỗ trợ, email liên hệ. Không cần submit để Google xét duyệt — ở chế độ *Testing* vẫn đăng nhập được, chỉ giới hạn 100 tài khoản và phải thêm email người dùng thử vào mục **Test users**.
+3. **APIs & Services → Credentials → Create credentials → OAuth client ID → Web application**.
+4. Mục **Authorized redirect URIs**, thêm CHÍNH XÁC hai dòng (kể cả dấu gạch chéo — lệch một ký tự là Google trả `redirect_uri_mismatch`):
+   - `http://localhost:4000/api/auth/google/callback`
+   - `https://<tên-service>.onrender.com/api/auth/google/callback`
+5. Copy **Client ID** và **Client secret** vào `apps/api/.env`, rồi khởi động lại API.
+
+Trong lúc chưa có khoá, mọi thứ vẫn chạy: `googleSanSang` trong `/api/health` trả `false`, web tự ẩn nút Google, đăng nhập bằng mật khẩu không ảnh hưởng gì. Đây là lý do hai biến này là hai biến DUY NHẤT có giá trị mặc định rỗng — xem `config/env.ts`.
+
+Nhớ khai thêm `API_URL` (địa chỉ công khai của chính API) — Google bắt `redirect_uri` phải tuyệt đối, và không suy ra được từ request vì sau proxy của Render thì `req.host` là tên miền nội bộ.
+
+## Ghi chú cho Đăng nhập Google — thiết kế đã chốt
 
 Không thuộc T51–T58, để làm sau khi xong hồ sơ. Chốt trước để khi bắt tay vào không phải dừng giữa chừng hỏi lại.
 

@@ -1,4 +1,4 @@
-import { createHash, randomInt } from 'node:crypto'
+import { createHash, randomInt, timingSafeEqual } from 'node:crypto'
 import { prisma } from '../../lib/prisma.js'
 import { badRequest, conflict, notFound } from '../../lib/errors.js'
 import { otpEmail, sendMail } from '../../lib/mailer.js'
@@ -27,8 +27,26 @@ import { isProduction } from '../../config/env.js'
 /** Mã sống bao lâu. 10 phút đủ để mở hộp thư, chưa đủ lâu để đi dò. */
 const OTP_TTL_MS = 10 * 60 * 1000
 
-function hashOtp(userId: string, code: string): string {
+/** Sai quá số lần này thì mã bị huỷ — xem ghi chú `failedAttempts` trong schema. */
+export const MAX_FAILED_ATTEMPTS = 5
+
+export function hashOtp(userId: string, code: string): string {
   return createHash('sha256').update(`${userId}:${code}`).digest('hex')
+}
+
+/**
+ * So hai chuỗi băm mà thời gian chạy không phụ thuộc vào chỗ khác nhau đầu tiên.
+ *
+ * `===` trên chuỗi dừng ngay ở ký tự lệch đầu tiên, nên thời gian so sánh tiết
+ * lộ có bao nhiêu ký tự đầu đã đúng. Thứ đem so ở đây là bản BĂM chứ không phải
+ * mã gốc, nên rò rỉ đó gần như vô dụng với người tấn công — nhưng so đúng cách
+ * không tốn thêm gì, và người đọc sau này không phải dừng lại tự hỏi.
+ */
+export function bangNhauHash(a: string, b: string): boolean {
+  const x = Buffer.from(a)
+  const y = Buffer.from(b)
+  // timingSafeEqual ném lỗi nếu hai bên khác độ dài, phải tự chặn trước.
+  return x.length === y.length && timingSafeEqual(x, y)
 }
 
 /**
