@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { SIGNUP_ROLES } from './api.js'
-import { TIME_SLOTS } from './domain.js'
+import { TIME_SLOTS, USER_STATUSES } from './domain.js'
 
 /**
  * Luật kiểm dữ liệu dùng chung cho cả web và api.
@@ -165,3 +165,9 @@ export const updateSkillsSchema = z.object({
 /** Giới hạn dung lượng file tải lên, dùng chung cho CV và giấy tờ NTD. */
 export const MAX_FILE_SIZE = 5 * 1024 * 1024
 export const MAX_FILE_SIZE_LABEL = '5MB'
+
+/* ------------------------------------------------------------ quản trị --- */
+
+export const updateUserStatusSchema = z.object({
+  status: z.enum(USER_STATUSES),
+})

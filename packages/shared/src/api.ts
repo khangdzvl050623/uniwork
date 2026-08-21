@@ -347,3 +347,33 @@ export interface AvailabilityResponse {
 export interface UpdateAvailabilityInput {
   slots: AvailabilitySlot[]
 }
+
+/*
+ * ===========================================================================
+ * Quản trị
+ * ===========================================================================
+ */
+
+/** Một hàng trong bảng "Người dùng" của khu quản trị. */
+export interface AdminUserResponse {
+  id: string
+  displayName: string
+  email: string
+  role: Role
+  status: UserStatus
+  /** Tên trường/ĐH — null với nhà tuyển dụng và admin, chỉ sinh viên mới có. */
+  school: string | null
+  joinedAt: string
+  /** Số đơn ứng tuyển đã nộp. Luôn 0 với nhà tuyển dụng và admin. */
+  applicationCount: number
+}
+
+/** GET /api/admin/nguoi-dung — danh sách toàn bộ người dùng. */
+export interface AdminUserListResponse {
+  users: AdminUserResponse[]
+}
+
+/** PUT /api/admin/nguoi-dung/:id/trang-thai. */
+export interface UpdateUserStatusInput {
+  status: UserStatus
+}

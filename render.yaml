@@ -155,3 +155,13 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
+
+      # Tài khoản admin tự tạo lúc khởi động nếu chưa có ai — gói free không có
+      # Shell để tự chạy script tay. Bỏ trống thì dùng mặc định
+      # AdminUniWork@gmail.com / admin@123 (nằm trong mã nguồn, xem
+      # lib/bootstrap-admin.ts). Nên đặt mật khẩu thật ở đây TRƯỚC lần deploy
+      # đầu tiên — chỉ TẠO một lần, đặt sau khi tài khoản đã tồn tại thì vô ích.
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
