@@ -1,6 +1,6 @@
 import type { Request, RequestHandler, Response } from 'express'
 import { z } from 'zod'
-import { SIGNUP_ROLES } from '@uniwork/shared'
+import { loginSchema, otpSchema, registerSchema } from '@uniwork/shared'
 import { ok } from '../../lib/respond.js'
 import { badRequest, unauthorized } from '../../lib/errors.js'
 import { env, isProduction } from '../../config/env.js'
@@ -99,32 +99,13 @@ function parse<T extends z.ZodTypeAny>(schema: T, data: unknown): z.infer<T> {
 }
 
 /*
- * Quy tắc mật khẩu: tối thiểu 8 ký tự, có chữ và có số.
+ * Luật kiểm dữ liệu lấy từ `@uniwork/shared` chứ không khai lại ở đây.
  *
- * Cố ý KHÔNG bắt ký tự đặc biệt. Nghiên cứu của NIST cho thấy luật càng rườm
- * rà thì người dùng càng đối phó bằng những mẫu dễ đoán (`Password1!`), trong
- * khi độ dài mới là thứ thật sự làm tăng độ khó dò.
+ * Trước đây file này giữ bản riêng, và phía web chưa có gì. Khi DEV2 dựng form
+ * ở T46, hai bên sẽ có hai bản luật — chúng lệch nhau chỉ là vấn đề thời gian,
+ * và lúc đó người dùng sẽ điền form hợp lệ rồi nhận lỗi từ server. Xem giải
+ * thích đầy đủ trong `packages/shared/src/validation.ts`.
  */
-const passwordRule = z
-  .string()
-  .min(8, 'Mật khẩu cần ít nhất 8 ký tự')
-  .regex(/[a-zA-Z]/, 'Mật khẩu cần có ít nhất một chữ cái')
-  .regex(/[0-9]/, 'Mật khẩu cần có ít nhất một chữ số')
-
-const registerSchema = z.object({
-  email: z.string().email('Email không đúng định dạng'),
-  password: passwordRule,
-  role: z.enum(SIGNUP_ROLES),
-  name: z.string().trim().min(2, 'Tên cần ít nhất 2 ký tự').max(120),
-})
-
-const loginSchema = z.object({
-  email: z.string().email('Email không đúng định dạng'),
-  // Không áp `passwordRule` ở đây: người đăng ký từ trước có thể đang dùng mật
-  // khẩu theo luật cũ. Bắt đúng luật mới sẽ khoá họ ra ngoài chính tài khoản
-  // của mình, và thông báo lỗi còn tiết lộ luật mật khẩu cho người dò.
-  password: z.string().min(1, 'Vui lòng nhập mật khẩu'),
-})
 
 export const registerController: RequestHandler = async (req, res) => {
   const input = parse(registerSchema, req.body)
@@ -156,12 +137,6 @@ export const logoutController: RequestHandler = async (req, res) => {
 }
 
 /* --------------------------------------------------------------- OTP (T42) */
-
-const otpSchema = z.object({
-  // Đúng 6 chữ số. `regex` chứ không phải `min(6).max(6)`: chuỗi 'abcdef' cũng
-  // dài 6 nhưng không bao giờ khớp mã, chặn sớm ở đây thì đỡ một câu truy vấn.
-  code: z.string().regex(/^\d{6}$/, 'Mã xác thực gồm đúng 6 chữ số'),
-})
 
 export const sendOtpController: RequestHandler = async (req, res) => {
   if (!req.user) throw unauthorized()
