@@ -12,6 +12,7 @@ import { Home } from '@/pages/Home'
 import { JobList } from '@/pages/JobList'
 import { JobDetail } from '@/pages/JobDetail'
 import { Login, Register } from '@/pages/Auth'
+import { ForgotPassword } from '@/pages/ForgotPassword'
 import { VerifyEmail } from '@/pages/VerifyEmail'
 import { Profile } from '@/pages/Profile'
 import { EmployerProfile } from '@/pages/EmployerProfile'
@@ -38,6 +39,7 @@ export function App() {
           <Route path="/viec-lam/:id" element={<JobDetail />} />
           <Route path="/dang-nhap" element={<Login />} />
           <Route path="/dang-ky" element={<Register />} />
+          <Route path="/quen-mat-khau" element={<ForgotPassword />} />
 
           {/* Tự canh cửa bên trong: chưa đăng nhập thì về /dang-nhap, đã xác
               thực rồi thì về trang chủ. Ba nhánh nên không bọc RequireAuth. */}

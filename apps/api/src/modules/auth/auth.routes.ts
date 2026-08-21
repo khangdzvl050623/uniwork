@@ -2,10 +2,12 @@ import { Router } from 'express'
 import { requireAuth } from '../../middlewares/auth.js'
 import { ipAndEmail, rateLimit } from '../../middlewares/rate-limit.js'
 import {
+  forgotPasswordController,
   loginController,
   logoutController,
   refreshController,
   registerController,
+  resetPasswordController,
   sendOtpController,
   verifyEmailController,
 } from './auth.controller.js'
@@ -36,6 +38,31 @@ const otpSendLimit = rateLimit({ max: 5, windowMs: 60 * 60_000 })
 const otpVerifyLimit = rateLimit({ max: 10, windowMs: 15 * 60_000 })
 
 /*
+ * Quên mật khẩu: 3 lần mỗi giờ, tính theo IP + email.
+ *
+ * Chặt hơn /gui-otp (5 lần) vì đây là endpoint CÔNG KHAI — không cần đăng nhập
+ * nên ai cũng gọi được, và mỗi lần gọi là một email thật gửi tới hộp thư của
+ * người khác. Không chặn thì nó vừa là máy gửi thư rác nhắm vào một người cụ
+ * thể, vừa đốt sạch hạn mức 300 email/ngày của Brevo.
+ *
+ * Người quên mật khẩu thật hiếm khi cần quá 3 lần trong một giờ; đến lần thứ tư
+ * thì vấn đề của họ không phải là thiếu mã.
+ *
+ * Tính theo cả IP lẫn email: chỉ theo IP thì cả phòng máy trong trường dùng
+ * chung một địa chỉ sẽ chặn nhầm nhau.
+ */
+const forgotPasswordLimit = rateLimit({ max: 3, windowMs: 60 * 60_000, keyOf: ipAndEmail })
+
+/*
+ * Đặt lại mật khẩu: 10 lần mỗi 15 phút.
+ *
+ * Đây chỉ là lớp chặn spam request. Hàng rào thật chống dò mã nằm ở bộ đếm
+ * `failedAttempts` gắn trên chính mã đó — sai 5 lần là mã bị huỷ, và bộ đếm ấy
+ * đổi IP cũng không thoát được. Xem `password-reset.service.ts`.
+ */
+const resetPasswordLimit = rateLimit({ max: 10, windowMs: 15 * 60_000, keyOf: ipAndEmail })
+
+/*
  * Bốn endpoint đầu là công khai — chính chúng tạo ra phiên đăng nhập, nên không
  * thể đòi phải đăng nhập trước.
  *
@@ -46,6 +73,17 @@ authRoutes.post('/dang-ky', registerController)
 authRoutes.post('/dang-nhap', loginLimit, loginController)
 authRoutes.post('/refresh', refreshController)
 authRoutes.post('/dang-xuat', logoutController)
+
+/*
+ * Quên mật khẩu cũng là endpoint công khai — người đang cần dùng nó theo định
+ * nghĩa là người KHÔNG đăng nhập được.
+ *
+ * Luồng này còn kiêm việc đặt mật khẩu lần đầu cho tài khoản chỉ đăng nhập
+ * Google: đi qua email thì phải chứng minh còn giữ hộp thư, an toàn hơn hẳn
+ * một endpoint chỉ cần access token còn hạn. Xem password-reset.service.ts.
+ */
+authRoutes.post('/quen-mat-khau', forgotPasswordLimit, forgotPasswordController)
+authRoutes.post('/dat-lai-mat-khau', resetPasswordLimit, resetPasswordController)
 
 /*
  * Hai endpoint OTP đều yêu cầu đăng nhập.

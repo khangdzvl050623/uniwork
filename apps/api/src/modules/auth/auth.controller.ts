@@ -1,11 +1,18 @@
 import type { Request, RequestHandler, Response } from 'express'
 import { z } from 'zod'
-import { loginSchema, otpSchema, registerSchema } from '@uniwork/shared'
+import {
+  forgotPasswordSchema,
+  loginSchema,
+  otpSchema,
+  registerSchema,
+  resetPasswordSchema,
+} from '@uniwork/shared'
 import { ok } from '../../lib/respond.js'
 import { badRequest, unauthorized } from '../../lib/errors.js'
 import { env, isProduction } from '../../config/env.js'
 import * as authService from './auth.service.js'
 import * as otpService from './otp.service.js'
+import * as passwordResetService from './password-reset.service.js'
 import type { DeviceInfo, SessionResult } from './auth.service.js'
 
 /**
@@ -137,6 +144,41 @@ export const logoutController: RequestHandler = async (req, res) => {
 }
 
 /* --------------------------------------------------------------- OTP (T42) */
+
+/* ------------------------------------------------------- quên mật khẩu --- */
+
+/**
+ * Cùng một thông điệp cho mọi kết quả, kể cả khi email không tồn tại.
+ *
+ * Đây là endpoint công khai. Trả lời khác nhau cho "có tài khoản" và "không có
+ * tài khoản" là biến nó thành công cụ kiểm tra ai đã đăng ký — và danh sách đó
+ * đủ để nhắm mục tiêu cho những đợt thử mật khẩu về sau.
+ */
+export const forgotPasswordController: RequestHandler = async (req, res) => {
+  const { email } = parse(forgotPasswordSchema, req.body)
+  const ketQua = await passwordResetService.requestPasswordReset(email)
+
+  ok(res, {
+    message: 'Nếu email này có tài khoản, chúng tôi đã gửi mã đặt lại mật khẩu.',
+    // Chỉ có ngoài production, để lập trình viên và người demo không phải mở
+    // hộp thư. Ở production trường này không bao giờ xuất hiện.
+    ...(ketQua.devCode ? { devCode: ketQua.devCode } : {}),
+  })
+}
+
+export const resetPasswordController: RequestHandler = async (req, res) => {
+  const { email, code, password } = parse(resetPasswordSchema, req.body)
+  await passwordResetService.resetPassword(email, code, password)
+
+  /*
+   * KHÔNG tự đăng nhập sau khi đổi mật khẩu.
+   *
+   * Vừa thu hồi sạch mọi phiên xong mà lại cấp ngay một phiên mới thì mất phần
+   * lớn ý nghĩa của việc thu hồi. Bắt đăng nhập lại cũng là cách để người dùng
+   * xác nhận họ nhớ đúng mật khẩu vừa đặt.
+   */
+  ok(res, { message: 'Đặt lại mật khẩu thành công. Mời bạn đăng nhập lại.' })
+}
 
 export const sendOtpController: RequestHandler = async (req, res) => {
   if (!req.user) throw unauthorized()

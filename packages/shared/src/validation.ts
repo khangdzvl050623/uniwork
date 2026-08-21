@@ -68,6 +68,20 @@ export const otpSchema = z.object({
   code: z.string().regex(/^\d{6}$/, 'Mã xác thực gồm đúng 6 chữ số'),
 })
 
+/* ------------------------------------------------------- quên mật khẩu --- */
+
+export const forgotPasswordSchema = z.object({
+  email: emailSchema,
+})
+
+export const resetPasswordSchema = z.object({
+  email: emailSchema,
+  code: z.string().regex(/^\d{6}$/, 'Mã gồm đúng 6 chữ số'),
+  // Áp `passwordSchema` ở đây (khác màn đăng nhập): người dùng đang ĐẶT mật
+  // khẩu mới, nên luật mới phải áp dụng đầy đủ.
+  password: passwordSchema,
+})
+
 /* ------------------------------------------------------------- hồ sơ ----- */
 
 /**

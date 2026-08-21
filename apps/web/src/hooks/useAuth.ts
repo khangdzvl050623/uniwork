@@ -99,6 +99,38 @@ export function useLogout() {
   })
 }
 
+/* -------------------------------------------------------- quên mật khẩu -- */
+
+export function useForgotPassword() {
+  return useMutation({
+    mutationFn: (email: string) =>
+      apiFetch<{ message: string; devCode?: string }>(
+        '/api/auth/quen-mat-khau',
+        { method: 'POST', body: JSON.stringify({ email }) },
+        // Endpoint công khai, người gọi theo định nghĩa là người KHÔNG đăng
+        // nhập được — không có phiên nào để gia hạn.
+        { khongTuRefresh: true },
+      ),
+  })
+}
+
+export interface ResetPasswordInput {
+  email: string
+  code: string
+  password: string
+}
+
+export function useResetPassword() {
+  return useMutation({
+    mutationFn: (input: ResetPasswordInput) =>
+      apiFetch<{ message: string }>(
+        '/api/auth/dat-lai-mat-khau',
+        { method: 'POST', body: JSON.stringify(input) },
+        { khongTuRefresh: true },
+      ),
+  })
+}
+
 /* ------------------------------------------------------------------ OTP -- */
 
 /** Server trả `devCode` ngoài production để lập trình viên khỏi mở hộp thư. */

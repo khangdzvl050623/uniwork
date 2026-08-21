@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, Navigate, useLocation, useNavigate } from 'react-router-dom'
-import { AlertCircle, Building2, GraduationCap, Loader2 } from 'lucide-react'
+import { AlertCircle, Building2, CheckCircle2, GraduationCap, Loader2 } from 'lucide-react'
 import { loginSchema, registerSchema, type SignupRole } from '@uniwork/shared'
 import { Button } from '@/components/ui/Button'
 import { Field } from '@/components/ui/Field'
@@ -132,8 +132,21 @@ export function Login() {
     })
   }
 
+  // Thông báo do trang khác chuyển sang, ví dụ vừa đặt lại mật khẩu xong.
+  const thongBao = (location.state as { thongBao?: string } | null)?.thongBao
+
   return (
     <AuthShell title="Đăng nhập" subtitle="Chào mừng bạn quay lại UniWork">
+      {thongBao && (
+        <div
+          role="status"
+          className="animate-in fade-in mb-4 flex items-start gap-2 rounded-lg border border-brand-200 bg-brand-50 px-3 py-2.5 text-sm text-brand-800 duration-150"
+        >
+          <CheckCircle2 size={16} className="mt-0.5 shrink-0" />
+          <span>{thongBao}</span>
+        </div>
+      )}
+
       <LoiChung message={form.errors._} />
 
       <form className="space-y-4" onSubmit={guiForm} noValidate>
