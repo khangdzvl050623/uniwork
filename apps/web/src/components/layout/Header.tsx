@@ -3,21 +3,18 @@ import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { ChevronDown, Menu, X } from 'lucide-react'
 import { UserMenu } from '@/components/layout/UserMenu'
 import { useAuth, useLogout } from '@/hooks/useAuth'
-import { MENU_THEO_VAI } from '@/lib/menu-nguoi-dung'
+import { MENU_THEO_VAI, NAV_KHACH, NAV_THEO_VAI } from '@/lib/menu-nguoi-dung'
 import { cn } from '@/lib/utils'
-
-const NAV = [
-  { to: '/viec-lam', label: 'Việc làm', caret: true },
-  { to: '/lich-ranh', label: 'Lịch rảnh', caret: false },
-  { to: '/dang-ky', label: 'Hồ sơ & CV', caret: true },
-  { to: '/ntd/ung-vien', label: 'Nhà tuyển dụng', caret: true },
-]
 
 export function Header() {
   const [open, setOpen] = useState(false)
   const { status, user, daDangNhap } = useAuth()
   const logout = useLogout()
   const navigate = useNavigate()
+
+  // Chưa biết là ai (đang kiểm tra phiên) thì dùng nav của khách — giống hệt
+  // hành vi cũ, nên không sinh thêm nhấp nháy nào.
+  const nav = user ? NAV_THEO_VAI[user.role] : NAV_KHACH
 
   return (
     <header className="sticky top-0 z-40 bg-brand-900">
@@ -30,7 +27,7 @@ export function Header() {
         </Link>
 
         <nav className="hidden items-center gap-0.5 lg:flex">
-          {NAV.map((item) => (
+          {nav.map((item) => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -113,7 +110,7 @@ export function Header() {
       {open && (
         <div className="border-t border-white/10 bg-brand-900 px-4 py-3 lg:hidden">
           <nav className="flex flex-col gap-1">
-            {NAV.map((item) => (
+            {nav.map((item) => (
               <Link
                 key={item.to}
                 to={item.to}
