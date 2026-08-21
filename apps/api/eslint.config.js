@@ -9,7 +9,7 @@ export default [
     // nhờ vậy log trên Render mới lọc và tìm kiếm được. Seed thì ngược lại:
     // người đọc là bạn, đang ngồi nhìn terminal, nên console.log mới đúng —
     // gói nó vào JSON log chỉ làm khó đọc hơn.
-    files: ['prisma/**/*.ts'],
+    files: ['prisma/**/*.ts', 'scripts/**/*.ts'],
     rules: {
       'no-console': 'off',
     },

@@ -16,7 +16,8 @@
     "db:seed": "prisma db seed",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
-    "db:deploy": "prisma migrate deploy"
+    "db:deploy": "prisma migrate deploy",
+    "db:tao-admin": "tsx scripts/tao-admin.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",

@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { adminRoutes } from './modules/admin/admin.routes.js'
 import { authRoutes } from './modules/auth/auth.routes.js'
 import { healthRoutes } from './modules/health/health.routes.js'
 import { profileRoutes } from './modules/profile/profile.routes.js'
@@ -16,3 +17,4 @@ apiRouter.use('/health', healthRoutes)
 apiRouter.use('/auth', authRoutes)
 apiRouter.use('/skills', skillsRoutes)
 apiRouter.use('/toi', profileRoutes)
+apiRouter.use('/admin', adminRoutes)
