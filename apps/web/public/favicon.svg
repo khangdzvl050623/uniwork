@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="UniWork">
+  <!--
+    Favicon UniWork — bản rút gọn của icon 04-B "Schedule Match".
+    Bản đầy đủ kèm hoạt ảnh: docs/icons/schedule-match.html
+
+    ĐÂY KHÔNG PHẢI ICON GỐC THU NHỎ, và đó là chủ đích.
+
+    Trong bản gốc (viewBox 100×100), ô trùng chỉ rộng 16 đơn vị — tức 16% bề
+    ngang. Ở favicon 16px thì nó còn 2.5px, còn dấu tích bên trong thì nhỏ hơn
+    nữa. Thu nhỏ nguyên bản sẽ ra một chấm mờ không đọc được là hình gì.
+
+    Nên bản này phóng to đúng phần mang ý nghĩa — hai ô lịch chồng lệch nhau và
+    phần giao nhau phát sáng — cho chiếm trọn khung. Dấu tích bị bỏ hẳn: ở cỡ
+    này nó chỉ còn là một vệt bẩn. Hai ô chồng nhau tự nó đã nói đủ ý "khớp lịch".
+
+    Nền bo góc đặc chứ không để trong suốt: tab trình duyệt có thể sáng hoặc tối,
+    icon không nền sẽ biến mất ở một trong hai.
+  -->
+  <rect width="32" height="32" rx="7" fill="#0c4644" />
+
+  <!-- Lịch của sinh viên -->
+  <rect x="6" y="6" width="14" height="14" rx="3.5" fill="#ffffff" fill-opacity="0.24" />
+  <!-- Lịch của ca làm, lệch xuống-phải -->
+  <rect x="12" y="12" width="14" height="14" rx="3.5" fill="#ffffff" fill-opacity="0.24" />
+
+  <!-- Phần giao nhau: đúng vùng 12→20 của cả hai ô. Toạ độ tự khớp theo hình
+       học chứ không phải đặt tay, nên chỉnh vị trí hai ô là ô này vẫn đúng. -->
+  <rect x="12" y="12" width="8" height="8" rx="2.5" fill="#5eead4" />
+</svg>

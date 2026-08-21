@@ -1,5 +1,6 @@
+import { useState } from 'react'
 import { useInView } from '@/hooks/useInView'
-import { cn } from '@/lib/utils'
+import { cn, formatNumber } from '@/lib/utils'
 
 /**
  * Biểu đồ lượt ứng tuyển theo tuần: một đường vẽ dần và một hàng cột mọc lên
@@ -18,6 +19,7 @@ export function MarketChart({
   changePercent: number
 }) {
   const [ref, inView] = useInView<HTMLDivElement>({ threshold: 0.25 })
+  const [hover, setHover] = useState<number | null>(null)
 
   const weeks = weeklyApplications.length
   const rising = changePercent >= 0
@@ -82,15 +84,35 @@ export function MarketChart({
           thì bỏ qua cả bước bố cục lẫn bước vẽ nên chạy thẳng trên GPU. */}
       <div className="mt-5 flex h-24 items-end gap-1.5">
         {scaled.map((v, i) => (
-          <div key={i} className="flex-1">
+          // Vùng bắt chuột là CẢ chiều cao cột chứ không riêng phần có màu. Cột
+          // thấp mà chỉ bắt đúng phần màu thì người dùng phải nhắm vào một dải
+          // cao mấy pixel — gần như không trỏ trúng.
+          <div
+            key={i}
+            className="group relative flex h-full flex-1 items-end"
+            onPointerEnter={() => setHover(i)}
+            onPointerLeave={() => setHover(null)}
+          >
             <div
-              className="chart-bar rounded-t bg-gradient-to-t from-brand-700 to-brand-400 hover:from-accent-600 hover:to-accent-400"
+              className="chart-bar w-full rounded-t bg-gradient-to-t from-brand-700 to-brand-400 group-hover:from-accent-600 group-hover:to-accent-400"
               style={{
                 height: `${v}%`,
                 transform: inView ? 'scaleY(1)' : 'scaleY(0)',
                 transitionDelay: `${i * 45}ms`,
               }}
             />
+
+            {hover === i && (
+              <div
+                className="chart-tip pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 -translate-x-1/2 rounded-lg bg-slate-800 px-2.5 py-1.5 text-center whitespace-nowrap text-white shadow-lg ring-1 ring-white/10"
+                role="tooltip"
+              >
+                <span className="block text-[10px] text-slate-400">Tuần {i + 1}</span>
+                <strong className="block text-xs font-semibold tabular-nums">
+                  {formatNumber(weeklyApplications[i])} lượt
+                </strong>
+              </div>
+            )}
           </div>
         ))}
       </div>

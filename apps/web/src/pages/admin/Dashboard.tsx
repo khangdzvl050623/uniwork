@@ -16,11 +16,11 @@ const RANGE_LABELS: Record<StatsRange, string> = {
 
 /** Một màu cho một loại dữ liệu, không lặp giữa các biểu đồ trên cùng trang. */
 const COLORS = {
-  accent: 'var(--color-dash-accent)',
-  teal: 'var(--color-dash-teal)',
-  blue: 'var(--color-dash-blue)',
-  violet: 'var(--color-dash-violet)',
-  orange: 'var(--color-dash-orange)',
+  accent: 'var(--dash-accent)',
+  teal: 'var(--dash-teal)',
+  blue: 'var(--dash-blue)',
+  violet: 'var(--dash-violet)',
+  orange: 'var(--dash-orange)',
 }
 
 const SCHEDULE_COLORS: Record<(typeof SCHEDULE_TYPES)[number], string> = {

@@ -1,4 +1,4 @@
-import type { ScheduleType } from './domain.js'
+import type { DayOfWeek, DocumentType, ReviewStatus, Role, ScheduleType, TimeSlot, UserStatus } from './domain.js'
 
 /**
  * Hợp đồng giữa web và api.
@@ -51,6 +51,17 @@ export interface HealthResponse {
   /** Số giây process đã chạy. Reset về gần 0 nghĩa là instance vừa bị đánh thức. */
   uptime: number
   version: string
+  /**
+   * Máy chủ có cấu hình đăng nhập Google hay không.
+   *
+   * Đặt ở đây thay vì dựng một endpoint riêng vì web vốn đã gọi /api/health
+   * ngay lúc mở trang (để đánh thức Render) — nhờ vậy biết được thông tin này
+   * mà không tốn thêm một vòng mạng nào.
+   *
+   * Web dùng nó để quyết định có hiện nút "Đăng nhập bằng Google" không. Hiện
+   * một nút bấm vào là lỗi thì tệ hơn hẳn so với không hiện.
+   */
+  googleSanSang: boolean
 }
 
 /**
@@ -127,6 +138,50 @@ export interface SiteStatsResponse {
   activeStudentsThisWeek: number
 }
 
+/*
+ * ===========================================================================
+ * Auth — Sprint 1
+ * ===========================================================================
+ *
+ * Đây là hợp đồng DEV2 dựng form theo. Chốt trước khi viết service, vì phía
+ * web bị chặn cho tới khi có nó.
+ *
+ * Nguyên tắc xuyên suốt: KHÔNG bao giờ có `passwordHash`, `tokenHash`, hay
+ * refresh token trong bất kỳ kiểu nào dưới đây. Refresh token đi bằng cookie
+ * httpOnly, không đi qua body — nên nó không được phép xuất hiện ở đây, và
+ * việc nó vắng mặt chính là thứ ngăn ai đó vô tình trả nó ra.
+ */
+
+/** Người dùng đang đăng nhập, ở dạng an toàn để gửi ra ngoài. */
+export interface AuthUser {
+  id: string
+  email: string
+  role: Role
+  /** null nghĩa là chưa xác thực email. Web dùng để hiện nhắc nhở. */
+  emailVerifiedAt: string | null
+  /** Tên hiển thị: họ tên sinh viên, hoặc tên công ty. */
+  displayName: string
+}
+
+/**
+ * Trả về sau khi đăng ký, đăng nhập, hoặc refresh.
+ *
+ * `accessToken` nằm trong body để web giữ TRONG BỘ NHỚ. Không đặt nó vào
+ * cookie: cookie tự động đi kèm mọi request, kể cả request do trang khác kích
+ * hoạt — đó là cửa cho tấn công CSRF. Còn refresh token thì ngược lại, nó nằm
+ * trong cookie httpOnly để JavaScript không đọc được.
+ */
+export interface AuthTokens {
+  accessToken: string
+  /** Số giây access token còn sống, để web hẹn giờ gọi refresh trước khi hết. */
+  expiresIn: number
+  user: AuthUser
+}
+
+/** Vai trò được phép tự đăng ký. ADMIN chỉ tạo bằng seed hoặc bởi admin khác. */
+export const SIGNUP_ROLES = ['STUDENT', 'EMPLOYER'] as const
+export type SignupRole = (typeof SIGNUP_ROLES)[number]
+
 /** Khoảng thời gian cho bộ lọc của dashboard. */
 export const STATS_RANGES = ['7d', '30d', '90d', '1y'] as const
 export type StatsRange = (typeof STATS_RANGES)[number]
@@ -176,4 +231,119 @@ export interface AdminStatsResponse {
 
   /** Chỉ tiêu duyệt trong kỳ: đã làm được bao nhiêu trên mục tiêu bao nhiêu. */
   reviewGoals: { label: string; current: number; target: number }[]
+}
+
+/*
+ * ===========================================================================
+ * Hồ sơ — Sprint 1 tuần 3 (T51–T55)
+ * ===========================================================================
+ *
+ * Mọi endpoint dưới đây đều thao tác trên hồ sơ CỦA CHÍNH người gọi — không có
+ * id người khác trong tham số. Nhờ vậy "sửa hồ sơ người khác" không phải là
+ * một nhánh cần kiểm tra riêng, nó đơn giản là không tồn tại đường gọi nào để
+ * làm việc đó.
+ */
+
+/** Hồ sơ sinh viên, dùng cả cho GET /api/toi và GET /api/toi/ho-so-sinh-vien. */
+export interface StudentProfileResponse {
+  fullName: string
+  university: string | null
+  major: string | null
+  year: number | null
+  bio: string | null
+  phone: string | null
+  /** Đường dẫn Cloudinary tới CV đã tải lên. null nghĩa là chưa có (T56). */
+  cvUrl: string | null
+  expectedHourlyRate: number | null
+  skills: SkillResponse[]
+}
+
+/** Sửa trường, ngành, năm học, giới thiệu (T52). Không sửa kỹ năng hay CV ở đây. */
+export interface UpdateStudentProfileInput {
+  university?: string | null
+  major?: string | null
+  year?: number | null
+  bio?: string | null
+}
+
+/**
+ * Một giấy tờ NTD đã nộp (T57).
+ *
+ * KHÔNG có trường URL/đường dẫn file ở đây — giấy tờ lưu ở chế độ Cloudinary
+ * `authenticated` (riêng tư, khác CV công khai ở T56), nên không có địa chỉ
+ * nào xem được trực tiếp. Muốn xem phải gọi riêng
+ * `GET /api/toi/giay-to/:type/xem` để xin một signed URL sống vài phút.
+ */
+export interface EmployerDocumentResponse {
+  type: DocumentType
+  status: ReviewStatus
+  /** Lý do admin từ chối, có giá trị khi status = REJECTED. */
+  reviewNote: string | null
+  reviewedAt: string | null
+  submittedAt: string
+}
+
+/** Trả về khi xin xem một giấy tờ (T57) — URL chỉ sống trong vài phút. */
+export interface DocumentViewUrlResponse {
+  url: string
+  expiresAt: string
+}
+
+/** Hồ sơ nhà tuyển dụng, dùng cả cho GET /api/toi và GET /api/toi/ho-so-ntd. */
+export interface EmployerProfileResponse {
+  companyName: string
+  description: string | null
+  address: string | null
+  website: string | null
+  logoUrl: string | null
+  contactName: string | null
+  phone: string | null
+  /** null nghĩa là chưa được admin duyệt giấy tờ — vẫn sửa hồ sơ được, chỉ chưa đăng tin được. */
+  verifiedAt: string | null
+  /** Giấy tờ đã nộp, tối đa 3 (mỗi DocumentType một bản hiện hành). */
+  documents: EmployerDocumentResponse[]
+}
+
+/** Sửa tên công ty, mô tả, địa chỉ, website (T53). */
+export interface UpdateEmployerProfileInput {
+  companyName: string
+  description?: string | null
+  address?: string | null
+  website?: string | null
+}
+
+/** GET /api/toi (T51) — hồ sơ đầy đủ của người đang đăng nhập. */
+export interface MeResponse {
+  id: string
+  email: string
+  role: Role
+  status: UserStatus
+  emailVerifiedAt: string | null
+  displayName: string
+  createdAt: string
+  /** Có giá trị khi role = STUDENT, ngược lại null. */
+  studentProfile: StudentProfileResponse | null
+  /** Có giá trị khi role = EMPLOYER, ngược lại null. */
+  employerProfile: EmployerProfileResponse | null
+}
+
+/** PUT /api/toi/ky-nang (T54) — thay TOÀN BỘ danh sách, không phải thêm/bớt từng cái. */
+export interface UpdateSkillsInput {
+  skillIds: string[]
+}
+
+/** Một ô trong lưới 7 ngày × 3 khung giờ. */
+export interface AvailabilitySlot {
+  dayOfWeek: DayOfWeek
+  slot: TimeSlot
+}
+
+/** GET /api/toi/lich-ranh (T55). */
+export interface AvailabilityResponse {
+  slots: AvailabilitySlot[]
+}
+
+/** PUT /api/toi/lich-ranh (T55) — thay TOÀN BỘ lưới trong một lần gọi. */
+export interface UpdateAvailabilityInput {
+  slots: AvailabilitySlot[]
 }

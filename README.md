@@ -280,21 +280,50 @@ pnpm install
 cp apps/api/.env.example apps/api/.env
 cp apps/web/.env.example apps/web/.env
 
-pnpm db:up          # dựng Postgres trong Docker, cổng 5432
+# BẬT DOCKER DESKTOP TRƯỚC — không lệnh nào dưới đây tự bật nó được
+pnpm db:wait        # dựng Postgres (cổng 5433) và ĐỢI tới khi nhận kết nối
+
+pnpm --filter @uniwork/api exec prisma migrate deploy   # tạo bảng
+pnpm --filter @uniwork/api db:seed                      # nạp kỹ năng + tài khoản demo
+
 pnpm dev            # chạy cùng lúc: web :5173 · api :4000
 ```
+
+Ba dòng giữa chỉ cần chạy **lần đầu**, hoặc sau `pnpm db:reset`, hoặc khi có migration mới.
+
+**Từ lần thứ hai trở đi, mỗi ngày chỉ cần một lệnh:**
+
+```bash
+pnpm dev:local      # = db:wait rồi dev, gộp làm một
+```
+
+> Vì sao có `dev:local` thay vì bảo mọi người gõ `pnpm db:wait && pnpm dev`: **Windows PowerShell 5.1 không hiểu `&&`** — nó báo `The token '&&' is not a valid statement separator in this version`. Toán tử đó chỉ có ở PowerShell 7+, Bash và cmd. Đặt phần nối vào script thì pnpm tự chạy qua shell hiểu được `&&`, nên gõ ở PowerShell, Git Bash hay cmd đều như nhau.
 
 **Lệnh database**
 
 | Lệnh | Việc |
 |---|---|
-| `pnpm db:up` | Dựng Postgres |
+| `pnpm dev:local` | **Dùng hằng ngày.** Dựng Postgres, đợi sẵn sàng, rồi chạy web + api |
+| `pnpm db:wait` | Chỉ dựng Postgres và đợi tới khi sẵn sàng |
+| `pnpm db:up` | Dựng Postgres rồi trả về ngay, không đợi |
 | `pnpm db:down` | Dừng, **giữ nguyên dữ liệu** |
 | `pnpm db:reset` | Dừng và **xoá sạch dữ liệu**, dựng lại từ đầu |
 | `pnpm db:logs` | Xem log Postgres |
-| `pnpm cache:up` | Dựng thêm Redis (chỉ khi cần) |
+| `pnpm cache:up` | Dựng thêm Redis (chỉ khi cần — nó nằm sau `profiles: ['cache']`) |
 
-Nếu máy đã cài sẵn Postgres và cổng 5432 bị chiếm, sửa vế trái của `ports` trong `docker-compose.yml` thành cổng khác rồi đổi `DATABASE_URL` cho khớp.
+> **`db:wait` khác `db:up` chỗ nào.** `db:up` trả về ngay khi container *được tạo*, còn Postgres bên trong cần thêm vài giây mới nhận kết nối. Chạy `pnpm db:up && pnpm dev` thì API hay lên trước database và ném `Can't reach database server at localhost:5433` — nhìn như code hỏng trong khi chẳng có gì sai. `db:wait` thêm cờ `--wait`, bắt lệnh đứng chờ tới khi `healthcheck` trong `docker-compose.yml` báo xanh.
+
+**Docker Desktop chưa chạy thì mọi lệnh trên đều hỏng.** Dấu hiệu: `failed to connect to the docker API ... dockerDesktopLinuxEngine`. Bật bằng cách mở app, hoặc:
+
+```powershell
+Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+```
+
+Mất khoảng một phút mới sẵn sàng vì nó phải khởi động WSL2 trước. Bấm biểu tượng mà không thấy gì xảy ra thì thử **chuột phải → Run as administrator** — service `com.docker.service` để chế độ Manual nên cần quyền admin để khởi động.
+
+Đỡ phiền nhất là bật **Settings → General → Start Docker Desktop when you sign in**, đổi lại ~1–2GB RAM thường trú.
+
+Cổng dùng **5433** chứ không phải 5432 mặc định, vì máy dev thường đã có sẵn một bản PostgreSQL cài thẳng lên Windows chiếm 5432. Nối nhầm vào đó sẽ báo `Authentication failed` chứ không phải lỗi kết nối, nên rất dễ mất thời gian.
 
 Chạy riêng một app khi cần tập trung vào một phía:
 
@@ -315,7 +344,19 @@ pnpm --filter @uniwork/api dev
 
 > Dùng `pnpm exec turbo run lint` thay vì `pnpm lint` nếu máy bạn có cài RTK — công cụ này bắt lấy chữ `lint` rồi chạy ESLint ở thư mục gốc, nơi không có binary.
 
-**Chưa có ở bước này:** database chưa nối (Neon + Prisma nằm ở T13–T15), nên chưa có lệnh `migrate` hay `seed`. Web hiện chạy bằng dữ liệu giả trong `apps/web/src/data/mock.ts`.
+**Lệnh Prisma**
+
+| Lệnh | Việc |
+|---|---|
+| `pnpm --filter @uniwork/api exec prisma migrate deploy` | Áp migration đã có sẵn. Dùng ở CI và Render |
+| `pnpm --filter @uniwork/api exec prisma migrate dev --name mo_ta` | **Chỉ trên máy mình.** Tạo file migration mới rồi áp. Có thể hỏi reset database |
+| `pnpm --filter @uniwork/api db:seed` | Nạp danh mục kỹ năng; thêm tài khoản demo khi không phải production |
+| `pnpm --filter @uniwork/api db:studio` | Mở giao diện xem/sửa dữ liệu |
+| `pnpm --filter @uniwork/api exec prisma migrate status` | Xem database đã áp đủ migration chưa |
+
+> ⚠️ Đừng bao giờ trỏ `DATABASE_URL` sang Neon rồi chạy `migrate dev`. Khi thấy database lệch với lịch sử migration, nó **đề nghị reset** — tức là xoá sạch dữ liệu thật. `migrate deploy` thì không bao giờ xoá gì.
+
+Trên Render, `prisma migrate deploy` và `db:seed` **chạy tự động** trong `buildCommand` (xem `render.yaml`), nên deploy là migration tự áp. Nhưng file migration phải được **commit** — Render chỉ áp thứ có trong repo. Quên commit thư mục `migrations/` thì build vẫn xanh, app vẫn khởi động, rồi sập lúc truy vấn cột chưa tồn tại.
 
 **Biến môi trường**
 

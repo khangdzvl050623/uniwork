@@ -14,5 +14,8 @@
     "@uniwork/config": "workspace:*",
     "eslint": "^9.17.0",
     "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
   }
 }

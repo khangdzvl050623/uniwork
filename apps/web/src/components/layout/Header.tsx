@@ -1,6 +1,9 @@
 import { useState } from 'react'
-import { Link, NavLink } from 'react-router-dom'
-import { Briefcase, ChevronDown, Menu, X } from 'lucide-react'
+import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { ChevronDown, Menu, X } from 'lucide-react'
+import { UserMenu } from '@/components/layout/UserMenu'
+import { useAuth, useLogout } from '@/hooks/useAuth'
+import { MENU_THEO_VAI } from '@/lib/menu-nguoi-dung'
 import { cn } from '@/lib/utils'
 
 const NAV = [
@@ -12,14 +15,15 @@ const NAV = [
 
 export function Header() {
   const [open, setOpen] = useState(false)
+  const { status, user, daDangNhap } = useAuth()
+  const logout = useLogout()
+  const navigate = useNavigate()
 
   return (
     <header className="sticky top-0 z-40 bg-brand-900">
       <div className="mx-auto flex h-14 max-w-[1180px] items-center gap-6 px-4">
         <Link to="/" className="flex shrink-0 items-center gap-2">
-          <span className="grid h-8 w-8 place-items-center rounded-md bg-brand-500 text-white">
-            <Briefcase size={17} />
-          </span>
+
           <span className="text-lg font-extrabold tracking-tight text-white">
             Uni<span className="text-brand-300">Work</span>
           </span>
@@ -32,7 +36,7 @@ export function Header() {
               to={item.to}
               className={({ isActive }) =>
                 cn(
-                  'flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                  'flex items-center gap-1 rounded-md px-10 py-2 text-sm font-medium transition-colors',
                   isActive
                     ? 'bg-white/15 text-white'
                     : 'text-brand-50/90 hover:bg-white/10 hover:text-white',
@@ -46,25 +50,55 @@ export function Header() {
         </nav>
 
         <div className="ml-auto hidden items-center gap-2 lg:flex">
-          <Link
-            to="/dang-nhap"
-            className="rounded-md border border-white/40 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-white/10"
-          >
-            Đăng nhập
-          </Link>
-          <Link
-            to="/dang-ky"
-            className="rounded-md bg-white px-4 py-1.5 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-50"
-          >
-            Đăng ký
-          </Link>
-          <span className="mx-1 h-6 w-px bg-white/20" />
-          <Link
-            to="/ntd/dang-tin"
-            className="rounded-md bg-brand-500 px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-brand-400"
-          >
-            Đăng tuyển
-          </Link>
+          {daDangNhap ? (
+            <>
+              <UserMenu />
+              {/* Chỉ nhà tuyển dụng mới thấy nút đăng tuyển — sinh viên bấm vào
+                  chỉ để nhận về một trang bị chặn. */}
+              {user?.role === 'EMPLOYER' && (
+                <>
+                  <span className="mx-1 h-6 w-px bg-white/20" />
+                  <Link
+                    to="/ntd/dang-tin"
+                    className="rounded-md bg-brand-500 px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-brand-400"
+                  >
+                    Đăng tuyển
+                  </Link>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              {/* Trong lúc còn kiểm tra phiên thì giữ chỗ, KHÔNG hiện nút đăng
+                  nhập rồi lại thay bằng tên người dùng — nhấp nháy như vậy làm
+                  người dùng tưởng mình vừa bị đăng xuất. */}
+              {status === 'dang-kiem-tra' ? (
+                <div className="h-9 w-40" aria-hidden />
+              ) : (
+                <>
+                  <Link
+                    to="/dang-nhap"
+                    className="rounded-md border border-white/40 px-4 py-1.5 text-sm font-medium text-white transition-colors hover:bg-white/10"
+                  >
+                    Đăng nhập
+                  </Link>
+                  <Link
+                    to="/dang-ky"
+                    className="rounded-md bg-white px-4 py-1.5 text-sm font-semibold text-brand-700 transition-colors hover:bg-brand-50"
+                  >
+                    Đăng ký
+                  </Link>
+                  <span className="mx-1 h-6 w-px bg-white/20" />
+                  <Link
+                    to="/ntd/dang-tin"
+                    className="rounded-md bg-brand-500 px-4 py-1.5 text-sm font-semibold text-white transition-colors hover:bg-brand-400"
+                  >
+                    Đăng tuyển
+                  </Link>
+                </>
+              )}
+            </>
+          )}
         </div>
 
         <button
@@ -90,21 +124,52 @@ export function Header() {
               </Link>
             ))}
           </nav>
-          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-white/10 pt-3">
-            <Link
-              to="/dang-nhap"
-              onClick={() => setOpen(false)}
-              className="rounded-md border border-white/40 py-2 text-center text-sm font-medium text-white"
-            >
-              Đăng nhập
-            </Link>
-            <Link
-              to="/dang-ky"
-              onClick={() => setOpen(false)}
-              className="rounded-md bg-white py-2 text-center text-sm font-semibold text-brand-700"
-            >
-              Đăng ký
-            </Link>
+          <div className="mt-3 border-t border-white/10 pt-3">
+            {daDangNhap && user ? (
+              <>
+                <p className="px-3 pb-2 text-sm font-medium text-white">{user.displayName}</p>
+                <div className="flex flex-col gap-1">
+                  {MENU_THEO_VAI[user.role].map((item) => (
+                    <Link
+                      key={item.to}
+                      to={item.to}
+                      onClick={() => setOpen(false)}
+                      className="rounded-md px-3 py-2 text-sm font-medium text-brand-50/90 hover:bg-white/10"
+                    >
+                      {item.label}
+                    </Link>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpen(false)
+                      logout.mutate(undefined, { onSettled: () => navigate('/', { replace: true }) })
+                    }}
+                    disabled={logout.isPending}
+                    className="rounded-md px-3 py-2 text-left text-sm font-medium text-red-200 hover:bg-white/10 disabled:opacity-50"
+                  >
+                    {logout.isPending ? 'Đang đăng xuất…' : 'Đăng xuất'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <Link
+                  to="/dang-nhap"
+                  onClick={() => setOpen(false)}
+                  className="rounded-md border border-white/40 py-2 text-center text-sm font-medium text-white"
+                >
+                  Đăng nhập
+                </Link>
+                <Link
+                  to="/dang-ky"
+                  onClick={() => setOpen(false)}
+                  className="rounded-md bg-white py-2 text-center text-sm font-semibold text-brand-700"
+                >
+                  Đăng ký
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       )}

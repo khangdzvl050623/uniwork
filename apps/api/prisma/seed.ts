@@ -802,7 +802,8 @@ async function seedEmployers(passwordHash: string) {
       const noiDung = {
         employerProfileId: profile.id,
         type: giayTo.type,
-        fileUrl: `https://res.cloudinary.com/demo/uniwork/${giayTo.id}.jpg`,
+        cloudinaryPublicId: `demo/uniwork/documents/${giayTo.id}`,
+        fileFormat: 'jpg',
         status: giayTo.status,
         reviewNote: giayTo.reviewNote ?? null,
         reviewedAt: giayTo.status === ReviewStatus.PENDING ? null : d('2026-08-05'),
