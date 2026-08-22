@@ -493,8 +493,16 @@ export interface UpdateSkillInput {
  * so khoảng thời gian.
  */
 export interface JobShiftItem {
-  /** 0 = Chủ nhật … 6 = Thứ 7, theo `Date.prototype.getDay()`. */
-  dayOfWeek: number
+  /**
+   * 0 = Chủ nhật … 6 = Thứ 7, theo `Date.prototype.getDay()`.
+   *
+   * Dùng `DayOfWeek` (hợp của 7 số) chứ không phải `number`, đúng như
+   * `AvailabilitySlot`. Nhờ vậy một component lưới duy nhất phục vụ được cả
+   * việc khai lịch rảnh lẫn việc chọn ca làm — nếu một bên là `number` thì
+   * TypeScript coi hai kiểu là khác nhau và phải có một lớp ép kiểu ở giữa,
+   * đúng chỗ dễ lọt giá trị 7 vào mà không ai chặn.
+   */
+  dayOfWeek: DayOfWeek
   slot: TimeSlot
 }
 

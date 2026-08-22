@@ -261,11 +261,19 @@ export const updateSkillSchema = z.object({ name: tenKyNang })
  * có điểm kết thúc.
  */
 
-/** Một ô trong lưới ca làm. `dayOfWeek` khớp CHECK `job_shifts_day_of_week_check`. */
-export const jobShiftSchema = z.object({
-  dayOfWeek: z.number().int().min(0, 'Thứ không hợp lệ').max(6, 'Thứ không hợp lệ'),
-  slot: z.enum(TIME_SLOTS),
-})
+/**
+ * Một ô trong lưới ca làm. `dayOfWeek` khớp CHECK `job_shifts_day_of_week_check`.
+ *
+ * Dùng lại nguyên `availabilitySlotSchema` thay vì khai một `z.number().min(0).max(6)`
+ * riêng: hai bảng `job_shifts` và `availabilities` cố ý có cùng bộ cột, và toàn
+ * bộ tính năng lõi của UniWork dựa vào việc ghép chúng bằng một câu JOIN. Khai
+ * hai luật riêng cho cùng một khái niệm là mở đường cho chúng lệch nhau — mà
+ * lệch ở đây thì bộ lọc theo lịch rảnh im lặng bỏ sót tin, không báo lỗi gì.
+ *
+ * Kiểu suy ra cũng khớp luôn: cả hai cho ra `DayOfWeek` chứ không phải `number`,
+ * nên một component lưới duy nhất phục vụ được cả hai màn hình.
+ */
+export const jobShiftSchema = availabilitySlotSchema
 
 /**
  * Ngày nhận vào dạng chuỗi ISO rồi đổi sang `Date`.
