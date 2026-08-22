@@ -5,6 +5,7 @@ import {
   createJobController,
   getMyJobController,
   listMyJobsController,
+  updateJobController,
 } from './jobs.controller.js'
 
 /**
@@ -44,3 +45,4 @@ employerJobRoutes.post('/', taoTinLimit, createJobController)
 // Đọc thì không giới hạn nhịp — chỉ thao tác GHI mới có nguy cơ tạo rác.
 employerJobRoutes.get('/', listMyJobsController)
 employerJobRoutes.get('/:id', getMyJobController)
+employerJobRoutes.put('/:id', updateJobController)

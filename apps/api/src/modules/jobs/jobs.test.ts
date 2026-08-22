@@ -9,7 +9,7 @@ vi.mock('../../lib/prisma.js', () => ({
   prisma: {
     employerProfile: { findUnique: vi.fn() },
     skill: { count: vi.fn() },
-    job: { create: vi.fn(), findMany: vi.fn(), findUnique: vi.fn() },
+    job: { create: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
   },
 }))
 
@@ -18,6 +18,7 @@ const skillCount = prisma.skill.count as unknown as Mock
 const jobCreate = prisma.job.create as unknown as Mock
 const jobFindMany = prisma.job.findMany as unknown as Mock
 const jobFindUnique = prisma.job.findUnique as unknown as Mock
+const jobUpdate = prisma.job.update as unknown as Mock
 
 const ntdToken = signAccessToken({ sub: 'u-ntd', role: 'EMPLOYER' })
 const svToken = signAccessToken({ sub: 'u-sv', role: 'STUDENT' })
@@ -55,20 +56,32 @@ function tinHopLe(ghiDe: Record<string, unknown> = {}) {
   }
 }
 
-/** Hàng Prisma trả về sau khi tạo, đúng hình dạng `CHON_JOB`. */
+/**
+ * Hàng Prisma trả về, đúng hình dạng `CHON_JOB`.
+ *
+ * Các trường "nhạy cảm" (xem `TRUONG_BAT_DUYET_LAI`) CỐ Ý lấy thẳng từ
+ * `tinHopLe()` thay vì gõ lại. Ở T70 có những ca test khẳng định "gửi đúng dữ
+ * liệu cũ thì KHÔNG bắt duyệt lại" — nếu tin cũ và dữ liệu gửi lên gõ tay hai
+ * nơi thì chỉ cần lệch một dấu câu trong `description` là ca test đó đỏ vì lý
+ * do chẳng liên quan gì tới luật đang kiểm.
+ */
+const MAU = tinHopLe()
+
 const HANG_JOB = {
   id: 'job-1',
-  title: 'Phục vụ quán cà phê ca tối',
-  description: 'Mô tả dài đủ 50 ký tự trở lên cho qua kiểm tra của Zod nhé.',
-  requirements: ['Sinh viên năm 1 đến năm 4'],
-  benefits: ['Được đào tạo pha chế'],
-  city: 'TP.HCM',
-  district: 'Quận 1',
-  quantity: 2,
-  salaryNegotiable: false,
-  salaryMin: 25000,
-  salaryMax: 30000,
-  salaryUnit: 'HOUR' as const,
+  title: MAU.title,
+  description: MAU.description,
+  requirements: MAU.requirements,
+  benefits: MAU.benefits,
+  city: MAU.city,
+  district: MAU.district,
+  quantity: MAU.quantity,
+  salaryNegotiable: MAU.salaryNegotiable,
+  salaryMin: MAU.salaryMin,
+  salaryMax: MAU.salaryMax,
+  salaryUnit: MAU.salaryUnit,
+  shifts: MAU.shifts,
+
   scheduleType: 'RECURRING' as const,
   commitmentMonths: 3,
   minShiftsPerWeek: 3,
@@ -83,7 +96,6 @@ const HANG_JOB = {
   viewCount: 0,
   createdAt: new Date('2026-08-22'),
   updatedAt: new Date('2026-08-22'),
-  shifts: [{ dayOfWeek: 2, slot: 'EVENING' as const }],
   skills: [{ skill: { id: 'sk-1', name: 'Pha chế', slug: 'pha-che' } }],
 }
 
@@ -547,5 +559,186 @@ describe('GET /api/ntd/tin-tuyen-dung/:id — chi tiết tin của chính mình'
 
     expect(res.status).toBe(403)
     expect(jobFindUnique).not.toHaveBeenCalled()
+  })
+})
+
+/* ------------------------------------------------------------------ T70 -- */
+
+/** Gửi request sửa tin. Mặc định tin cũ là bản OPEN đã duyệt. */
+function guiSuaTin(body: object, tinCu: Record<string, unknown> = {}, token = ntdToken) {
+  jobFindUnique.mockResolvedValue({
+    ...HANG_JOB,
+    employerProfileId: 'ep-1',
+    status: 'OPEN',
+    ...tinCu,
+  })
+  jobUpdate.mockResolvedValue({ ...HANG_JOB, ...tinCu })
+
+  return request(createApp())
+    .put('/api/ntd/tin-tuyen-dung/job-1')
+    .set('Authorization', `Bearer ${token}`)
+    .send(body)
+}
+
+/** Đọc `status` trong `data` gửi xuống Prisma. `undefined` = cố ý không đổi. */
+function statusDaGhi(): unknown {
+  return (jobUpdate.mock.calls[0][0].data as Record<string, unknown>).status
+}
+
+describe('PUT /api/ntd/tin-tuyen-dung/:id — sửa tin', () => {
+  it('sửa được tin của mình', async () => {
+    const res = await guiSuaTin(tinHopLe())
+    expect(res.status).toBe(200)
+    expect(jobUpdate).toHaveBeenCalled()
+  })
+
+  it('sửa tin của NTD khác thì 403', async () => {
+    const res = await guiSuaTin(tinHopLe(), { employerProfileId: 'ep-KHAC' })
+
+    expect(res.status).toBe(403)
+    expect(jobUpdate).not.toHaveBeenCalled()
+  })
+
+  it('sinh viên không sửa được', async () => {
+    const res = await guiSuaTin(tinHopLe(), {}, svToken)
+
+    expect(res.status).toBe(403)
+    expect(jobUpdate).not.toHaveBeenCalled()
+  })
+
+  it('luật lịch và lương vẫn áp dụng y hệt lúc tạo', async () => {
+    // Dùng chung `baseJobSchema` nên không thể lệch — test này khoá điều đó lại.
+    const res = await guiSuaTin(tinHopLe({ endDate: saoNgay(60) }))
+
+    expect(res.status).toBe(400)
+    expect(res.body.error.details).toHaveProperty('endDate')
+    expect(jobUpdate).not.toHaveBeenCalled()
+  })
+
+  it('thay TOÀN BỘ ca làm và kỹ năng, không tính phần thêm/bớt', async () => {
+    await guiSuaTin(tinHopLe({ shifts: [{ dayOfWeek: 6, slot: 'MORNING' }] }))
+
+    const data = jobUpdate.mock.calls[0][0].data as {
+      shifts: { deleteMany: unknown; create: unknown[] }
+      skills: { deleteMany: unknown; create: unknown[] }
+    }
+    // `deleteMany` + `create` lồng trong cùng một `update` được Prisma bọc chung
+    // một transaction — không có khoảnh khắc nào tin tồn tại mà không có ca làm.
+    expect(data.shifts.deleteMany).toEqual({})
+    expect(data.shifts.create).toEqual([{ dayOfWeek: 6, slot: 'MORNING' }])
+    expect(data.skills.deleteMany).toEqual({})
+  })
+})
+
+describe('T70 — tin CLOSED không sửa được', () => {
+  it('trả 409 kèm gợi ý đăng tin mới', async () => {
+    /*
+     * Cho sửa rồi đẩy về PENDING là hồi sinh một tin đã đóng, trong khi đơn ứng
+     * tuyển cũ vẫn trỏ vào đúng tin đó — ứng viên bị từ chối đợt trước bỗng thấy
+     * mình đang có đơn ở một tin "đang mở" với nội dung khác hẳn thứ họ đã nộp.
+     */
+    const res = await guiSuaTin(tinHopLe(), { status: 'CLOSED' })
+
+    expect(res.status).toBe(409)
+    expect(res.body.error.code).toBe('CONFLICT')
+    expect(res.body.error.message).toContain('đăng một tin mới')
+    expect(jobUpdate).not.toHaveBeenCalled()
+  })
+
+  it('DRAFT và PENDING thì vẫn sửa được bình thường', async () => {
+    // Hai trạng thái này chưa có ứng viên nào và vốn đang trong quá trình soạn.
+    for (const status of ['DRAFT', 'PENDING'] as const) {
+      vi.clearAllMocks()
+      ntdFindUnique.mockResolvedValue({ id: 'ep-1', verifiedAt: new Date() })
+      skillCount.mockResolvedValue(1)
+
+      const res = await guiSuaTin(tinHopLe(), { status })
+      expect(res.status).toBe(200)
+    }
+  })
+})
+
+/*
+ * Danh sách trường bắt duyệt lại, chốt trong BRD:
+ *   title · description · salaryMin · salaryMax · salaryNegotiable · salaryUnit
+ *   · city · district · ca làm · quantity
+ * KHÔNG bắt: benefits · requirements · skills
+ */
+describe('T70 — sửa gì thì tin quay về PENDING', () => {
+  it('đổi mô tả trên tin OPEN thì về PENDING', async () => {
+    /*
+     * `description` là trường DEV1 thêm vào so với đề xuất gốc của BA. Tin lừa
+     * đảo không đổi lương — nó đổi mô tả sau khi đã qua duyệt bằng một tin sạch.
+     */
+    await guiSuaTin(tinHopLe({ description: 'x'.repeat(60) }))
+    expect(statusDaGhi()).toBe('PENDING')
+  })
+
+  it('đổi lương trên tin OPEN thì về PENDING', async () => {
+    await guiSuaTin(tinHopLe({ salaryMin: 50000, salaryMax: 60000 }))
+    expect(statusDaGhi()).toBe('PENDING')
+  })
+
+  it('đổi ĐƠN VỊ lương thì cũng về PENDING', async () => {
+    // BRD quên trường này. Giữ nguyên hai con số mà đổi HOUR sang MONTH là biến
+    // "25.000–30.000 mỗi giờ" thành "mỗi tháng" — cùng kiểu đánh tráo mà ba
+    // trường lương kia đang được canh để chặn.
+    await guiSuaTin(tinHopLe({ salaryUnit: 'MONTH' }))
+    expect(statusDaGhi()).toBe('PENDING')
+  })
+
+  it('đổi ca làm thì về PENDING', async () => {
+    await guiSuaTin(tinHopLe({ shifts: [{ dayOfWeek: 0, slot: 'MORNING' }] }))
+    expect(statusDaGhi()).toBe('PENDING')
+  })
+
+  it('đổi địa điểm và số lượng thì về PENDING', async () => {
+    await guiSuaTin(tinHopLe({ district: 'Quận 3', quantity: 10 }))
+    expect(statusDaGhi()).toBe('PENDING')
+  })
+
+  it('CHỈ đổi benefits/requirements/skills thì GIỮ NGUYÊN OPEN', async () => {
+    // Phần bổ sung chi tiết, rủi ro thấp. Bắt duyệt lại chỉ làm nghẽn hàng đợi
+    // của admin mà không chặn thêm được tin xấu nào.
+    await guiSuaTin(
+      tinHopLe({
+        benefits: ['Thưởng cuối tháng', 'Bao ăn ca'],
+        requirements: ['Chăm chỉ'],
+        skillIds: [],
+      }),
+    )
+    expect(statusDaGhi()).toBeUndefined()
+  })
+
+  it('đảo THỨ TỰ ca làm không tính là đổi', async () => {
+    // So sánh theo tập hợp, không theo thứ tự. Thiếu bước này thì kéo thả lại
+    // lưới ca làm mà không đổi gì cũng đẩy tin về hàng đợi duyệt.
+    await guiSuaTin(
+      tinHopLe({
+        shifts: [
+          { dayOfWeek: 4, slot: 'EVENING' },
+          { dayOfWeek: 2, slot: 'EVENING' },
+        ],
+      }),
+      { shifts: [
+        { dayOfWeek: 2, slot: 'EVENING' },
+        { dayOfWeek: 4, slot: 'EVENING' },
+      ] },
+    )
+    expect(statusDaGhi()).toBeUndefined()
+  })
+
+  it('tin DRAFT đổi lương vẫn ở DRAFT — không có gì để duyệt lại', async () => {
+    await guiSuaTin(tinHopLe({ salaryMin: 99000, salaryMax: 99000 }), { status: 'DRAFT' })
+    expect(statusDaGhi()).toBeUndefined()
+  })
+
+  it('giữ nguyên rejectionReason khi sửa — xoá ở bước gửi duyệt mới đúng lúc', async () => {
+    // NTD đang sửa dở theo lý do bị từ chối; xoá ngay lúc lưu là lấy mất tờ ghi
+    // chú khỏi tay họ giữa chừng.
+    await guiSuaTin(tinHopLe(), { status: 'DRAFT', rejectionReason: 'Ảnh mờ' })
+
+    const data = jobUpdate.mock.calls[0][0].data as Record<string, unknown>
+    expect(data).not.toHaveProperty('rejectionReason')
   })
 })

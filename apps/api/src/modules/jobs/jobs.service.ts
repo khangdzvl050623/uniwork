@@ -1,7 +1,12 @@
 import type { Prisma } from '@prisma/client'
-import type { CreateJobData, EmployerJobResponse } from '@uniwork/shared'
+import type {
+  CreateJobData,
+  EmployerJobResponse,
+  JobShiftItem,
+  UpdateJobData,
+} from '@uniwork/shared'
 import { prisma } from '../../lib/prisma.js'
-import { badRequest, forbidden, notFound } from '../../lib/errors.js'
+import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js'
 
 /**
  * Nghiệp vụ tin tuyển dụng.
@@ -166,6 +171,162 @@ export async function listMyJobs(userId: string): Promise<EmployerJobResponse[]>
 /** Chi tiết một tin của chính mình. */
 export async function getMyJob(userId: string, jobId: string): Promise<EmployerJobResponse> {
   const { job } = await layTinCuaToi(userId, jobId)
+  return toEmployerJobResponse(job)
+}
+
+/**
+ * Sửa các trường này thì tin phải được duyệt lại.
+ *
+ * ---------------------------------------------------------------------------
+ * VÌ SAO `description` NẰM TRONG DANH SÁCH
+ * ---------------------------------------------------------------------------
+ * BA đề xuất ban đầu chỉ bắt duyệt lại khi sửa lương, địa điểm, ca làm — bỏ mô
+ * tả ra cho nhẹ tải admin. Mục tiêu đúng, nhưng danh sách đó thiếu đúng chỗ
+ * nguy hiểm nhất: tin lừa đảo KHÔNG đổi lương, nó đổi MÔ TẢ. Đăng "Nhân viên
+ * văn phòng 30k/giờ" cho qua duyệt, rồi sửa mô tả thành "đóng 500k phí đồng
+ * phục trước khi nhận việc". Bỏ `description` ra là mở đúng cánh cửa mà khâu
+ * duyệt sinh ra để đóng.
+ *
+ * ---------------------------------------------------------------------------
+ * VÌ SAO CÓ THÊM `salaryUnit` — điểm bổ sung so với danh sách trong BRD
+ * ---------------------------------------------------------------------------
+ * BRD liệt kê `salaryMin`/`salaryMax`/`salaryNegotiable` nhưng quên `salaryUnit`.
+ * Đây là thiếu sót chứ không phải quyết định: giữ nguyên hai con số mà đổi đơn
+ * vị từ `HOUR` sang `MONTH` là biến "25.000–30.000 mỗi giờ" thành "mỗi tháng"
+ * — cùng một kiểu đánh tráo mà ba trường kia đang được canh để chặn.
+ *
+ * `benefits`, `requirements`, `skills` cố ý KHÔNG nằm đây: phần bổ sung chi
+ * tiết, rủi ro thấp, bắt duyệt lại chỉ làm nghẽn hàng đợi của admin.
+ */
+const TRUONG_BAT_DUYET_LAI = [
+  'title',
+  'description',
+  'city',
+  'district',
+  'quantity',
+  'salaryNegotiable',
+  'salaryMin',
+  'salaryMax',
+  'salaryUnit',
+] as const
+
+/** So hai tập ca làm bất kể thứ tự — `[T2 tối, T4 tối]` và `[T4 tối, T2 tối]` là một. */
+function caLamGiongNhau(cu: { dayOfWeek: number; slot: string }[], moi: JobShiftItem[]): boolean {
+  if (cu.length !== moi.length) return false
+
+  const khoa = (s: { dayOfWeek: number; slot: string }) => `${s.dayOfWeek}-${s.slot}`
+  const tapCu = new Set(cu.map(khoa))
+  return moi.every((s) => tapCu.has(khoa(s)))
+}
+
+/** Có trường nhạy cảm nào đổi giá trị không. */
+function coDoiTruongNhayCam(cu: HangJob, moi: UpdateJobData): boolean {
+  const doiTruongThuong = TRUONG_BAT_DUYET_LAI.some((truong) => {
+    // Chuẩn hoá undefined về null: client bỏ trống một ô có thể gửi undefined,
+    // trong khi database lưu null. Không chuẩn hoá thì hai giá trị "cùng nghĩa
+    // là không có" lại bị coi là khác nhau và bắt duyệt lại oan.
+    const giaTriCu = cu[truong] ?? null
+    const giaTriMoi = moi[truong] ?? null
+    return giaTriCu !== giaTriMoi
+  })
+
+  return doiTruongThuong || !caLamGiongNhau(cu.shifts, moi.shifts)
+}
+
+/**
+ * Sửa một tin. Thay TOÀN BỘ nội dung, kể cả ca làm và kỹ năng.
+ *
+ * ---------------------------------------------------------------------------
+ * TIN ĐÃ `CLOSED` THÌ KHÔNG SỬA ĐƯỢC
+ * ---------------------------------------------------------------------------
+ * `CLOSED` nghĩa là tin đã kết thúc — tuyển đủ người hoặc hết hạn. Cho sửa rồi
+ * đẩy về `PENDING` là hồi sinh một tin đã đóng, trong khi các đơn ứng tuyển cũ
+ * vẫn trỏ vào đúng tin đó: ứng viên bị từ chối ở đợt trước bỗng thấy mình đang
+ * có đơn ở một tin "đang mở" với nội dung và mức lương khác hẳn thứ họ từng
+ * nộp. Muốn tuyển tiếp thì đăng tin mới — hai đợt tách bạch, lịch sử mỗi đợt
+ * vẫn đọc được.
+ *
+ * Không áp dụng cho `DRAFT` và `PENDING`: hai trạng thái đó chưa có ứng viên
+ * nào và vốn dĩ đang trong quá trình soạn thảo.
+ *
+ * ---------------------------------------------------------------------------
+ * KHI NÀO QUAY VỀ `PENDING`
+ * ---------------------------------------------------------------------------
+ * Chỉ khi tin ĐANG `OPEN` và có trường nhạy cảm đổi. Tin `DRAFT` hay `PENDING`
+ * thì không có gì để "duyệt lại" — nó vốn chưa công khai.
+ *
+ * Giữ nguyên `rejectionReason` ở bước này, cố ý: nhà tuyển dụng đang sửa dở
+ * theo lý do bị từ chối, xoá nó ngay lúc lưu là lấy mất tờ ghi chú khỏi tay họ
+ * giữa chừng. Xoá ở bước gửi duyệt lại (T72) mới đúng lúc.
+ */
+export async function updateJob(
+  userId: string,
+  jobId: string,
+  input: UpdateJobData,
+): Promise<EmployerJobResponse> {
+  const { job: cu } = await layTinCuaToi(userId, jobId)
+
+  if (cu.status === 'CLOSED') {
+    throw conflict(
+      'Tin đã đóng thì không sửa được nữa. Hãy đăng một tin mới nếu muốn tuyển tiếp.',
+    )
+  }
+
+  await kiemSkillIds(input.skillIds)
+
+  const quayVePending = cu.status === 'OPEN' && coDoiTruongNhayCam(cu, input)
+
+  const job = await prisma.job.update({
+    where: { id: jobId },
+    data: {
+      title: input.title,
+      description: input.description,
+      requirements: input.requirements,
+      benefits: input.benefits,
+
+      city: input.city,
+      district: input.district,
+      quantity: input.quantity,
+
+      salaryNegotiable: input.salaryNegotiable,
+      salaryMin: input.salaryNegotiable ? null : (input.salaryMin ?? null),
+      salaryMax: input.salaryNegotiable ? null : (input.salaryMax ?? null),
+      salaryUnit: input.salaryUnit,
+
+      scheduleType: input.scheduleType,
+      commitmentMonths: input.commitmentMonths ?? null,
+      minShiftsPerWeek: input.minShiftsPerWeek ?? null,
+      startDate: input.startDate ?? null,
+      endDate: input.endDate ?? null,
+      workDate: input.workDate ?? null,
+
+      deadline: input.deadline,
+
+      // `status` chỉ xuất hiện trong `data` khi thật sự cần đổi. Ghi
+      // `status: cu.status` cũng chạy, nhưng khi đó không đọc được từ code là
+      // "trường hợp nào thì đổi".
+      ...(quayVePending ? { status: 'PENDING' as const } : {}),
+
+      /*
+       * Xoá sạch rồi ghi lại, không cố tính phần thêm/bớt.
+       *
+       * `deleteMany` + `create` lồng trong cùng một `update` được Prisma bọc
+       * chung một transaction, nên không có khoảnh khắc nào tin tồn tại mà
+       * không có ca làm. Tính diff thủ công vừa dài vừa dễ sai, mà số hàng ở
+       * đây tối đa là 21 ca và 15 kỹ năng.
+       */
+      shifts: {
+        deleteMany: {},
+        create: input.shifts.map((s) => ({ dayOfWeek: s.dayOfWeek, slot: s.slot })),
+      },
+      skills: {
+        deleteMany: {},
+        create: input.skillIds.map((skillId) => ({ skillId })),
+      },
+    },
+    select: CHON_JOB,
+  })
+
   return toEmployerJobResponse(job)
 }
 

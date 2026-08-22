@@ -1,6 +1,6 @@
 import type { Request, RequestHandler } from 'express'
 import { z } from 'zod'
-import { createJobSchema } from '@uniwork/shared'
+import { createJobSchema, updateJobSchema } from '@uniwork/shared'
 import { ok } from '../../lib/respond.js'
 import { badRequest, unauthorized } from '../../lib/errors.js'
 import * as jobsService from './jobs.service.js'
@@ -39,4 +39,11 @@ export const getMyJobController: RequestHandler = async (req, res) => {
   const userId = requireUserId(req)
   const { id } = parse(thamSoId, req.params)
   ok(res, await jobsService.getMyJob(userId, id))
+}
+
+export const updateJobController: RequestHandler = async (req, res) => {
+  const userId = requireUserId(req)
+  const { id } = parse(thamSoId, req.params)
+  const input = parse(updateJobSchema, req.body)
+  ok(res, await jobsService.updateJob(userId, id, input))
 }

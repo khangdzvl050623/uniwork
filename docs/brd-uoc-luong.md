@@ -97,6 +97,18 @@ DRAFT → (gửi duyệt) → PENDING → (admin duyệt)  → OPEN → (hết h
 | Không chọn ca làm nào | 422 — thiếu ca thì tin không lọc theo lịch được, mất luôn tính năng lõi |
 | `deadline` trong quá khứ | 422 |
 | Sửa tin đang `OPEN` | Quay lại `PENDING`, phải duyệt lại |
+| **Sửa tin đã `CLOSED`** | **409 — không cho sửa, gợi ý đăng tin mới** (bổ sung khi làm T70, xem lý do bên dưới) |
+| Sửa tin của nhà tuyển dụng khác | 403 — kiểm chủ sở hữu, không chỉ kiểm vai trò |
+
+#### Vì sao chặn sửa tin `CLOSED`
+
+BRD gốc không nhắc trạng thái này. Chốt khi làm T70:
+
+`CLOSED` nghĩa là tin đã kết thúc — tuyển đủ người hoặc hết hạn. Cho sửa nó rồi đẩy về `PENDING` là **hồi sinh một tin đã đóng**, trong khi các đơn ứng tuyển cũ vẫn trỏ vào đúng tin đó. Ứng viên đã bị từ chối ở đợt tuyển trước bỗng thấy mình đang có đơn ở một tin "đang mở" với nội dung và mức lương khác hẳn thứ họ từng nộp.
+
+Muốn tuyển tiếp thì đăng tin mới: đơn của đợt cũ và đợt mới tách bạch, và lịch sử của mỗi đợt vẫn đọc được.
+
+Không áp dụng cho `DRAFT` và `PENDING` — hai trạng thái đó chưa có ứng viên nào và vốn dĩ đang trong quá trình soạn thảo.
 
 ---
 
