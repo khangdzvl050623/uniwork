@@ -95,10 +95,18 @@ export function useUploadCv(onProgress?: (phanTram: number) => void) {
 
 /* ------------------------------------------------------------ lịch rảnh -- */
 
-export function useAvailability() {
+/**
+ * Lịch rảnh của sinh viên đang đăng nhập.
+ *
+ * `enabled` để trang chi tiết tin tắt truy vấn khi người xem KHÔNG phải sinh
+ * viên: endpoint đòi vai STUDENT, gọi vào từ tài khoản nhà tuyển dụng chỉ nhận
+ * 403 rồi hiện lỗi cho một thứ chẳng liên quan gì tới họ.
+ */
+export function useAvailability(options?: { enabled?: boolean }) {
   return useQuery({
     queryKey: ['lich-ranh'],
     queryFn: () => apiFetch<AvailabilityResponse>('/api/toi/lich-ranh'),
+    enabled: options?.enabled ?? true,
   })
 }
 

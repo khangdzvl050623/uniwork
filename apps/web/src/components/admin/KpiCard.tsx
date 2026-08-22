@@ -21,19 +21,35 @@ export function KpiCard({
   color,
   /** Đảo ý nghĩa của dấu: với "tin chờ duyệt" thì tăng là tin xấu. */
   invertTone = false,
+  hint,
 }: {
   label: string
-  metric: KpiMetric
+  /**
+   * `changePercent` và `series` là TUỲ CHỌN.
+   *
+   * Không phải để tiện: có những con số chỉ tồn tại ở dạng tổng, chưa có lịch
+   * sử theo ngày để mà vẽ xu hướng (số tin đang mở của một nhà tuyển dụng, tổng
+   * lượt xem). Bắt buộc hai trường đó thì chỗ gọi buộc phải bịa ra một mảng và
+   * một phần trăm — và một mũi tên xanh "↑18%" bịa đặt nằm cạnh con số thật sẽ
+   * làm chính con số thật mất đáng tin.
+   *
+   * Thiếu thì ô chỉ hiện con số. Ít thông tin hơn, nhưng mọi thứ hiện ra đều
+   * đúng.
+   */
+  metric: Pick<KpiMetric, 'value'> & Partial<KpiMetric>
   icon: LucideIcon
   color: string
   invertTone?: boolean
+  /** Dòng chú thích nhỏ thay cho phần xu hướng, khi không có dữ liệu so sánh. */
+  hint?: string
 }) {
   const seen = useRef(false)
   const duration = seen.current ? 300 : 900
   seen.current = true
 
   const value = useTween(metric.value, duration)
-  const rising = metric.changePercent >= 0
+  const coXuHuong = metric.changePercent !== undefined
+  const rising = (metric.changePercent ?? 0) >= 0
   const good = invertTone ? !rising : rising
 
   return (
@@ -61,21 +77,29 @@ export function KpiCard({
       </div>
 
       <div className="mt-2.5 flex items-center gap-1.5 text-xs">
-        <span
-          className={cn(
-            'flex items-center gap-0.5 font-semibold',
-            good ? 'text-dash-ok' : 'text-dash-bad',
-          )}
-        >
-          {rising ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
-          {Math.abs(metric.changePercent)}%
-        </span>
-        <span className="text-dash-muted">so với kỳ trước</span>
+        {coXuHuong ? (
+          <>
+            <span
+              className={cn(
+                'flex items-center gap-0.5 font-semibold',
+                good ? 'text-dash-ok' : 'text-dash-bad',
+              )}
+            >
+              {rising ? <ArrowUpRight size={13} /> : <ArrowDownRight size={13} />}
+              {Math.abs(metric.changePercent ?? 0)}%
+            </span>
+            <span className="text-dash-muted">so với kỳ trước</span>
+          </>
+        ) : (
+          <span className="text-dash-muted">{hint ?? ' '}</span>
+        )}
       </div>
 
-      <div className="mt-4">
-        <Sparkline values={metric.series} color={color} />
-      </div>
+      {metric.series && (
+        <div className="mt-4">
+          <Sparkline values={metric.series} color={color} />
+        </div>
+      )}
     </div>
   )
 }

@@ -8,10 +8,15 @@ import { ApiClientError } from '@/lib/api'
  * ---------------------------------------------------------------------------
  * VÌ SAO TỰ VIẾT THAY VÌ CÀI react-hook-form
  * ---------------------------------------------------------------------------
- * Toàn bộ form của dự án này đều là form phẳng dưới mười ô nhập, không có mảng
- * lồng nhau hay trường động. Phần react-hook-form giỏi nhất — tránh render lại
- * ở form hàng trăm ô — không có chỗ dùng, nên nó chỉ còn là một phụ thuộc nữa
- * phải học và phải nâng cấp.
+ * Form của dự án này đều dưới hai mươi ô nhập. Phần react-hook-form giỏi nhất —
+ * tránh render lại ở form hàng trăm ô — không có chỗ dùng, nên nó chỉ còn là
+ * một phụ thuộc nữa phải học và phải nâng cấp.
+ *
+ * Form đăng tin (T73) có vài trường dạng mảng (`shifts`, `skillIds`). Chúng vẫn
+ * chạy được ở đây vì hook coi mỗi trường là một giá trị bất kỳ: component tự
+ * dựng mảng mới rồi gọi `setValue`. Lỗi thì gom theo `issue.path[0]`, nên cả
+ * mảng nhận chung một dòng lỗi — đủ cho "chọn ít nhất một ca làm", nhưng nếu
+ * sau này cần chỉ đích danh phần tử thứ ba sai chỗ nào thì mới phải nghĩ lại.
  *
  * ---------------------------------------------------------------------------
  * VÌ SAO CHỈ BÁO LỖI SAU LẦN GỬI ĐẦU TIÊN
@@ -67,10 +72,10 @@ export interface UseZodFormResult<TValues> {
   validate: () => unknown | null
   /** Gắn lỗi từ server (`details`) vào đúng ô nhập. */
   applyServerError: (error: unknown) => void
-  reset: () => void
+  reset: (giaTriMoi?: TValues) => void
 }
 
-export function useZodForm<TValues extends Record<string, unknown>>(
+export function useZodForm<TValues extends object>(
   schema: z.ZodType,
   initialValues: TValues,
 ): UseZodFormResult<TValues> {
@@ -137,8 +142,16 @@ export function useZodForm<TValues extends Record<string, unknown>>(
     setErrors({ _: error.message })
   }, [])
 
-  const reset = useCallback(() => {
-    setValues(initialValues)
+  /**
+   * Về trạng thái sạch. Truyền `giaTriMoi` để nạp một bộ dữ liệu khác.
+   *
+   * Tham số đó sinh ra cho form dùng chung cho tạo và sửa: lúc tải xong tin cũ
+   * phải đổ toàn bộ mười lăm ô một lượt. Gán lẻ bằng `setValue` sẽ chạy qua
+   * nhánh kiểm lỗi mười lăm lần và làm form hiện lỗi cho dữ liệu người dùng
+   * chưa hề chạm vào.
+   */
+  const reset = useCallback((giaTriMoi?: TValues) => {
+    setValues(giaTriMoi ?? initialValues)
     setErrors({})
     setDaGuiMotLan(false)
     // initialValues là object dựng tại chỗ ở hầu hết chỗ gọi, nên đưa vào deps

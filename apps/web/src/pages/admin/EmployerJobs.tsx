@@ -1,9 +1,15 @@
 import { useMemo, useState } from 'react'
-import { Eye, FileText, Send, UserCheck } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
+import { Eye, FileText, Loader2, Send, Trash2, XCircle } from 'lucide-react'
+import {
+  JOB_STATUS_LABELS,
+  SCHEDULE_TYPE_LABELS,
+  type EmployerJobResponse,
+  type JobStatus,
+} from '@uniwork/shared'
 import { StatusBadge } from '@/components/admin/Charts'
 import { KpiCard } from '@/components/admin/KpiCard'
 import {
-  Avatar,
   EmptyRow,
   FilterChips,
   PageHeader,
@@ -14,119 +20,156 @@ import {
   Toolbar,
 } from '@/components/admin/Table'
 import {
-  APPLICATION_STATUS_LABELS,
-  EMPLOYER_APPLICANTS,
-  EMPLOYER_JOBS,
-  JOB_STATUS_LABELS,
-  type ApplicationStatus,
-  type EmployerJob,
-} from '@/data/adminMock'
-import { SCHEDULE_TYPE_LABELS } from '@/data/mock'
-import { cn } from '@/lib/utils'
+  useCloseJob,
+  useDeleteJob,
+  useMyJobs,
+  useSubmitJob,
+} from '@/hooks/useEmployerJobs'
+import { useMe } from '@/hooks/useProfile'
+import { ApiClientError } from '@/lib/api'
 
-const JOB_STATUS_TONE: Record<EmployerJob['status'], 'ok' | 'wait' | 'bad'> = {
+const JOB_STATUS_TONE: Record<JobStatus, 'ok' | 'wait' | 'bad'> = {
   OPEN: 'ok',
   PENDING: 'wait',
   DRAFT: 'wait',
   CLOSED: 'bad',
 }
 
-const APPLICATION_TONE: Record<ApplicationStatus, 'ok' | 'wait' | 'bad'> = {
-  SUBMITTED: 'wait',
-  REVIEWING: 'wait',
-  ACCEPTED: 'ok',
-  REJECTED: 'bad',
-}
-
 type Tab = 'jobs' | 'applicants'
 
 /**
- * Trang quản lý của nhà tuyển dụng.
+ * Trang quản lý của nhà tuyển dụng (T74).
  *
  * Dùng chung khung và bảng màu với khu admin vì đây cũng là màn hình làm việc —
  * NTD vào đây để xử lý danh sách, không phải để bị thuyết phục. Khác admin ở
- * phạm vi: NTD chỉ thấy tin và ứng viên của chính mình.
+ * phạm vi: NTD chỉ thấy tin của chính mình (server đã lọc theo
+ * `employerProfileId`, không phải phía web tự lọc).
  *
- * Số ở các ô KPI cộng từ chính mảng tin bên dưới chứ không ghi cứng riêng. Nhờ
- * vậy không bao giờ có chuyện ô KPI nói một đằng, bảng nói một nẻo — lỗi rất
- * hay gặp ở dashboard khi hai chỗ lấy số từ hai nguồn khác nhau.
+ * ---------------------------------------------------------------------------
+ * VÌ SAO CHỈ CÒN HAI Ô KPI
+ * ---------------------------------------------------------------------------
+ * Bản dựng trước có bốn ô, ba trong bốn là số bịa: "lượt ứng tuyển" và "ứng
+ * viên mới" thuộc Sprint 4 nên chưa có dữ liệu, còn `changePercent` và chuỗi
+ * sparkline thì ghi cứng trong mã ở CẢ BỐN ô. Một mũi tên xanh "↑18%" bịa đặt
+ * nằm cạnh con số thật làm chính con số thật mất đáng tin.
+ *
+ * Giữ lại đúng hai thứ đếm được từ dữ liệu thật, bỏ mũi tên và sparkline. Ít
+ * thông tin hơn, nhưng mọi thứ hiện ra đều đúng. Thêm lại khi có dữ liệu.
  */
 export function EmployerDashboard() {
+  const navigate = useNavigate()
+  const { data, isLoading } = useMyJobs()
+  const { data: toi } = useMe()
+
+  const xoa = useDeleteJob()
+  const dongTin = useCloseJob()
+  const guiDuyet = useSubmitJob()
+
   const [tab, setTab] = useState<Tab>('jobs')
   const [query, setQuery] = useState('')
 
-  const totals = useMemo(() => {
-    const open = EMPLOYER_JOBS.filter((j) => j.status === 'OPEN')
-    return {
-      open: open.length,
-      views: EMPLOYER_JOBS.reduce((sum, j) => sum + j.views, 0),
-      applications: EMPLOYER_JOBS.reduce((sum, j) => sum + j.applications, 0),
-      newApplicants: EMPLOYER_APPLICANTS.filter((a) => a.status === 'SUBMITTED').length,
-    }
-  }, [])
+  /** id tin đang có thao tác chạy dở — khoá nút của đúng hàng đó, không khoá cả bảng. */
+  const [dangXuLy, setDangXuLy] = useState<string | null>(null)
+  const [loi, setLoi] = useState<string | null>(null)
 
-  const jobRows = EMPLOYER_JOBS.filter((j) => j.title.toLowerCase().includes(query.toLowerCase()))
-  const applicantRows = EMPLOYER_APPLICANTS.filter((a) =>
-    `${a.name} ${a.school} ${a.jobTitle}`.toLowerCase().includes(query.toLowerCase()),
+  const jobs = useMemo(() => data?.jobs ?? [], [data])
+
+  const tong = useMemo(
+    () => ({
+      dangMo: jobs.filter((j) => j.status === 'OPEN').length,
+      luotXem: jobs.reduce((s, j) => s + j.viewCount, 0),
+    }),
+    [jobs],
   )
+
+  const rows = jobs.filter((j) => j.title.toLowerCase().includes(query.toLowerCase()))
+
+  /** Gọi một thao tác trên tin, khoá đúng hàng đó và hiện lỗi server nguyên văn. */
+  async function chay(jobId: string, viec: () => Promise<unknown>) {
+    setLoi(null)
+    setDangXuLy(jobId)
+    try {
+      await viec()
+    } catch (err) {
+      // Server đã soạn sẵn câu tiếng Việt nói rõ vướng ở đâu ("Tin đang hiển thị
+      // công khai thì không xoá được…"). Viết lại một câu chung chung là vứt đi
+      // đúng phần thông tin hữu ích nhất.
+      if (err instanceof ApiClientError) setLoi(err.message)
+    } finally {
+      setDangXuLy(null)
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="flex min-h-[40vh] items-center justify-center">
+        <Loader2 size={26} className="text-dash-muted animate-spin" />
+      </div>
+    )
+  }
+
+  const ntd = toi?.employerProfile
 
   return (
     <div className="space-y-5">
       <PageHeader
         title="Tin đăng của tôi"
-        subtitle="The Corner Coffee · đã xác minh giấy tờ"
+        subtitle={
+          ntd
+            ? `${ntd.companyName} · ${ntd.verifiedAt ? 'đã xác minh giấy tờ' : 'chưa xác minh giấy tờ'}`
+            : 'Đang tải hồ sơ doanh nghiệp…'
+        }
         action={
-          <button className="bg-dash-accent text-dash-accent-ink inline-flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-semibold transition-[transform,filter] duration-150 ease-out hover:brightness-110 active:scale-[0.97]">
+          <Link
+            to="/ntd/dang-tin"
+            className="bg-dash-accent text-dash-accent-ink inline-flex items-center gap-1.5 rounded-lg px-4 py-2.5 text-sm font-semibold transition-[transform,filter] duration-150 ease-out hover:brightness-110 active:scale-[0.97]"
+          >
             <FileText size={16} />
             Đăng tin mới
-          </button>
+          </Link>
         }
       />
 
-      {/* Chuỗi số cho sparkline là mô phỏng — mảng tin hiện chỉ có tổng, chưa có
-          lịch sử theo ngày. Khi API trả về chuỗi thật thì thay đúng chỗ này. */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      {/* Chưa xác minh thì gửi duyệt sẽ bị server từ chối — nói trước ở đây để
+          họ không soạn xong cả tin rồi mới biết. */}
+      {ntd && !ntd.verifiedAt && (
+        <div className="border-dash-wait/40 bg-dash-wait/10 flex items-start gap-3 rounded-xl border p-4">
+          <XCircle size={18} className="text-dash-wait mt-0.5 shrink-0" />
+          <p className="text-sm">
+            Hồ sơ doanh nghiệp chưa được xác minh. Bạn vẫn lưu nháp được, nhưng chưa gửi tin đi
+            duyệt.{' '}
+            <Link to="/ntd/ho-so" className="text-dash-accent font-medium underline">
+              Nộp giấy tờ
+            </Link>
+          </p>
+        </div>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2">
         <KpiCard
-          label="Tin đang mở"
-          metric={{ value: totals.open, changePercent: 0, series: [1, 2, 2, 3, 2, 2] }}
+          label="Tin đang hiển thị"
+          metric={{ value: tong.dangMo }}
+          hint={`trên tổng ${jobs.length} tin`}
           icon={FileText}
           color="var(--dash-accent)"
         />
         <KpiCard
-          label="Lượt xem tin"
-          metric={{
-            value: totals.views,
-            changePercent: 18,
-            series: [820, 940, 1010, 1180, 1320, 1420],
-          }}
+          label="Tổng lượt xem"
+          metric={{ value: tong.luotXem }}
+          hint="cộng từ tất cả tin của bạn"
           icon={Eye}
           color="var(--dash-blue)"
         />
-        <KpiCard
-          label="Lượt ứng tuyển"
-          metric={{
-            value: totals.applications,
-            changePercent: 9,
-            series: [42, 58, 71, 88, 104, 121],
-          }}
-          icon={Send}
-          color="var(--dash-teal)"
-        />
-        <KpiCard
-          label="Ứng viên mới chưa xem"
-          metric={{ value: totals.newApplicants, changePercent: -12, series: [4, 3, 5, 2, 3, 1] }}
-          icon={UserCheck}
-          color="var(--dash-violet)"
-          invertTone
-        />
       </div>
 
+      {loi && (
+        <p className="border-dash-bad/40 bg-dash-bad/10 text-dash-bad rounded-lg border px-4 py-3 text-sm">
+          {loi}
+        </p>
+      )}
+
       <TableShell>
-        <Toolbar
-          placeholder={tab === 'jobs' ? 'Tìm tin đăng…' : 'Tìm ứng viên…'}
-          value={query}
-          onChange={setQuery}
-        >
+        <Toolbar placeholder="Tìm tin đăng…" value={query} onChange={setQuery}>
           <FilterChips
             options={[
               { value: 'jobs', label: 'Tin đăng' },
@@ -134,130 +177,149 @@ export function EmployerDashboard() {
             ]}
             value={tab}
             onChange={setTab}
-            counts={{ jobs: EMPLOYER_JOBS.length, applicants: EMPLOYER_APPLICANTS.length }}
+            counts={{ jobs: jobs.length }}
           />
         </Toolbar>
 
         {tab === 'jobs' ? (
-          <table className="w-full min-w-[760px] border-collapse">
+          <table className="w-full min-w-[820px] border-collapse">
             <thead>
               <tr>
                 <Th>Tin tuyển dụng</Th>
                 <Th>Loại ca</Th>
                 <Th>Lượt xem</Th>
-                <Th>Ứng tuyển</Th>
                 <Th>Hạn nộp</Th>
                 <Th>Trạng thái</Th>
                 <Th className="text-right">Hành động</Th>
               </tr>
             </thead>
             <tbody>
-              {jobRows.length === 0 && <EmptyRow colSpan={7}>Không có tin nào khớp.</EmptyRow>}
+              {rows.length === 0 && (
+                <EmptyRow colSpan={6}>
+                  {jobs.length === 0
+                    ? 'Bạn chưa đăng tin nào. Bấm "Đăng tin mới" để bắt đầu.'
+                    : 'Không có tin nào khớp.'}
+                </EmptyRow>
+              )}
 
-              {jobRows.map((job, i) => (
-                <tr
+              {rows.map((job, i) => (
+                <HangTin
                   key={job.id}
-                  className="dash-row dash-in"
-                  style={{ animationDelay: `${Math.min(i, 12) * 26}ms` }}
-                >
-                  <Td>
-                    <p className="font-medium">{job.title}</p>
-                    <p className="text-dash-muted mt-0.5 text-xs">Cần {job.quantity} người</p>
-                  </Td>
-                  <Td className="text-dash-muted whitespace-nowrap">
-                    {SCHEDULE_TYPE_LABELS[job.scheduleType]}
-                  </Td>
-                  <Td className="tabular-nums">{job.views.toLocaleString('vi-VN')}</Td>
-                  <Td className="tabular-nums">{job.applications}</Td>
-                  <Td className="text-dash-muted whitespace-nowrap tabular-nums">{job.deadline}</Td>
-                  <Td>
-                    <StatusBadge tone={JOB_STATUS_TONE[job.status]}>
-                      {JOB_STATUS_LABELS[job.status]}
-                    </StatusBadge>
-                  </Td>
-                  <Td className="text-right">
-                    <RowAction>Sửa</RowAction>
-                  </Td>
-                </tr>
+                  job={job}
+                  thuTu={i}
+                  banRon={dangXuLy === job.id}
+                  onSua={() => navigate(`/ntd/dang-tin?id=${job.id}`)}
+                  onGuiDuyet={() => void chay(job.id, () => guiDuyet.mutateAsync(job.id))}
+                  onDong={() => void chay(job.id, () => dongTin.mutateAsync(job.id))}
+                  onXoa={() => void chay(job.id, () => xoa.mutateAsync(job.id))}
+                />
               ))}
             </tbody>
           </table>
         ) : (
-          <table className="w-full min-w-[760px] border-collapse">
-            <thead>
-              <tr>
-                <Th>Ứng viên</Th>
-                <Th>Ứng tuyển vị trí</Th>
-                <Th>Độ phù hợp lịch</Th>
-                <Th>Nộp lúc</Th>
-                <Th>Trạng thái</Th>
-                <Th className="text-right">Hành động</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {applicantRows.length === 0 && (
-                <EmptyRow colSpan={6}>Không có ứng viên nào khớp.</EmptyRow>
-              )}
-
-              {applicantRows.map((app, i) => (
-                <tr
-                  key={app.id}
-                  className="dash-row dash-in"
-                  style={{ animationDelay: `${Math.min(i, 12) * 26}ms` }}
-                >
-                  <Td>
-                    <div className="flex items-center gap-3">
-                      <Avatar name={app.name} />
-                      <div className="min-w-0">
-                        <p className="font-medium">{app.name}</p>
-                        <p className="text-dash-muted mt-0.5 truncate text-xs">
-                          {app.school} · {app.year}
-                        </p>
-                      </div>
-                    </div>
-                  </Td>
-
-                  <Td className="text-dash-muted">{app.jobTitle}</Td>
-
-                  <Td>
-                    <div className="flex items-center gap-2">
-                      <div className="bg-dash-raised h-1.5 w-20 overflow-hidden rounded-full">
-                        <div
-                          className="h-full rounded-full"
-                          style={{
-                            width: `${app.matchScore}%`,
-                            background:
-                              app.matchScore >= 85
-                                ? 'var(--dash-ok)'
-                                : app.matchScore >= 70
-                                  ? 'var(--dash-wait)'
-                                  : 'var(--dash-muted)',
-                          }}
-                        />
-                      </div>
-                      <span className="text-xs tabular-nums">{app.matchScore}%</span>
-                    </div>
-                  </Td>
-
-                  <Td className="text-dash-muted whitespace-nowrap">{app.appliedAt}</Td>
-                  <Td>
-                    <StatusBadge tone={APPLICATION_TONE[app.status]}>
-                      {APPLICATION_STATUS_LABELS[app.status]}
-                    </StatusBadge>
-                  </Td>
-
-                  <Td className="text-right">
-                    <div className={cn('flex justify-end gap-1')}>
-                      <RowAction tone="ok">Nhận</RowAction>
-                      <RowAction tone="bad">Từ chối</RowAction>
-                    </div>
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          /*
+           * Tab ứng viên cần toàn bộ luồng ứng tuyển của Sprint 4 (bảng
+           * Application, điểm phù hợp, nhận/từ chối). Giữ nguyên tab thay vì xoá
+           * — đúng cách đã làm với ô lọc theo lịch rảnh: dựng lại từ đầu ở sprint
+           * sau là phí công hai lần.
+           */
+          <div className="px-4 py-16 text-center">
+            <p className="text-dash-muted text-sm">Danh sách ứng viên có ở Sprint 4</p>
+            <p className="text-dash-muted mt-1 text-xs opacity-70">
+              Luồng ứng tuyển chưa được xây, nên chưa có đơn nào để hiện.
+            </p>
+          </div>
         )}
       </TableShell>
     </div>
+  )
+}
+
+/**
+ * Một hàng tin, kèm đúng những hành động hợp lệ với trạng thái của nó.
+ *
+ * Ẩn nút không dùng được thay vì hiện rồi để server từ chối: bảng này có bốn
+ * trạng thái × bốn hành động, hiện hết thì người dùng phải tự nhớ luật. Server
+ * vẫn kiểm lại — ẩn ở đây là hướng dẫn, không phải bảo vệ.
+ */
+function HangTin({
+  job,
+  thuTu,
+  banRon,
+  onSua,
+  onGuiDuyet,
+  onDong,
+  onXoa,
+}: {
+  job: EmployerJobResponse
+  thuTu: number
+  banRon: boolean
+  onSua: () => void
+  onGuiDuyet: () => void
+  onDong: () => void
+  onXoa: () => void
+}) {
+  const xoaDuoc = job.status === 'DRAFT' || job.status === 'PENDING'
+  const suaDuoc = job.status !== 'CLOSED'
+
+  return (
+    <tr className="dash-row dash-in" style={{ animationDelay: `${Math.min(thuTu, 12) * 26}ms` }}>
+      <Td>
+        <p className="font-medium">{job.title}</p>
+        <p className="text-dash-muted mt-0.5 text-xs">
+          Cần {job.quantity} người
+          {job.rejectionReason && (
+            <span className="text-dash-bad"> · Bị từ chối: {job.rejectionReason}</span>
+          )}
+        </p>
+      </Td>
+
+      <Td className="text-dash-muted whitespace-nowrap">
+        {SCHEDULE_TYPE_LABELS[job.scheduleType]}
+      </Td>
+      <Td className="tabular-nums">{job.viewCount.toLocaleString('vi-VN')}</Td>
+      <Td className="text-dash-muted whitespace-nowrap tabular-nums">
+        {new Date(job.deadline).toLocaleDateString('vi-VN')}
+      </Td>
+      <Td>
+        <StatusBadge tone={JOB_STATUS_TONE[job.status]}>{JOB_STATUS_LABELS[job.status]}</StatusBadge>
+      </Td>
+
+      <Td className="text-right">
+        <div className="flex justify-end gap-1">
+          {suaDuoc && (
+            <RowAction onClick={onSua} disabled={banRon}>
+              Sửa
+            </RowAction>
+          )}
+
+          {job.status === 'DRAFT' && (
+            <RowAction tone="ok" onClick={onGuiDuyet} disabled={banRon}>
+              <span className="inline-flex items-center gap-1">
+                {banRon ? <Loader2 size={12} className="animate-spin" /> : <Send size={12} />}
+                Gửi duyệt
+              </span>
+            </RowAction>
+          )}
+
+          {/* Đóng tin là đường ĐÚNG để gỡ một tin đã duyệt xuống — khác xoá ở
+              chỗ bản ghi và đơn ứng tuyển vẫn còn. */}
+          {job.status === 'OPEN' && (
+            <RowAction tone="bad" onClick={onDong} disabled={banRon}>
+              {banRon ? <Loader2 size={12} className="animate-spin" /> : 'Đóng tin'}
+            </RowAction>
+          )}
+
+          {xoaDuoc && (
+            <RowAction tone="bad" onClick={onXoa} disabled={banRon}>
+              <span className="inline-flex items-center gap-1">
+                {banRon ? <Loader2 size={12} className="animate-spin" /> : <Trash2 size={12} />}
+                Xoá
+              </span>
+            </RowAction>
+          )}
+        </div>
+      </Td>
+    </tr>
   )
 }

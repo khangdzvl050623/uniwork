@@ -40,11 +40,23 @@ import { CountUp } from '@/components/CountUp'
 import { MarketChart } from '@/components/MarketChart'
 import { SpotlightCompanies } from '@/components/SpotlightCompanies'
 import { Button } from '@/components/ui/Button'
-import { DISTRICTS, JOBS } from '@/data/mock'
+import { DISTRICTS } from '@/lib/khu-vuc'
+import { usePublicJobs } from '@/hooks/usePublicJobs'
 import { useSiteStats } from '@/hooks/useSiteStats'
 import { cn, formatDate } from '@/lib/utils'
 
-const JOB_TABS = ['Phù hợp lịch của bạn', 'Việc mới nhất', 'Lương cao', 'Làm từ xa', 'Cuối tuần']
+/*
+ * Chỉ giữ hai tab mà API thật sự làm được.
+ *
+ * Ba tab cũ — "Phù hợp lịch của bạn", "Lương cao", "Cuối tuần" — đều cần thứ
+ * chưa có: phép giao lịch rảnh và sắp xếp theo lương thuộc Sprint 3. Để lại thì
+ * bấm vào tab nào cũng ra đúng một danh sách, tức là năm cái nút giả vờ làm năm
+ * việc khác nhau.
+ */
+const JOB_TABS: { label: string; district?: string }[] = [
+  { label: 'Việc mới nhất' },
+  { label: 'Làm từ xa', district: 'Làm từ xa' },
+]
 const HOT_KEYWORDS = ['Phục vụ quán', 'Gia sư', 'Trực page', 'Sự kiện', 'Nhập liệu', 'Bán hàng']
 
 const HERO_POINTS = [
@@ -192,7 +204,9 @@ const PRESS = [
 
 export function Home() {
   const [jobTab, setJobTab] = useState(0)
-  const jobs = jobTab === 0 ? [...JOBS].sort((a, b) => b.matchScore - a.matchScore) : JOBS
+  // Trang chủ chỉ khoe vài tin đầu; ai muốn xem hết thì sang /viec-lam.
+  const { data: duLieuTin } = usePublicJobs({ district: JOB_TABS[jobTab].district })
+  const jobs = (duLieuTin?.jobs ?? []).slice(0, 6)
 
   // Mọi con số hiện trên trang này đến từ đây, không chỗ nào ghi cứng. Hôm nay
   // là số mô phỏng, ngày api có endpoint đếm thì chỉ hook đổi — trang chủ không
@@ -322,7 +336,7 @@ export function Home() {
             <div className="scroll-x flex gap-1.5 overflow-x-auto">
               {JOB_TABS.map((t, i) => (
                 <button
-                  key={t}
+                  key={t.label}
                   onClick={() => setJobTab(i)}
                   className={cn(
                     'shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
@@ -331,7 +345,7 @@ export function Home() {
                       : 'border-slate-200 text-slate-600 hover:border-brand-300',
                   )}
                 >
-                  {t}
+                  {t.label}
                 </button>
               ))}
             </div>

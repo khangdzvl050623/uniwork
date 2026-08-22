@@ -1,7 +1,8 @@
-import type { Prisma } from '@prisma/client'
+import type { Prisma, TimeSlot } from '@prisma/client'
 import type {
   AdminJobResponse,
   CreateJobData,
+  DayOfWeek,
   EmployerJobResponse,
   JobShiftItem,
   JobStatus,
@@ -77,6 +78,23 @@ const CHON_JOB = {
 
 type HangJob = Prisma.JobGetPayload<{ select: typeof CHON_JOB }>
 
+/**
+ * Đổi ca làm từ dạng Prisma sang dạng dùng chung.
+ *
+ * Prisma khai `dayOfWeek` là `number` vì cột trong Postgres là `Int` — nó không
+ * biết gì về ràng buộc. Còn `JobShiftItem` dùng `DayOfWeek` (hợp của đúng 7 số)
+ * để lưới ca làm và lưới lịch rảnh sinh viên dùng chung được một component.
+ *
+ * Ép kiểu ở đây là AN TOÀN, và không phải vì tin tưởng suông: CHECK
+ * `job_shifts_day_of_week_check` trong database chặn mọi giá trị ngoài 0–6 ở
+ * tầng không có đường nào lách. Một hàng vi phạm không thể tồn tại để mà đọc
+ * lên. Gom vào một hàm thay vì rải `as DayOfWeek` bốn chỗ, để lý do trên chỉ
+ * phải viết một lần và ai đọc cũng thấy.
+ */
+function toShiftItems(shifts: { dayOfWeek: number; slot: TimeSlot }[]): JobShiftItem[] {
+  return shifts.map((s) => ({ dayOfWeek: s.dayOfWeek as DayOfWeek, slot: s.slot }))
+}
+
 function toEmployerJobResponse(job: HangJob): EmployerJobResponse {
   return {
     id: job.id,
@@ -105,7 +123,7 @@ function toEmployerJobResponse(job: HangJob): EmployerJobResponse {
     viewCount: job.viewCount,
     // `shifts` và `skills` là bảng nối — phẳng chúng ra ở đây để phía web không
     // phải biết `job.skills[].skill.name` là gì.
-    shifts: job.shifts.map((s) => ({ dayOfWeek: s.dayOfWeek, slot: s.slot })),
+    shifts: toShiftItems(job.shifts),
     skills: job.skills.map((s) => s.skill),
     createdAt: job.createdAt.toISOString(),
     updatedAt: job.updatedAt.toISOString(),
@@ -758,7 +776,7 @@ function toPublicJobSummary(job: HangJobPublic): PublicJobSummary {
      */
     publishedAt: job.publishedAt?.toISOString() ?? '',
     skills: job.skills.map((s) => s.skill),
-    shifts: job.shifts.map((s) => ({ dayOfWeek: s.dayOfWeek, slot: s.slot })),
+    shifts: toShiftItems(job.shifts),
   }
 }
 
