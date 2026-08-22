@@ -931,3 +931,132 @@ describe('đua: tin biến mất giữa lúc đang thao tác', () => {
     expect(res.status).toBe(404)
   })
 })
+
+/* ------------------------------------------------------------------ T72 -- */
+
+describe('POST /api/ntd/tin-tuyen-dung/:id/gui-duyet — gửi tin đi duyệt', () => {
+  function guiDuyet(
+    tinCu: Record<string, unknown> = {},
+    hoSo: Record<string, unknown> = {},
+    token = ntdToken,
+  ) {
+    ntdFindUnique.mockResolvedValue({
+      id: 'ep-1',
+      verifiedAt: new Date('2026-08-01'),
+      ...hoSo,
+    })
+    jobFindUnique.mockResolvedValue({
+      ...HANG_JOB,
+      employerProfileId: 'ep-1',
+      status: 'DRAFT',
+      deadline: new Date(Date.now() + 30 * 864e5),
+      ...tinCu,
+    })
+    jobUpdate.mockResolvedValue({ ...HANG_JOB, status: 'PENDING', rejectionReason: null })
+
+    return request(createApp())
+      .post('/api/ntd/tin-tuyen-dung/job-1/gui-duyet')
+      .set('Authorization', `Bearer ${token}`)
+  }
+
+  it('DRAFT → PENDING khi NTD đã được xác minh', async () => {
+    const res = await guiDuyet()
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.status).toBe('PENDING')
+  })
+
+  it('NTD CHƯA xác minh thì 403 — đây là chỗ verifiedAt thực sự có hiệu lực', async () => {
+    /*
+     * BRD chốt: "lưu nháp được, gửi duyệt thì 403". Soạn thảo thì mở, nhưng đưa
+     * tin vào hàng đợi để lên trang công khai thì phải chứng minh được mình là
+     * đơn vị tuyển dụng có thật.
+     */
+    const res = await guiDuyet({}, { verifiedAt: null })
+
+    expect(res.status).toBe(403)
+    expect(res.body.error.message).toContain('chưa được xác minh')
+    expect(jobUpdate).not.toHaveBeenCalled()
+  })
+
+  it('xoá rejectionReason khi gửi lại — nhưng chỉ ở BƯỚC NÀY', async () => {
+    // Trong lúc sửa, NTD vẫn cần đọc lý do để biết phải sửa gì (xem T70). Tới
+    // khi họ chủ động gửi lại thì lý do cũ mới hết vai trò — giữ lại chỉ khiến
+    // màn hình hiện "đã bị từ chối" cho một tin đang chờ duyệt.
+    await guiDuyet({ rejectionReason: 'Mô tả có dấu hiệu thu phí trước' })
+
+    const data = jobUpdate.mock.calls[0][0].data as Record<string, unknown>
+    expect(data).toMatchObject({ status: 'PENDING', rejectionReason: null })
+  })
+
+  it('HẠN NHẬN HỒ SƠ đã qua thì chặn, dù Zod đã kiểm lúc tạo', async () => {
+    /*
+     * Không thừa: Zod kiểm `deadline` tại thời điểm TẠO/SỬA, còn gửi duyệt là
+     * hành động riêng không mang thân request nào để mà kiểm. Một tin nháp soạn
+     * hai tháng trước với hạn "30 ngày nữa" thì hôm nay hạn đã qua — gửi đi,
+     * admin duyệt, và tin lên trang công khai với hạn nộp nằm ở quá khứ.
+     */
+    const res = await guiDuyet({ deadline: new Date(Date.now() - 864e5) })
+
+    expect(res.status).toBe(409)
+    expect(res.body.error.message).toContain('Hạn nhận hồ sơ')
+    expect(jobUpdate).not.toHaveBeenCalled()
+  })
+
+  it('tin đang PENDING thì báo rõ là đã gửi rồi', async () => {
+    const res = await guiDuyet({ status: 'PENDING' })
+
+    expect(res.status).toBe(409)
+    expect(res.body.error.message).toContain('đang chờ duyệt rồi')
+  })
+
+  it('tin đang OPEN thì báo rõ là đã duyệt rồi', async () => {
+    const res = await guiDuyet({ status: 'OPEN' })
+
+    expect(res.status).toBe(409)
+    expect(res.body.error.message).toContain('đang hiển thị công khai')
+  })
+
+  it('tin CLOSED thì hướng sang đăng tin mới', async () => {
+    const res = await guiDuyet({ status: 'CLOSED' })
+
+    expect(res.status).toBe(409)
+    expect(res.body.error.message).toContain('đăng một tin mới')
+  })
+
+  it('gửi duyệt tin của NTD khác thì 403', async () => {
+    const res = await guiDuyet({ employerProfileId: 'ep-KHAC' })
+
+    expect(res.status).toBe(403)
+    expect(jobUpdate).not.toHaveBeenCalled()
+  })
+
+  it('sinh viên không gửi duyệt được', async () => {
+    const res = await guiDuyet({}, {}, svToken)
+
+    expect(res.status).toBe(403)
+    expect(jobUpdate).not.toHaveBeenCalled()
+  })
+
+  it('gửi duyệt một tin vừa bị xoá mất → 404, không phải 500', async () => {
+    ntdFindUnique.mockResolvedValue({ id: 'ep-1', verifiedAt: new Date() })
+    jobFindUnique.mockResolvedValue({
+      ...HANG_JOB,
+      employerProfileId: 'ep-1',
+      status: 'DRAFT',
+      deadline: new Date(Date.now() + 864e5),
+    })
+    jobUpdate.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Record to update not found', {
+        code: 'P2025',
+        clientVersion: '6.19.3',
+      }),
+    )
+
+    const res = await request(createApp())
+      .post('/api/ntd/tin-tuyen-dung/job-1/gui-duyet')
+      .set('Authorization', `Bearer ${ntdToken}`)
+
+    expect(res.status).toBe(404)
+  })
+})

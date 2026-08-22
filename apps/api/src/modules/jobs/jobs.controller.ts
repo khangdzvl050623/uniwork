@@ -63,3 +63,9 @@ export const closeJobController: RequestHandler = async (req, res) => {
   const { id } = parse(thamSoId, req.params)
   ok(res, await jobsService.closeJob(userId, id))
 }
+
+export const submitJobController: RequestHandler = async (req, res) => {
+  const userId = requireUserId(req)
+  const { id } = parse(thamSoId, req.params)
+  ok(res, await jobsService.submitJob(userId, id))
+}

@@ -7,6 +7,7 @@ import {
   deleteJobController,
   getMyJobController,
   listMyJobsController,
+  submitJobController,
   updateJobController,
 } from './jobs.controller.js'
 
@@ -52,3 +53,6 @@ employerJobRoutes.delete('/:id', deleteJobController)
 
 // Dong tin la duong DUNG de go mot tin da duyet xuong — xem closeJob().
 employerJobRoutes.post('/:id/dong', closeJobController)
+
+// Gui duyet: DRAFT -> PENDING. Doi NTD da duoc xac minh, xem submitJob().
+employerJobRoutes.post('/:id/gui-duyet', submitJobController)

@@ -414,6 +414,75 @@ export async function closeJob(userId: string, jobId: string): Promise<EmployerJ
 }
 
 /**
+ * Gửi tin đi duyệt: `DRAFT` → `PENDING`.
+ *
+ * ---------------------------------------------------------------------------
+ * NHÀ TUYỂN DỤNG PHẢI ĐƯỢC XÁC MINH
+ * ---------------------------------------------------------------------------
+ * Đây là chỗ `verifiedAt` thực sự có hiệu lực. BRD chốt: "lưu nháp được, gửi
+ * duyệt thì 403". Soạn thảo thì mở, nhưng đưa tin vào hàng đợi để lên trang
+ * công khai thì phải chứng minh được mình là đơn vị tuyển dụng có thật.
+ *
+ * Chặn ở bước này chứ không ở bước tạo, vì như vậy NTD có việc để làm trong lúc
+ * chờ admin duyệt giấy tờ — soạn sẵn tin, gửi ngay khi được xác minh.
+ *
+ * ---------------------------------------------------------------------------
+ * KIỂM LẠI HẠN NHẬN HỒ SƠ Ở ĐÂY, DÙ ZOD ĐÃ KIỂM LÚC TẠO
+ * ---------------------------------------------------------------------------
+ * Không thừa. Zod kiểm `deadline` tại thời điểm TẠO/SỬA, còn gửi duyệt là một
+ * hành động riêng không mang theo thân request nào để mà kiểm. Một tin nháp
+ * soạn hai tháng trước với hạn "30 ngày nữa" thì hôm nay hạn đã qua — gửi đi,
+ * admin duyệt, và tin lên trang công khai với hạn nộp nằm ở quá khứ.
+ *
+ * Đây đúng là loại lỗi chỉ lộ ra sau vài tuần, tức là gần như chắc chắn lọt qua
+ * lúc thử nghiệm.
+ */
+export async function submitJob(userId: string, jobId: string): Promise<EmployerJobResponse> {
+  const { job, ntd } = await layTinCuaToi(userId, jobId)
+
+  if (!ntd.verifiedAt) {
+    throw forbidden(
+      'Hồ sơ doanh nghiệp chưa được xác minh nên chưa gửi tin đi duyệt được. ' +
+        'Hãy nộp đủ giấy tờ và chờ quản trị viên duyệt.',
+    )
+  }
+
+  if (job.status !== 'DRAFT') {
+    // `job.status` đã được thu hẹp bỏ 'DRAFT' nhờ guard ngay trên, nên bảng này
+    // chỉ còn ba nhánh — thêm 'DRAFT' vào là TypeScript báo lỗi.
+    const lyDo: Record<typeof job.status, string> = {
+      PENDING: 'Tin này đang chờ duyệt rồi',
+      OPEN: 'Tin này đã được duyệt và đang hiển thị công khai',
+      CLOSED: 'Tin đã đóng thì không gửi duyệt lại được. Hãy đăng một tin mới.',
+    }
+    throw conflict(lyDo[job.status])
+  }
+
+  if (job.deadline.getTime() < Date.now()) {
+    throw conflict('Hạn nhận hồ sơ của tin này đã qua. Hãy sửa lại hạn trước khi gửi duyệt.')
+  }
+
+  const daGui = await prisma.job.update({
+    where: { id: jobId },
+    data: {
+      status: 'PENDING',
+      /*
+       * Xoá lý do từ chối ở ĐÂY, không phải lúc sửa tin.
+       *
+       * Trong lúc sửa, nhà tuyển dụng vẫn cần đọc lý do để biết phải sửa gì —
+       * xoá lúc lưu là lấy mất tờ ghi chú khỏi tay họ giữa chừng. Tới khi họ
+       * chủ động gửi lại thì lý do cũ mới hết vai trò, và giữ nó lại chỉ khiến
+       * màn hình hiện "đã bị từ chối" cho một tin đang chờ duyệt.
+       */
+      rejectionReason: null,
+    },
+    select: CHON_JOB,
+  })
+
+  return toEmployerJobResponse(daGui)
+}
+
+/**
  * Kiểm mọi `skillId` gửi lên đều có thật.
  *
  * Không có bước này thì một id sai sẽ vỡ ở tầng khoá ngoại của Postgres, và
