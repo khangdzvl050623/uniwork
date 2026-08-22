@@ -25,7 +25,7 @@ import {
 import { useSkills } from '@/hooks/useProfile'
 import { useZodForm } from '@/hooks/useZodForm'
 import { ApiClientError } from '@/lib/api'
-import { DISTRICTS } from '@/data/mock'
+import { DISTRICTS } from '@/lib/khu-vuc'
 import { cn } from '@/lib/utils'
 
 /**

@@ -1,25 +1,53 @@
 import { useState } from 'react'
-import { SlidersHorizontal } from 'lucide-react'
+import { Loader2, SlidersHorizontal } from 'lucide-react'
+import type { ScheduleType } from '@uniwork/shared'
 import { FilterSidebar } from '@/components/FilterSidebar'
 import { JobCard } from '@/components/JobCard'
 import { Button } from '@/components/ui/Button'
-import { JOBS } from '@/data/mock'
+import { usePublicJobs } from '@/hooks/usePublicJobs'
 
+/**
+ * Danh sách việc làm công khai (T84).
+ *
+ * Không đòi đăng nhập — người chưa có tài khoản phải xem được việc làm, nếu
+ * không thì trang chủ chẳng có gì để xem và cũng không ai có lý do đăng ký.
+ *
+ * Bộ lọc giữ trên state chứ chưa đẩy lên URL. Đẩy lên URL (để chia sẻ được một
+ * kết quả lọc) chỉ đáng làm khi bộ lọc đã đủ hình dạng cuối ở Sprint 3 — làm
+ * bây giờ rồi đổi lại là viết hai lần.
+ */
 export function JobList() {
-  const [onlyMatching, setOnlyMatching] = useState(false)
+  const [district, setDistrict] = useState<string | undefined>()
+  const [scheduleType, setScheduleType] = useState<ScheduleType | undefined>()
   const [showFilter, setShowFilter] = useState(false)
 
-  // Bản tĩnh: lọc tạm theo điểm phù hợp. Sprint 3 sẽ thay bằng truy vấn giao lịch thật.
-  const jobs = onlyMatching ? JOBS.filter((j) => j.matchScore >= 80) : JOBS
+  const { data, isLoading, isError } = usePublicJobs({ district, scheduleType })
+
+  const jobs = data?.jobs ?? []
+  const total = data?.total ?? 0
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
       <h1 className="text-2xl font-bold text-slate-900">Việc làm bán thời gian</h1>
-      <p className="mt-1 text-sm text-slate-500">Tìm thấy {jobs.length} tin phù hợp</p>
+      <p className="mt-1 text-sm text-slate-500">
+        {isLoading
+          ? 'Đang tải…'
+          : /*
+             * `total` là số tin THẬT khớp bộ lọc, có thể lớn hơn số thẻ đang
+             * hiện vì server chặn cứng 100 hàng mỗi lần gọi. Nói rõ ra thay vì
+             * để người dùng đếm thẻ rồi tưởng chỉ có bấy nhiêu.
+             */
+            `Tìm thấy ${total} tin${total > jobs.length ? ` · đang hiện ${jobs.length}` : ''}`}
+      </p>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
         <div className={showFilter ? 'block' : 'hidden lg:block'}>
-          <FilterSidebar onlyMatchingSchedule={onlyMatching} onToggleMatching={setOnlyMatching} />
+          <FilterSidebar
+            district={district}
+            scheduleType={scheduleType}
+            onDoiDistrict={setDistrict}
+            onDoiScheduleType={setScheduleType}
+          />
         </div>
 
         <div>
@@ -30,47 +58,49 @@ export function JobList() {
               className="lg:hidden"
               onClick={() => setShowFilter((v) => !v)}
             >
-              <SlidersHorizontal size={15} />
+              <SlidersHorizontal size={16} />
               Bộ lọc
             </Button>
-
-            <select className="ml-auto h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 outline-none">
-              <option>Phù hợp nhất</option>
-              <option>Mới nhất</option>
-              <option>Lương cao nhất</option>
-              <option>Sắp hết hạn</option>
-            </select>
           </div>
 
-          <div className="grid gap-3">
+          {isLoading && (
+            <div className="flex min-h-[40vh] items-center justify-center">
+              <Loader2 size={26} className="animate-spin text-brand-600" />
+            </div>
+          )}
+
+          {isError && (
+            <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              Không tải được danh sách việc làm. Kiểm tra kết nối rồi thử lại.
+            </p>
+          )}
+
+          {!isLoading && !isError && jobs.length === 0 && (
+            <div className="rounded-xl border border-slate-200 bg-white px-6 py-16 text-center">
+              <p className="text-sm text-slate-600">
+                {district || scheduleType
+                  ? 'Không có tin nào khớp bộ lọc hiện tại.'
+                  : 'Chưa có tin tuyển dụng nào được đăng.'}
+              </p>
+              {(district || scheduleType) && (
+                <button
+                  onClick={() => {
+                    setDistrict(undefined)
+                    setScheduleType(undefined)
+                  }}
+                  className="mt-2 text-sm font-medium text-brand-600 transition-colors hover:text-brand-700"
+                >
+                  Xoá bộ lọc
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-3">
             {jobs.map((job) => (
               <JobCard key={job.id} job={job} />
             ))}
           </div>
-
-          {jobs.length === 0 && (
-            <div className="rounded-xl border border-dashed border-slate-300 py-16 text-center">
-              <p className="font-medium text-slate-600">Không có việc nào khớp lịch rảnh của bạn</p>
-              <p className="mt-1 text-sm text-slate-400">
-                Thử bỏ bớt bộ lọc hoặc cập nhật lại lịch rảnh
-              </p>
-            </div>
-          )}
-
-          <nav className="mt-6 flex items-center justify-center gap-1">
-            {[1, 2, 3].map((p) => (
-              <button
-                key={p}
-                className={
-                  p === 1
-                    ? 'h-9 w-9 rounded-lg bg-brand-600 text-sm font-medium text-white'
-                    : 'h-9 w-9 rounded-lg text-sm text-slate-600 hover:bg-slate-100'
-                }
-              >
-                {p}
-              </button>
-            ))}
-          </nav>
         </div>
       </div>
     </div>
