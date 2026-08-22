@@ -2,7 +2,11 @@ import { Router } from 'express'
 import { adminRoutes } from './modules/admin/admin.routes.js'
 import { authRoutes } from './modules/auth/auth.routes.js'
 import { healthRoutes } from './modules/health/health.routes.js'
-import { employerJobRoutes } from './modules/jobs/jobs.routes.js'
+import {
+  adminJobRoutes,
+  employerJobRoutes,
+  publicJobRoutes,
+} from './modules/jobs/jobs.routes.js'
 import { profileRoutes } from './modules/profile/profile.routes.js'
 import { adminSkillsRoutes, skillsRoutes } from './modules/skills/skills.routes.js'
 
@@ -17,9 +21,15 @@ export const apiRouter = Router()
 apiRouter.use('/health', healthRoutes)
 apiRouter.use('/auth', authRoutes)
 apiRouter.use('/skills', skillsRoutes)
+
+/* Việc làm công khai — endpoint DUY NHẤT trong dự án không cần đăng nhập ngoài /health. */
+apiRouter.use('/viec-lam', publicJobRoutes)
 apiRouter.use('/toi', profileRoutes)
 apiRouter.use('/ntd/tin-tuyen-dung', employerJobRoutes)
 apiRouter.use('/admin', adminRoutes)
+
+/* Duyệt tin — cùng bảng `Job` với /ntd/tin-tuyen-dung nhưng luật truy cập khác hẳn. */
+apiRouter.use('/admin/tin-tuyen-dung', adminJobRoutes)
 
 /*
  * Danh mục kỹ năng có hai cửa: `/skills` để đọc (công khai) và `/admin/ky-nang`

@@ -1,6 +1,12 @@
 import type { Request, RequestHandler } from 'express'
 import { z } from 'zod'
-import { createJobSchema, updateJobSchema } from '@uniwork/shared'
+import {
+  adminJobQuerySchema,
+  createJobSchema,
+  publicJobQuerySchema,
+  reviewJobSchema,
+  updateJobSchema,
+} from '@uniwork/shared'
 import { ok } from '../../lib/respond.js'
 import { badRequest, unauthorized } from '../../lib/errors.js'
 import * as jobsService from './jobs.service.js'
@@ -68,4 +74,29 @@ export const submitJobController: RequestHandler = async (req, res) => {
   const userId = requireUserId(req)
   const { id } = parse(thamSoId, req.params)
   ok(res, await jobsService.submitJob(userId, id))
+}
+
+/* ------------------------------------------------- T77–T78: admin duyệt -- */
+
+export const listJobsForAdminController: RequestHandler = async (req, res) => {
+  const { status } = parse(adminJobQuerySchema, req.query)
+  ok(res, { jobs: await jobsService.listJobsForAdmin(status) })
+}
+
+export const reviewJobController: RequestHandler = async (req, res) => {
+  const { id } = parse(thamSoId, req.params)
+  const input = parse(reviewJobSchema, req.body)
+  ok(res, await jobsService.reviewJob(id, input))
+}
+
+/* ------------------------------------------------- T79–T80: công khai --- */
+
+export const listPublicJobsController: RequestHandler = async (req, res) => {
+  const query = parse(publicJobQuerySchema, req.query)
+  ok(res, await jobsService.listPublicJobs(query))
+}
+
+export const getPublicJobController: RequestHandler = async (req, res) => {
+  const { id } = parse(thamSoId, req.params)
+  ok(res, await jobsService.getPublicJob(id))
 }

@@ -10,7 +10,16 @@ vi.mock('../../lib/prisma.js', () => ({
   prisma: {
     employerProfile: { findUnique: vi.fn() },
     skill: { count: vi.fn() },
-    job: { create: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
+    job: {
+      create: vi.fn(),
+      findMany: vi.fn(),
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      count: vi.fn(),
+    },
+    $transaction: vi.fn(),
   },
 }))
 
@@ -21,6 +30,9 @@ const jobFindMany = prisma.job.findMany as unknown as Mock
 const jobFindUnique = prisma.job.findUnique as unknown as Mock
 const jobUpdate = prisma.job.update as unknown as Mock
 const jobDelete = prisma.job.delete as unknown as Mock
+const jobFindFirst = prisma.job.findFirst as unknown as Mock
+const jobCount = prisma.job.count as unknown as Mock
+const transaction = prisma.$transaction as unknown as Mock
 
 const ntdToken = signAccessToken({ sub: 'u-ntd', role: 'EMPLOYER' })
 const svToken = signAccessToken({ sub: 'u-sv', role: 'STUDENT' })
@@ -1058,5 +1070,448 @@ describe('POST /api/ntd/tin-tuyen-dung/:id/gui-duyet — gửi tin đi duyệt',
       .set('Authorization', `Bearer ${ntdToken}`)
 
     expect(res.status).toBe(404)
+  })
+})
+
+/* ------------------------------------------------------------- T77–T78 -- */
+
+const adminToken = signAccessToken({ sub: 'admin-1', role: 'ADMIN' })
+
+/** Hàng Prisma cho nhánh admin: `CHON_JOB` cộng thông tin doanh nghiệp. */
+const HANG_JOB_ADMIN = {
+  ...HANG_JOB,
+  employerProfile: {
+    id: 'ep-1',
+    companyName: 'Chuỗi cà phê Sương Mai',
+    verifiedAt: new Date('2026-08-05'),
+  },
+}
+
+describe('GET /api/admin/tin-tuyen-dung — hàng đợi duyệt', () => {
+  it('mặc định chỉ lấy tin PENDING, sắp xếp tin chờ lâu nhất lên đầu', async () => {
+    jobFindMany.mockResolvedValue([HANG_JOB_ADMIN])
+
+    const res = await request(createApp())
+      .get('/api/admin/tin-tuyen-dung')
+      .set('Authorization', `Bearer ${adminToken}`)
+
+    expect(res.status).toBe(200)
+    expect(jobFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { status: 'PENDING' },
+        /*
+         * TĂNG dần, khác mọi danh sách khác trong dự án. Đây là hàng đợi công
+         * việc: tin chờ lâu nhất phải nổi lên đầu, nếu không thì tin gửi sớm bị
+         * đẩy xuống mãi mỗi khi có tin mới — đúng kiểu để một nhà tuyển dụng
+         * chờ vô hạn mà không ai nhận ra.
+         */
+        orderBy: { updatedAt: 'asc' },
+      }),
+    )
+  })
+
+  it('trả kèm thông tin doanh nghiệp để admin biết tin của ai', async () => {
+    jobFindMany.mockResolvedValue([HANG_JOB_ADMIN])
+
+    const res = await request(createApp())
+      .get('/api/admin/tin-tuyen-dung')
+      .set('Authorization', `Bearer ${adminToken}`)
+
+    expect(res.body.data.jobs[0].employer).toEqual({
+      id: 'ep-1',
+      companyName: 'Chuỗi cà phê Sương Mai',
+      verifiedAt: '2026-08-05T00:00:00.000Z',
+    })
+    // Có đủ mô tả để phán đoán — nơi tin lừa đảo thật sự nằm.
+    expect(res.body.data.jobs[0].description).toBeTruthy()
+  })
+
+  it('lọc được theo trạng thái khác', async () => {
+    jobFindMany.mockResolvedValue([])
+
+    await request(createApp())
+      .get('/api/admin/tin-tuyen-dung?status=OPEN')
+      .set('Authorization', `Bearer ${adminToken}`)
+
+    expect(jobFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: 'OPEN' } }))
+  })
+
+  it('trạng thái không có thật thì 400', async () => {
+    const res = await request(createApp())
+      .get('/api/admin/tin-tuyen-dung?status=KHONG_CO')
+      .set('Authorization', `Bearer ${adminToken}`)
+
+    expect(res.status).toBe(400)
+    expect(jobFindMany).not.toHaveBeenCalled()
+  })
+
+  it('NTD không xem được hàng đợi duyệt', async () => {
+    const res = await request(createApp())
+      .get('/api/admin/tin-tuyen-dung')
+      .set('Authorization', `Bearer ${ntdToken}`)
+
+    expect(res.status).toBe(403)
+    expect(jobFindMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('PUT /api/admin/tin-tuyen-dung/:id/duyet', () => {
+  function guiDuyetAdmin(body: object, tinCu: Record<string, unknown> = {}, token = adminToken) {
+    jobFindUnique.mockResolvedValue({ status: 'PENDING', publishedAt: null, ...tinCu })
+    jobUpdate.mockResolvedValue({ ...HANG_JOB_ADMIN, status: 'OPEN' })
+
+    return request(createApp())
+      .put('/api/admin/tin-tuyen-dung/job-1/duyet')
+      .set('Authorization', `Bearer ${token}`)
+      .send(body)
+  }
+
+  it('duyệt: PENDING sang OPEN, đặt publishedAt', async () => {
+    const res = await guiDuyetAdmin({ decision: 'APPROVE' })
+
+    expect(res.status).toBe(200)
+    expect(jobUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { status: 'OPEN', publishedAt: expect.any(Date), rejectionReason: null },
+      }),
+    )
+  })
+
+  it('duyệt lại tin từng công khai thì GIỮ NGUYÊN publishedAt cũ', async () => {
+    /*
+     * `publishedAt` là "tin này lên sàn từ bao giờ", không phải "lần duyệt gần
+     * nhất". Ghi đè mỗi lần duyệt sẽ khiến một tin đăng ba tháng trước trông
+     * như vừa mới đăng, và người tìm việc mất cách phân biệt tin cũ với tin mới.
+     */
+    const mocCu = new Date('2026-07-01')
+    await guiDuyetAdmin({ decision: 'APPROVE' }, { publishedAt: mocCu })
+
+    const data = jobUpdate.mock.calls[0][0].data as Record<string, unknown>
+    expect(data.publishedAt).toEqual(mocCu)
+  })
+
+  it('từ chối: PENDING sang DRAFT kèm lý do', async () => {
+    // Về tay nhà tuyển dụng để sửa, không phải vứt vào một trạng thái chết.
+    await guiDuyetAdmin({
+      decision: 'REJECT',
+      rejectionReason: 'Mô tả có dấu hiệu thu phí trước khi nhận việc',
+    })
+
+    expect(jobUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          status: 'DRAFT',
+          rejectionReason: 'Mô tả có dấu hiệu thu phí trước khi nhận việc',
+        },
+      }),
+    )
+  })
+
+  it('từ chối KHÔNG có lý do thì 400', async () => {
+    const res = await guiDuyetAdmin({ decision: 'REJECT' })
+
+    expect(res.status).toBe(400)
+    expect(res.body.error.details).toHaveProperty('rejectionReason')
+    expect(jobUpdate).not.toHaveBeenCalled()
+  })
+
+  it('duyệt thì xoá lý do từ chối cũ', async () => {
+    // Không để một tin đang OPEN vẫn đeo dòng "đã bị từ chối" từ vòng trước.
+    await guiDuyetAdmin({ decision: 'APPROVE' }, { rejectionReason: 'Lý do cũ' })
+
+    const data = jobUpdate.mock.calls[0][0].data as Record<string, unknown>
+    expect(data.rejectionReason).toBeNull()
+  })
+
+  it('tin DRAFT chưa gửi thì không duyệt được', async () => {
+    const res = await guiDuyetAdmin({ decision: 'APPROVE' }, { status: 'DRAFT' })
+
+    expect(res.status).toBe(409)
+    expect(res.body.error.message).toContain('chưa được gửi')
+    expect(jobUpdate).not.toHaveBeenCalled()
+  })
+
+  it('tin OPEN thì không duyệt lại được', async () => {
+    // Duyệt lại chỉ dời publishedAt và đẩy tin lên đầu danh sách công khai mà
+    // không có lý do gì.
+    const res = await guiDuyetAdmin({ decision: 'APPROVE' }, { status: 'OPEN' })
+
+    expect(res.status).toBe(409)
+    expect(res.body.error.message).toContain('đã được duyệt rồi')
+  })
+
+  it('tin CLOSED thì không duyệt được', async () => {
+    const res = await guiDuyetAdmin({ decision: 'APPROVE' }, { status: 'CLOSED' })
+    expect(res.status).toBe(409)
+  })
+
+  it('NTD không tự duyệt tin của mình được', async () => {
+    const res = await guiDuyetAdmin({ decision: 'APPROVE' }, {}, ntdToken)
+
+    expect(res.status).toBe(403)
+    expect(jobUpdate).not.toHaveBeenCalled()
+  })
+
+  it('sinh viên càng không duyệt được', async () => {
+    const res = await guiDuyetAdmin({ decision: 'APPROVE' }, {}, svToken)
+    expect(res.status).toBe(403)
+  })
+})
+
+/*
+ * ĐÚNG CA ĐUA ĐÃ ĐẶT RA Ở T71: nhà tuyển dụng xoá tin PENDING đúng lúc admin
+ * đang duyệt nó. Cho xoá PENDING là quyết định có chủ đích (tin chưa từng công
+ * khai nên chưa thể có đơn), nên tình huống này CHẮC CHẮN xảy ra — chỉ là hiếm.
+ */
+describe('đua: NTD xoá tin PENDING đúng lúc admin duyệt', () => {
+  it('tin biến mất TRƯỚC khi admin đọc thì 404, không phải 500', async () => {
+    jobFindUnique.mockResolvedValue(null)
+
+    const res = await request(createApp())
+      .put('/api/admin/tin-tuyen-dung/job-1/duyet')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ decision: 'APPROVE' })
+
+    expect(res.status).toBe(404)
+    expect(res.body.error.code).toBe('NOT_FOUND')
+    expect(jobUpdate).not.toHaveBeenCalled()
+  })
+
+  it('tin biến mất GIỮA lúc đọc và ghi thì vẫn 404 nhờ lưới an toàn P2025', async () => {
+    /*
+     * Khe hẹp nhất: admin đọc thấy tin PENDING, nhưng NTD xoá xong trước khi
+     * lệnh update chạy. Không có nhánh Prisma trong error-handler thì đây là
+     * một 500 — admin thấy "máy chủ hỏng" cho một chuyện hoàn toàn bình thường.
+     */
+    jobFindUnique.mockResolvedValue({ status: 'PENDING', publishedAt: null })
+    jobUpdate.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Record to update not found', {
+        code: 'P2025',
+        clientVersion: '6.19.3',
+      }),
+    )
+
+    const res = await request(createApp())
+      .put('/api/admin/tin-tuyen-dung/job-1/duyet')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ decision: 'APPROVE' })
+
+    expect(res.status).toBe(404)
+    expect(res.body.error.code).toBe('NOT_FOUND')
+  })
+})
+
+/* ------------------------------------------------- T79–T80: công khai --- */
+
+/** Hàng Prisma cho nhánh công khai — `CHON_JOB_PUBLIC`, không có status. */
+const HANG_JOB_PUBLIC = {
+  id: 'job-1',
+  title: MAU.title,
+  description: MAU.description,
+  requirements: MAU.requirements,
+  benefits: MAU.benefits,
+  city: 'TP.HCM',
+  district: 'Quận 1',
+  quantity: 2,
+  salaryNegotiable: false,
+  salaryMin: 25000,
+  salaryMax: 30000,
+  salaryUnit: 'HOUR' as const,
+  scheduleType: 'RECURRING' as const,
+  commitmentMonths: 3,
+  minShiftsPerWeek: 3,
+  startDate: null,
+  endDate: null,
+  workDate: null,
+  deadline: new Date('2026-09-30'),
+  publishedAt: new Date('2026-08-10'),
+  viewCount: 41,
+  shifts: [{ dayOfWeek: 2, slot: 'EVENING' as const }],
+  skills: [{ skill: { id: 'sk-1', name: 'Pha chế', slug: 'pha-che' } }],
+  employerProfile: {
+    companyName: 'Chuỗi cà phê Sương Mai',
+    verifiedAt: new Date('2026-08-05'),
+    address: '12 Nguyễn Thị Minh Khai, Quận 1',
+    website: 'https://suongmai.example.com',
+  },
+}
+
+describe('GET /api/viec-lam — danh sách công khai', () => {
+  beforeEach(() => {
+    transaction.mockImplementation(async (ops: unknown[]) => Promise.all(ops))
+  })
+
+  it('KHÔNG cần đăng nhập', async () => {
+    // Người chưa đăng nhập phải xem được việc làm, nếu không thì trang chủ chẳng
+    // có gì để xem và cũng không ai có lý do đăng ký.
+    jobFindMany.mockResolvedValue([HANG_JOB_PUBLIC])
+    jobCount.mockResolvedValue(1)
+
+    const res = await request(createApp()).get('/api/viec-lam')
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.jobs).toHaveLength(1)
+  })
+
+  it('CHỈ trả tin OPEN — đây là toàn bộ lớp bảo vệ của endpoint này', async () => {
+    /*
+     * Endpoint không đòi đăng nhập, nên điều kiện `status: 'OPEN'` không phải
+     * một bộ lọc tiện tay: nó là thứ DUY NHẤT ngăn tin nháp và tin đang chờ
+     * duyệt của mọi nhà tuyển dụng lọt ra ngoài.
+     */
+    jobFindMany.mockResolvedValue([])
+    jobCount.mockResolvedValue(0)
+
+    await request(createApp()).get('/api/viec-lam')
+
+    const where = jobFindMany.mock.calls[0][0].where as Record<string, unknown>
+    expect(where.status).toBe('OPEN')
+  })
+
+  it('người gọi KHÔNG ép được status khác qua query', async () => {
+    // Nếu `status` lọt từ query vào `where`, mọi tin nháp của mọi NTD ra ngoài.
+    jobFindMany.mockResolvedValue([])
+    jobCount.mockResolvedValue(0)
+
+    await request(createApp()).get('/api/viec-lam?status=DRAFT')
+
+    const where = jobFindMany.mock.calls[0][0].where as Record<string, unknown>
+    expect(where.status).toBe('OPEN')
+  })
+
+  it('KHÔNG lộ trường nội bộ: status, rejectionReason, closedAt', async () => {
+    jobFindMany.mockResolvedValue([HANG_JOB_PUBLIC])
+    jobCount.mockResolvedValue(1)
+
+    const res = await request(createApp()).get('/api/viec-lam')
+    const job = res.body.data.jobs[0]
+
+    expect(job).not.toHaveProperty('status')
+    expect(job).not.toHaveProperty('rejectionReason')
+    expect(job).not.toHaveProperty('closedAt')
+    expect(job).not.toHaveProperty('updatedAt')
+  })
+
+  it('xác minh doanh nghiệp trả về boolean, không phải mốc thời gian', async () => {
+    jobFindMany.mockResolvedValue([HANG_JOB_PUBLIC])
+    jobCount.mockResolvedValue(1)
+
+    const res = await request(createApp()).get('/api/viec-lam')
+
+    expect(res.body.data.jobs[0].employer).toEqual({
+      companyName: 'Chuỗi cà phê Sương Mai',
+      verified: true,
+    })
+  })
+
+  it('lọc theo khu vực và loại thời gian', async () => {
+    jobFindMany.mockResolvedValue([])
+    jobCount.mockResolvedValue(0)
+
+    await request(createApp()).get('/api/viec-lam?city=TP.HCM&district=Quận 1&scheduleType=SEASONAL')
+
+    expect(jobFindMany.mock.calls[0][0].where).toEqual({
+      status: 'OPEN',
+      city: 'TP.HCM',
+      district: 'Quận 1',
+      scheduleType: 'SEASONAL',
+    })
+  })
+
+  it('ô lọc để trống KHÔNG thành điều kiện "bằng chuỗi rỗng"', async () => {
+    // Form gửi `?city=` khi người dùng chưa chọn gì. Không xử lý thì đó thành
+    // điều kiện "tỉnh/thành đúng bằng chuỗi rỗng" và trả danh sách trống không
+    // ai giải thích được.
+    jobFindMany.mockResolvedValue([])
+    jobCount.mockResolvedValue(0)
+
+    await request(createApp()).get('/api/viec-lam?city=&district=')
+
+    expect(jobFindMany.mock.calls[0][0].where).toEqual({ status: 'OPEN' })
+  })
+
+  it('chặn cứng 100 hàng, nhưng total vẫn là số thật', async () => {
+    // Không phải phân trang — chỉ là chặn để endpoint không bao giờ dump cả
+    // bảng. `total` cho giao diện biết mình đang xem một phần hay toàn bộ.
+    jobFindMany.mockResolvedValue([HANG_JOB_PUBLIC])
+    jobCount.mockResolvedValue(357)
+
+    const res = await request(createApp()).get('/api/viec-lam')
+
+    expect(jobFindMany.mock.calls[0][0].take).toBe(100)
+    expect(res.body.data.total).toBe(357)
+  })
+
+  it('sắp xếp tin mới đăng lên đầu', async () => {
+    jobFindMany.mockResolvedValue([])
+    jobCount.mockResolvedValue(0)
+
+    await request(createApp()).get('/api/viec-lam')
+
+    expect(jobFindMany.mock.calls[0][0].orderBy).toEqual({ publishedAt: 'desc' })
+  })
+
+  it('scheduleType không có thật thì 400', async () => {
+    const res = await request(createApp()).get('/api/viec-lam?scheduleType=KHONG_CO')
+
+    expect(res.status).toBe(400)
+    expect(jobFindMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /api/viec-lam/:id — chi tiết công khai', () => {
+  it('xem được tin OPEN, và tăng lượt xem', async () => {
+    jobFindFirst.mockResolvedValue(HANG_JOB_PUBLIC)
+    jobUpdate.mockResolvedValue({})
+
+    const res = await request(createApp()).get('/api/viec-lam/job-1')
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.description).toBeTruthy()
+    // Trả về con số ĐÃ cộng, đúng bằng thứ vừa ghi xuống database.
+    expect(res.body.data.viewCount).toBe(42)
+    expect(jobUpdate).toHaveBeenCalledWith({
+      where: { id: 'job-1' },
+      data: { viewCount: { increment: 1 } },
+    })
+  })
+
+  it('điều kiện OPEN nằm ngay trong câu truy vấn, không kiểm sau', async () => {
+    /*
+     * `findFirst({ id, status: 'OPEN' })` thay vì `findUnique(id)` rồi kiểm
+     * trạng thái: không có nhánh nào lỡ tay trả về dữ liệu của tin chưa duyệt,
+     * kể cả khi ai đó thêm code vào giữa.
+     */
+    jobFindFirst.mockResolvedValue(HANG_JOB_PUBLIC)
+    jobUpdate.mockResolvedValue({})
+
+    await request(createApp()).get('/api/viec-lam/job-1')
+
+    expect(jobFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'job-1', status: 'OPEN' } }),
+    )
+  })
+
+  it('tin chưa duyệt trả NOT_FOUND, không phải FORBIDDEN', async () => {
+    // Với người ngoài, một tin chưa công khai thì đúng nghĩa là không tồn tại.
+    // Trả 403 sẽ xác nhận "có tin ở id này" cho bất kỳ ai dò.
+    jobFindFirst.mockResolvedValue(null)
+
+    const res = await request(createApp()).get('/api/viec-lam/tin-nhap-cua-nguoi-khac')
+
+    expect(res.status).toBe(404)
+    expect(res.body.error.code).toBe('NOT_FOUND')
+    expect(jobUpdate).not.toHaveBeenCalled()
+  })
+
+  it('KHÔNG lộ trường nội bộ ở trang chi tiết', async () => {
+    jobFindFirst.mockResolvedValue(HANG_JOB_PUBLIC)
+    jobUpdate.mockResolvedValue({})
+
+    const res = await request(createApp()).get('/api/viec-lam/job-1')
+
+    expect(res.body.data).not.toHaveProperty('status')
+    expect(res.body.data).not.toHaveProperty('rejectionReason')
+    expect(res.body.data).not.toHaveProperty('closedAt')
   })
 })

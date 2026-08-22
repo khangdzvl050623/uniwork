@@ -1,6 +1,12 @@
 import { z } from 'zod'
 import { SIGNUP_ROLES } from './api.js'
-import { SALARY_UNITS, SCHEDULE_TYPES, TIME_SLOTS, USER_STATUSES } from './domain.js'
+import {
+  JOB_STATUSES,
+  SALARY_UNITS,
+  SCHEDULE_TYPES,
+  TIME_SLOTS,
+  USER_STATUSES,
+} from './domain.js'
 
 /**
  * Luật kiểm dữ liệu dùng chung cho cả web và api.
@@ -420,3 +426,55 @@ export const updateJobSchema = baseJobSchema.superRefine(kiemLuatCheo)
  */
 export type CreateJobData = z.infer<typeof createJobSchema>
 export type UpdateJobData = z.infer<typeof updateJobSchema>
+
+/**
+ * Quyết định của admin với một tin đang chờ duyệt.
+ *
+ * Từ chối BẮT BUỘC có lý do, cùng luật với duyệt giấy tờ nhà tuyển dụng: từ
+ * chối im lặng đẩy người ta vào chỗ gửi lại đúng cái tin cũ vì không biết mình
+ * sai ở đâu — và làm nghẽn chính hàng đợi của admin.
+ */
+export const reviewJobSchema = z
+  .object({
+    decision: z.enum(['APPROVE', 'REJECT']),
+    rejectionReason: z.string().trim().max(500, 'Lý do tối đa 500 ký tự').nullish(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.decision === 'REJECT' && !val.rejectionReason) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['rejectionReason'],
+        message: 'Cần ghi lý do từ chối để nhà tuyển dụng biết phải sửa gì',
+      })
+    }
+  })
+
+export type ReviewJobData = z.infer<typeof reviewJobSchema>
+
+/** Lọc hàng đợi duyệt theo trạng thái. Không truyền thì mặc định `PENDING`. */
+export const adminJobQuerySchema = z.object({
+  status: z.enum(JOB_STATUSES).optional(),
+})
+
+/**
+ * Bộ lọc của trang việc làm công khai.
+ *
+ * Sprint 2 CHỈ có ba tiêu chí so sánh bằng. Tìm kiếm toàn văn, lọc theo lịch
+ * rảnh, lọc theo lương và kỹ năng đều thuộc Sprint 3 — xem ghi chú T79 trong
+ * `docs/sprint-2.md` để biết vì sao ranh giới này đáng giữ.
+ *
+ * Chuỗi rỗng thành `undefined`: ô lọc bỏ trống trên form gửi lên `?city=`, mà
+ * `city: ''` sẽ thành điều kiện "tỉnh/thành đúng bằng chuỗi rỗng" và trả về
+ * danh sách trống không ai giải thích được.
+ */
+const locTuyChon = z
+  .string()
+  .trim()
+  .optional()
+  .transform((v) => (v === '' ? undefined : v))
+
+export const publicJobQuerySchema = z.object({
+  city: locTuyChon,
+  district: locTuyChon,
+  scheduleType: z.enum(SCHEDULE_TYPES).optional(),
+})
