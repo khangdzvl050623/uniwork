@@ -283,6 +283,19 @@ export const jobShiftSchema = availabilitySlotSchema
  */
 const ngay = z.coerce.date()
 
+/**
+ * Ngày KHÔNG bắt buộc — và chuỗi rỗng phải hiểu là "để trống", không phải rác.
+ *
+ * `<input type="date">` để trống trả về `''`. Nếu đưa thẳng vào `z.coerce.date()`
+ * thì `new Date('')` ra Invalid Date và form báo "ngày không hợp lệ" cho một ô
+ * người dùng CỐ Ý không điền — đúng ba ô `startDate`, `endDate`, `workDate` mà
+ * mỗi loại lịch chỉ dùng một.
+ *
+ * Cùng một lớp lỗi với `chuoiTuyChon` ở phần hồ sơ: form HTML không có khái
+ * niệm "null", nó chỉ có chuỗi rỗng.
+ */
+const ngayTuyChon = z.preprocess((v) => (v === '' ? null : v), ngay.nullish())
+
 const baseJobSchema = z.object({
   title: z.string().trim().min(10, 'Tiêu đề cần ít nhất 10 ký tự').max(150, 'Tiêu đề tối đa 150 ký tự'),
   description: z
@@ -307,9 +320,9 @@ const baseJobSchema = z.object({
   scheduleType: z.enum(SCHEDULE_TYPES),
   commitmentMonths: z.number().int().min(1).max(60, 'Cam kết tối đa 60 tháng').nullish(),
   minShiftsPerWeek: z.number().int().min(1).max(21, 'Một tuần chỉ có 21 ca').nullish(),
-  startDate: ngay.nullish(),
-  endDate: ngay.nullish(),
-  workDate: ngay.nullish(),
+  startDate: ngayTuyChon,
+  endDate: ngayTuyChon,
+  workDate: ngayTuyChon,
 
   deadline: ngay,
 
