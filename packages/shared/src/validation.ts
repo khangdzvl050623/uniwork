@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { SIGNUP_ROLES } from './api.js'
-import { TIME_SLOTS, USER_STATUSES } from './domain.js'
+import { SALARY_UNITS, SCHEDULE_TYPES, TIME_SLOTS, USER_STATUSES } from './domain.js'
 
 /**
  * Luật kiểm dữ liệu dùng chung cho cả web và api.
@@ -221,3 +221,202 @@ const tenKyNang = z
 
 export const createSkillSchema = z.object({ name: tenKyNang })
 export const updateSkillSchema = z.object({ name: tenKyNang })
+
+/* -------------------------------------------------- tin tuyển dụng (T68) -- */
+
+/**
+ * Luật kiểm tin tuyển dụng.
+ *
+ * ---------------------------------------------------------------------------
+ * PHẢI KHỚP CHÍNH XÁC VỚI CHECK TRONG DATABASE
+ * ---------------------------------------------------------------------------
+ * Hai ràng buộc `jobs_schedule_fields_check` và `jobs_salary_check` đã tồn tại
+ * từ migration `20260815070939_oauth_ready_va_luong_thoa_thuan`. Chúng mới là
+ * luật thật — script sửa dữ liệu hay câu SQL vá tay đều đi vòng qua Zod được,
+ * CHECK thì không.
+ *
+ * Vai trò của Zod ở đây KHÔNG phải là lớp bảo vệ, mà là lớp DỊCH: biến một lỗi
+ * ràng buộc Postgres khó đọc thành 422 kèm tên trường và câu tiếng Việt. Vì
+ * vậy nó phải nói đúng y hệt luật kia — nới hơn thì người dùng nhận lỗi 500 bí
+ * ẩn, siết hơn thì chặn oan dữ liệu database vẫn chấp nhận.
+ *
+ * Bảng luật (chép từ BRD, khớp với CHECK):
+ *
+ * |            | commitmentMonths | startDate  | endDate  | workDate | minShiftsPerWeek |
+ * |------------|------------------|------------|----------|----------|------------------|
+ * | RECURRING  | tuỳ chọn         | tuỳ chọn   | CẤM      | CẤM      | tuỳ chọn         |
+ * | SEASONAL   | CẤM              | BẮT BUỘC   | BẮT BUỘC | CẤM      | tuỳ chọn         |
+ * | ONE_TIME   | CẤM              | CẤM        | CẤM      | BẮT BUỘC | CẤM              |
+ *
+ * Nguyên tắc đặt luật, lấy nguyên từ comment trong migration: **chỉ cấm cái
+ * MÂU THUẪN, không cấm cái chưa khai.** Nên RECURRING được bỏ trống cả
+ * `startDate` lẫn `commitmentMonths` (tuyển là đi làm ngay, không đòi cam kết),
+ * nhưng tuyệt đối không mang `endDate` — việc định kỳ theo định nghĩa là không
+ * có điểm kết thúc.
+ */
+
+/** Một ô trong lưới ca làm. `dayOfWeek` khớp CHECK `job_shifts_day_of_week_check`. */
+export const jobShiftSchema = z.object({
+  dayOfWeek: z.number().int().min(0, 'Thứ không hợp lệ').max(6, 'Thứ không hợp lệ'),
+  slot: z.enum(TIME_SLOTS),
+})
+
+/**
+ * Ngày nhận vào dạng chuỗi ISO rồi đổi sang `Date`.
+ *
+ * `z.coerce.date()` chạy `new Date(giá trị)` rồi mới kiểm — chuỗi rác cho ra
+ * Invalid Date và bị chặn ngay, không lọt xuống Prisma thành một lỗi khó đoán.
+ */
+const ngay = z.coerce.date()
+
+const baseJobSchema = z.object({
+  title: z.string().trim().min(10, 'Tiêu đề cần ít nhất 10 ký tự').max(150, 'Tiêu đề tối đa 150 ký tự'),
+  description: z
+    .string()
+    .trim()
+    .min(50, 'Mô tả cần ít nhất 50 ký tự để sinh viên hiểu công việc')
+    .max(5000, 'Mô tả tối đa 5000 ký tự'),
+
+  // Mảng rỗng được phép: đây là phần bổ sung, không phải thông tin bắt buộc.
+  requirements: z.array(z.string().trim().min(1)).max(20, 'Tối đa 20 mục yêu cầu'),
+  benefits: z.array(z.string().trim().min(1)).max(20, 'Tối đa 20 mục quyền lợi'),
+
+  city: z.string().trim().min(1, 'Chưa chọn tỉnh/thành'),
+  district: z.string().trim().min(1, 'Chưa chọn quận/huyện'),
+  quantity: z.number().int().min(1, 'Số lượng tuyển tối thiểu là 1').max(999, 'Số lượng quá lớn'),
+
+  salaryNegotiable: z.boolean(),
+  salaryMin: z.number().int().min(0, 'Lương không được âm').nullish(),
+  salaryMax: z.number().int().min(0, 'Lương không được âm').nullish(),
+  salaryUnit: z.enum(SALARY_UNITS),
+
+  scheduleType: z.enum(SCHEDULE_TYPES),
+  commitmentMonths: z.number().int().min(1).max(60, 'Cam kết tối đa 60 tháng').nullish(),
+  minShiftsPerWeek: z.number().int().min(1).max(21, 'Một tuần chỉ có 21 ca').nullish(),
+  startDate: ngay.nullish(),
+  endDate: ngay.nullish(),
+  workDate: ngay.nullish(),
+
+  deadline: ngay,
+
+  /*
+   * Ít nhất một ca — điều kiện nghiệm thu của T68, và là luật nghiệp vụ thật:
+   * tin không có ca làm nào thì không lọt vào bộ lọc theo lịch rảnh, tức là mất
+   * đúng tính năng lõi của UniWork.
+   */
+  shifts: z.array(jobShiftSchema).min(1, 'Chọn ít nhất một ca làm'),
+  skillIds: z.array(z.string().min(1)).max(15, 'Tối đa 15 kỹ năng'),
+})
+
+/** Gộp hai luật chéo (lịch và lương) để `create` và `update` dùng chung. */
+function kiemLuatCheo(val: z.infer<typeof baseJobSchema>, ctx: z.RefinementCtx) {
+  const cam = (
+    truong: 'commitmentMonths' | 'minShiftsPerWeek' | 'startDate' | 'endDate' | 'workDate',
+    thongBao: string,
+  ) => {
+    if (val[truong] != null) {
+      ctx.addIssue({ code: 'custom', path: [truong], message: thongBao })
+    }
+  }
+
+  const batBuoc = (truong: 'startDate' | 'endDate' | 'workDate', thongBao: string) => {
+    if (val[truong] == null) {
+      ctx.addIssue({ code: 'custom', path: [truong], message: thongBao })
+    }
+  }
+
+  /* ---- lịch: khớp jobs_schedule_fields_check ---- */
+  if (val.scheduleType === 'RECURRING') {
+    cam('endDate', 'Việc định kỳ không có ngày kết thúc')
+    cam('workDate', 'Ngày làm việc chỉ dùng cho việc một lần')
+  }
+
+  if (val.scheduleType === 'SEASONAL') {
+    batBuoc('startDate', 'Việc thời vụ phải có ngày bắt đầu')
+    batBuoc('endDate', 'Việc thời vụ phải có ngày kết thúc')
+    cam('commitmentMonths', 'Việc thời vụ đã có ngày bắt đầu và kết thúc, không dùng cam kết tháng')
+    cam('workDate', 'Ngày làm việc chỉ dùng cho việc một lần')
+
+    if (val.startDate && val.endDate && val.endDate < val.startDate) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['endDate'],
+        message: 'Ngày kết thúc phải sau ngày bắt đầu',
+      })
+    }
+  }
+
+  if (val.scheduleType === 'ONE_TIME') {
+    batBuoc('workDate', 'Việc một lần phải có ngày làm việc')
+    cam('startDate', 'Việc một lần chỉ cần ngày làm việc')
+    cam('endDate', 'Việc một lần chỉ cần ngày làm việc')
+    cam('commitmentMonths', 'Việc một lần không có cam kết tháng')
+    cam('minShiftsPerWeek', 'Việc chỉ diễn ra một buổi thì "số ca mỗi tuần" vô nghĩa')
+  }
+
+  /* ---- lương: khớp jobs_salary_check ---- */
+  if (val.salaryNegotiable) {
+    // Cấm trạng thái nửa vời "thoả thuận nhưng vẫn ghi 25000" — đúng thứ làm bộ
+    // lọc lương trả về kết quả không ai giải thích được.
+    if (val.salaryMin != null || val.salaryMax != null) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['salaryMin'],
+        message: 'Đã chọn "Thoả thuận" thì không điền mức lương',
+      })
+    }
+  } else {
+    if (val.salaryMin == null) {
+      ctx.addIssue({ code: 'custom', path: ['salaryMin'], message: 'Nhập mức lương tối thiểu' })
+    }
+    if (val.salaryMax == null) {
+      ctx.addIssue({ code: 'custom', path: ['salaryMax'], message: 'Nhập mức lương tối đa' })
+    }
+    if (val.salaryMin != null && val.salaryMax != null && val.salaryMax < val.salaryMin) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['salaryMax'],
+        message: 'Lương tối đa phải lớn hơn hoặc bằng lương tối thiểu',
+      })
+    }
+  }
+
+  /*
+   * Hạn nhận hồ sơ không được ở quá khứ.
+   *
+   * KHÔNG có CHECK tương ứng ở database, và cố ý: "quá khứ" phụ thuộc thời điểm
+   * đọc, nên một CHECK như vậy sẽ làm mọi tin cũ thành không sửa được. Đây là
+   * luật của lúc NHẬP, không phải bất biến của dữ liệu.
+   */
+  if (val.deadline.getTime() < Date.now()) {
+    ctx.addIssue({ code: 'custom', path: ['deadline'], message: 'Hạn nhận hồ sơ đã qua' })
+  }
+
+  /*
+   * Trùng ca: schema có `@@unique([jobId, dayOfWeek, slot])`, gửi trùng sẽ vỡ ở
+   * tầng database. Bắt ở đây để báo lỗi rõ thay vì một lỗi ràng buộc thô.
+   */
+  const khoaCa = val.shifts.map((s) => `${s.dayOfWeek}-${s.slot}`)
+  if (new Set(khoaCa).size !== khoaCa.length) {
+    ctx.addIssue({ code: 'custom', path: ['shifts'], message: 'Có ca làm bị chọn trùng' })
+  }
+
+  /* Cùng lý do: `@@id([jobId, skillId])` không cho trùng kỹ năng. */
+  if (new Set(val.skillIds).size !== val.skillIds.length) {
+    ctx.addIssue({ code: 'custom', path: ['skillIds'], message: 'Có kỹ năng bị chọn trùng' })
+  }
+}
+
+export const createJobSchema = baseJobSchema.superRefine(kiemLuatCheo)
+export const updateJobSchema = baseJobSchema.superRefine(kiemLuatCheo)
+
+/**
+ * Dữ liệu tin SAU KHI đã qua Zod.
+ *
+ * Khác `CreateJobInput` ở chỗ các trường ngày đã là `Date` chứ không còn là
+ * chuỗi ISO — `z.coerce.date()` đổi sẵn. `CreateJobInput` mô tả thứ đi trên
+ * dây (JSON), kiểu này mô tả thứ tầng service cầm trong tay. Lẫn hai cái là
+ * nguồn của những lỗi kiểu rất khó đọc ở chỗ gọi Prisma.
+ */
+export type CreateJobData = z.infer<typeof createJobSchema>
+export type UpdateJobData = z.infer<typeof updateJobSchema>
