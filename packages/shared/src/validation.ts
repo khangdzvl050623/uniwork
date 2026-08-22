@@ -202,3 +202,22 @@ export const reviewDocumentSchema = z
 export const verifyEmployerSchema = z.object({
   verified: z.boolean(),
 })
+
+/**
+ * Tên kỹ năng trong danh mục.
+ *
+ * `.trim()` chạy TRƯỚC `.min()`, nên một chuỗi toàn khoảng trắng bị chặn thay
+ * vì lọt vào database thành một dòng trắng không ai xoá được (nhìn bảng không
+ * thấy gì, mà `jobCount` vẫn có thể > 0).
+ *
+ * Không cấm dấu tiếng Việt — tên là thứ hiện cho người đọc. Phần không dấu
+ * dùng cho URL là `slug`, do server tự sinh (xem `lib/slug.ts` phía api).
+ */
+const tenKyNang = z
+  .string()
+  .trim()
+  .min(2, 'Tên kỹ năng cần ít nhất 2 ký tự')
+  .max(60, 'Tên kỹ năng tối đa 60 ký tự')
+
+export const createSkillSchema = z.object({ name: tenKyNang })
+export const updateSkillSchema = z.object({ name: tenKyNang })

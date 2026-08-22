@@ -428,3 +428,43 @@ export interface ReviewDocumentInput {
 export interface VerifyEmployerInput {
   verified: boolean
 }
+
+/**
+ * Một dòng trong bảng "Danh mục kỹ năng" của khu quản trị.
+ *
+ * Có HAI con số đếm chứ không phải một. Cả `JobSkill` lẫn `StudentSkill` đều
+ * tham chiếu `Skill` với `onDelete: Restrict`, nên chỉ cần một trong hai còn
+ * dùng là không xoá được. Trả mỗi `jobCount` thì admin thấy "0 tin" mà bấm xoá
+ * vẫn lỗi, không hiểu vì sao — hoá ra 5 sinh viên đang khai kỹ năng đó.
+ */
+export interface AdminSkillResponse {
+  id: string
+  name: string
+  /** Khoá tra cứu ổn định, dùng trong URL lọc. Đổi `name` KHÔNG đổi cái này. */
+  slug: string
+  /** Số tin tuyển dụng đang yêu cầu kỹ năng này. */
+  jobCount: number
+  /** Số sinh viên đang khai kỹ năng này trong hồ sơ. */
+  studentCount: number
+}
+
+/** GET /api/admin/ky-nang. */
+export interface AdminSkillListResponse {
+  skills: AdminSkillResponse[]
+}
+
+/** POST /api/admin/ky-nang — slug do server sinh từ `name`, không nhận từ client. */
+export interface CreateSkillInput {
+  name: string
+}
+
+/**
+ * PUT /api/admin/ky-nang/:id — CHỈ đổi được tên hiển thị.
+ *
+ * `slug` cố ý không sửa được: tin tuyển dụng và link lọc (`/viec-lam?skill=pha-che`)
+ * tham chiếu kỹ năng bằng slug. Cho đổi slug là làm chết mọi link đã phát ra
+ * ngoài, đổi lại chỉ được một chuỗi đẹp hơn trong URL.
+ */
+export interface UpdateSkillInput {
+  name: string
+}

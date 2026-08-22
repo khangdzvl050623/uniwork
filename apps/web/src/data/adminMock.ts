@@ -12,11 +12,11 @@ import type { ScheduleType } from '@uniwork/shared'
  *   PENDING_JOBS       -> GET /api/admin/tin-tuyen-dung?status=PENDING  (Sprint 2)
  *   EMPLOYER_JOBS      -> GET /api/ntd/tin-tuyen-dung                   (Sprint 2)
  *   EMPLOYER_APPLICANTS-> GET /api/ntd/don-ung-tuyen                    (Sprint 4)
- *   ADMIN_SKILLS       -> GET /api/skills  (api đã có phần đọc, chưa có phần sửa)
  *
  * Đã thay bằng dữ liệu thật và xoá khỏi file này:
  *   ADMIN_USERS        -> GET /api/admin/nguoi-dung
  *   PENDING_EMPLOYERS  -> GET /api/admin/nha-tuyen-dung
+ *   ADMIN_SKILLS       -> GET /api/admin/ky-nang
  */
 
 export type JobReviewStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
@@ -133,42 +133,6 @@ export const PENDING_JOBS: PendingJob[] = [
     status: 'PENDING',
     flags: [],
   },
-]
-
-export interface AdminSkill {
-  id: string
-  name: string
-  slug: string
-  /** Số tin đang dùng kỹ năng này. Quyết định có xoá được hay không. */
-  jobCount: number
-  group: string
-}
-
-export const ADMIN_SKILLS: AdminSkill[] = [
-  { id: 's1', name: 'Giao tiếp', slug: 'giao-tiep', jobCount: 214, group: 'Kỹ năng mềm' },
-  { id: 's2', name: 'Bán hàng', slug: 'ban-hang', jobCount: 168, group: 'Kinh doanh' },
-  { id: 's3', name: 'Pha chế cơ bản', slug: 'pha-che-co-ban', jobCount: 96, group: 'Dịch vụ' },
-  {
-    id: 's4',
-    name: 'Tin học văn phòng',
-    slug: 'tin-hoc-van-phong',
-    jobCount: 132,
-    group: 'Văn phòng',
-  },
-  { id: 's5', name: 'Tiếng Anh', slug: 'tieng-anh', jobCount: 88, group: 'Ngoại ngữ' },
-  { id: 's6', name: 'Sư phạm', slug: 'su-pham', jobCount: 74, group: 'Giáo dục' },
-  { id: 's7', name: 'Thiết kế', slug: 'thiet-ke', jobCount: 41, group: 'Sáng tạo' },
-  {
-    id: 's8',
-    name: 'Chăm sóc khách hàng',
-    slug: 'cham-soc-khach-hang',
-    jobCount: 119,
-    group: 'Dịch vụ',
-  },
-  { id: 's9', name: 'Làm việc nhóm', slug: 'lam-viec-nhom', jobCount: 187, group: 'Kỹ năng mềm' },
-  { id: 's10', name: 'Quản lý lớp', slug: 'quan-ly-lop', jobCount: 33, group: 'Giáo dục' },
-  { id: 's11', name: 'Gõ phím nhanh', slug: 'go-phim-nhanh', jobCount: 12, group: 'Văn phòng' },
-  { id: 's12', name: 'Sức khoẻ tốt', slug: 'suc-khoe-tot', jobCount: 57, group: 'Kỹ năng mềm' },
 ]
 
 export interface EmployerJob {
