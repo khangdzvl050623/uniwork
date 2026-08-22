@@ -49,7 +49,7 @@ Mã tiếp nối Sprint 1 (kết thúc ở T66).
 | T68 | 1–2 | DEV1 | `POST /api/ntd/tin-tuyen-dung` — tạo tin `DRAFT`, kèm ca làm (`shifts[]`) và kỹ năng yêu cầu (`skillIds[]`) trong một transaction. Bọc `rateLimit` (~20 tin/giờ theo `userId`), dùng lại middleware sẵn có — xem ghi chú T68 | Gửi tin thiếu ca làm bị chặn ngay ở Zod (422), CHECK ở database là lớp phòng thủ thứ hai; gọi `POST` liên tục quá ngưỡng trả `RATE_LIMITED` |
 | T69 | 2–3 | DEV1 | `GET /api/ntd/tin-tuyen-dung` (danh sách tin của chính mình, mọi trạng thái) và `GET /api/ntd/tin-tuyen-dung/:id` | NTD A gọi xem tin của NTD B trả `FORBIDDEN` |
 | T70 | 3–4 | DEV1 | `PUT /api/ntd/tin-tuyen-dung/:id` — sửa tin. Sửa các trường đã chốt trong BRD thì tự động quay về `PENDING` | Sửa `benefits` không bắt duyệt lại; sửa `salaryMin` thì bắt |
-| T71 | 4 | DEV1 | `DELETE /api/ntd/tin-tuyen-dung/:id` — **chỉ cho xoá khi `status = DRAFT`** | Xoá tin đã gửi duyệt (`PENDING` trở lên) trả `CONFLICT`, không đụng tới `Application` đã cascade |
+| T71 | 4 | DEV1 | `DELETE /api/ntd/tin-tuyen-dung/:id` (chỉ `DRAFT`/`PENDING`) **và `POST /:id/dong`** để gỡ tin đã duyệt — xem ghi chú T71 | Xoá tin `OPEN`/`CLOSED` trả `CONFLICT` kèm hướng dẫn đóng tin; đóng tin `OPEN` thì nó rời trang công khai nhưng bản ghi và đơn ứng tuyển vẫn nguyên |
 | T72 | 4–5 | DEV1 | `POST /api/ntd/tin-tuyen-dung/:id/gui-duyet` — `DRAFT` → `PENDING` | NTD chưa có `verifiedAt` gọi vào trả `FORBIDDEN`, đúng luồng BRD đã chốt |
 | T73 | 1–3 | DEV2 | Nối `PostJob.tsx` vào API thật — dùng chung form cho tạo và sửa. Ẩn/hiện đúng nhóm trường theo `scheduleType` (bảng đã chốt trong BRD), thêm ô "Lương thoả thuận" đang thiếu | Chọn `SEASONAL` thì ô `commitmentMonths` biến mất, ô `startDate`/`endDate` bắt buộc hiện ra |
 | T74 | 3–5 | DEV2 | Trang quản lý tin của NTD (`admin/EmployerJobs.tsx`) nối API thật: danh sách, sửa, xoá tin nháp, nút gửi duyệt, hiện rõ `rejectionReason` khi bị từ chối | NTD nhìn phát biết tin nào đang ở trạng thái gì và vì sao bị từ chối, không phải đoán |
@@ -128,11 +128,41 @@ Lương: `salaryNegotiable = true` thì `salaryMin`/`salaryMax` phải null cả
 
 Lý do `description` nằm trong danh sách bắt buộc dù nghe như "chỉ là chữ": tin lừa đảo không đổi lương, nó đổi mô tả sau khi đã qua duyệt bằng một tin sạch. Bỏ `description` ra khỏi danh sách là mở đúng cửa mà khâu duyệt sinh ra để chặn.
 
-## Ghi chú cho T71 — vì sao chỉ xoá được tin `DRAFT`
+## Ghi chú cho T71 — xoá tin và đóng tin là hai việc khác nhau
 
-`Application.job` khai `onDelete: Cascade` — xoá một `Job` xoá theo mọi đơn ứng tuyển của tin đó. Một tin đã `PENDING` trở lên thì **có khả năng đã có ứng viên** (thực ra Sprint 4 mới xây xong luồng nộp đơn, nhưng luật này phải đúng ngay từ bây giờ để không phải sửa lại khi Sprint 4 tới). Cho xoá cứng một tin đã public là cho nhà tuyển dụng xoá luôn bằng chứng ứng tuyển của sinh viên — kể cả vô tình.
+| Trạng thái | Xoá cứng | Đóng tin | Vì sao |
+| --- | --- | --- | --- |
+| `DRAFT` | **Được** | — | Chưa từng công khai, không thể có đơn nào |
+| `PENDING` | **Được** | — | Cũng chưa từng công khai, cũng chưa thể có đơn |
+| `OPEN` | Không — 409 | **Được** | Đã công khai; đơn ứng tuyển phải sống sót |
+| `CLOSED` | Không — 409 | — | Xoá là mất luôn lịch sử đơn của đợt tuyển đã xong |
 
-Muốn gỡ một tin đã `OPEN` thì dùng đường khác: đổi `status` sang `CLOSED` (giữ nguyên `Job`, giữ nguyên `Application`), không phải `DELETE`. Endpoint đóng tin không thuộc phạm vi sprint này — thời điểm dùng phổ biến nhất của nó là "đã tuyển đủ người", mà đó thuộc Sprint 4 (luồng ứng tuyển). Ghi lại ở đây để Sprint 4 không quên.
+`Application.job` khai `onDelete: Cascade` — xoá một `Job` là xoá theo **mọi đơn ứng tuyển** của tin đó. Sinh viên đã nộp CV, đang chờ kết quả, bỗng mất sạch đơn khỏi danh sách: không phải "bị từ chối", mà là biến mất không dấu vết. BRD Module 3 đã cấm đúng điều này: *"tin bị gỡ sau khi đã ứng tuyển → đơn giữ nguyên, sinh viên vẫn xem được trạng thái"*.
+
+Luồng ứng tuyển thuộc Sprint 4 nên hiện chưa có đơn nào để mất. Luật vẫn phải đúng **ngay từ bây giờ**: tới lúc đó endpoint đã tồn tại và đang dễ dãi, sẽ không ai nhớ quay lại siết.
+
+**Vì sao `PENDING` lại xoá được** (khác dự tính ban đầu của kế hoạch): tin `PENDING` chưa từng hiện công khai nên chưa thể có đơn. Bắt nhà tuyển dụng rút về `DRAFT` rồi mới cho xoá là thêm một bước mà không bảo vệ được gì — đúng nguyên tắc dùng xuyên suốt schema này: *chỉ cấm cái mâu thuẫn, không cấm cái chưa gây hại*. Đổi lại admin có thể mất một mục đang xem dở trong hàng đợi; endpoint duyệt (T78) phải trả 404 rõ ràng cho trường hợp đó.
+
+**Vì sao đóng tin thuộc sprint này** (kế hoạch đầu hoãn sang Sprint 4): nếu chỉ cho xoá `DRAFT` mà không có đường nào gỡ tin đã duyệt, thì nhà tuyển dụng đăng tin xong, admin duyệt, tin lên trang công khai — và họ **kẹt vĩnh viễn** với nó. Lý do hoãn ban đầu ("dùng phổ biến nhất là tuyển đủ người, thuộc Sprint 4") sai chỗ: *tuyển đủ người* thuộc Sprint 4, nhưng *gỡ tin xuống* là nhu cầu có ngay từ tin đầu tiên được duyệt.
+
+Đóng tin không có đường ngược lại. Mở lại một tin đã đóng đưa hệ thống về đúng chỗ khó xử ở T70: đơn của đợt cũ nằm lẫn với đợt mới.
+
+## Ghi chú — lưới an toàn cho lỗi ràng buộc Prisma
+
+Phát hiện khi làm T71, và nó ảnh hưởng **mọi endpoint đã viết**, không riêng module này.
+
+Gần như mọi endpoint sửa/xoá đều theo hình dạng *"đọc kiểm tồn tại → rồi ghi"*. Giữa hai câu truy vấn đó có một khe: một request khác kịp xoá đúng hàng ấy. Prisma khi đó ném `P2025`, và `error-handler.ts` **trước đây không xử lý lỗi Prisma nào cả** — nó rơi xuống nhánh cuối thành **500**, báo cho người dùng rằng máy chủ hỏng trong khi chuyện thật chỉ là dữ liệu vừa bị người khác xoá.
+
+Đã vá tập trung ở `middlewares/error-handler.ts`:
+
+| Mã Prisma | Trả về | Nghĩa |
+| --- | --- | --- |
+| `P2025` | 404 `NOT_FOUND` | Hàng cần sửa/xoá không còn nữa |
+| `P2002` | 409 `CONFLICT` | Vi phạm ràng buộc duy nhất |
+| `P2003` | 409 `CONFLICT` | Vi phạm khoá ngoại |
+| khác | 500 | Lỗi hạ tầng thật (mất kết nối, timeout…) — không đoán bừa là lỗi người dùng |
+
+Sửa một chỗ, mọi endpoint được bảo vệ — kể cả endpoint duyệt tin của admin sẽ viết ở T77–T78. Các service vẫn nên kiểm tường minh trước để có câu chữ cụ thể; đây là lưới an toàn, không phải chỗ thay thế.
 
 ## Ghi chú cho T79 — ranh giới với Sprint 3, đọc kỹ trước khi code
 

@@ -331,6 +331,89 @@ export async function updateJob(
 }
 
 /**
+ * Xoá hẳn một tin. CHỈ khi tin chưa từng công khai.
+ *
+ * ---------------------------------------------------------------------------
+ * VÌ SAO `OPEN` VÀ `CLOSED` KHÔNG XOÁ ĐƯỢC
+ * ---------------------------------------------------------------------------
+ * `Application.job` khai `onDelete: Cascade` — xoá một tin là xoá theo MỌI đơn
+ * ứng tuyển của tin đó. Sinh viên đã nộp CV, đang chờ kết quả, bỗng mất sạch
+ * đơn khỏi danh sách "đơn đã nộp": không phải "bị từ chối", mà là biến mất
+ * không dấu vết.
+ *
+ * BRD Module 3 đã đặt luật cho đúng tình huống này: "Tin bị gỡ sau khi đã ứng
+ * tuyển → đơn giữ nguyên, sinh viên vẫn xem được trạng thái". Xoá cứng vi phạm
+ * thẳng dòng đó.
+ *
+ * Muốn gỡ một tin đã duyệt thì dùng `closeJob` bên dưới: tin thành `CLOSED`,
+ * rời khỏi trang công khai, nhưng bản ghi và mọi đơn vẫn còn.
+ *
+ * Luồng ứng tuyển thuộc Sprint 4 nên hiện chưa có đơn nào để mất. Luật vẫn phải
+ * đúng ngay từ bây giờ: tới lúc đó endpoint này đã tồn tại và đang dễ dãi, sẽ
+ * không ai nhớ quay lại siết.
+ *
+ * ---------------------------------------------------------------------------
+ * VÌ SAO `PENDING` LẠI XOÁ ĐƯỢC
+ * ---------------------------------------------------------------------------
+ * Tin `PENDING` chưa từng hiện công khai nên chưa thể có đơn nào. Bắt nhà tuyển
+ * dụng rút về `DRAFT` rồi mới cho xoá là thêm một bước mà không bảo vệ được gì
+ * — đúng nguyên tắc dùng xuyên suốt schema này: chỉ cấm cái mâu thuẫn, không
+ * cấm cái chưa gây hại.
+ *
+ * Đổi lại admin có thể mất một mục đang xem dở trong hàng đợi. Endpoint duyệt
+ * của admin (T78) phải trả 404 rõ ràng cho trường hợp đó, và nó được lưới an
+ * toàn ở `error-handler.ts` bảo vệ sẵn.
+ */
+export async function deleteJob(userId: string, jobId: string): Promise<{ id: string }> {
+  const { job } = await layTinCuaToi(userId, jobId)
+
+  if (job.status === 'OPEN' || job.status === 'CLOSED') {
+    throw conflict(
+      job.status === 'OPEN'
+        ? 'Tin đang hiển thị công khai thì không xoá được. Hãy đóng tin nếu muốn gỡ xuống.'
+        : 'Tin đã đóng thì không xoá được — xoá sẽ mất luôn lịch sử đơn ứng tuyển của đợt tuyển đó.',
+    )
+  }
+
+  await prisma.job.delete({ where: { id: jobId } })
+  return { id: jobId }
+}
+
+/**
+ * Đóng một tin đang mở: `OPEN` → `CLOSED`.
+ *
+ * Đây là đường ĐÚNG để gỡ một tin đã duyệt xuống — thay cho việc xoá. Tin rời
+ * khỏi trang công khai ngay (endpoint công khai ở T79 chỉ lọc `OPEN`), nhưng
+ * bản ghi và mọi đơn ứng tuyển vẫn nguyên vẹn.
+ *
+ * Không có đường ngược lại. Mở lại một tin đã đóng đưa hệ thống về đúng chỗ khó
+ * xử đã bàn ở T70: đơn của đợt cũ nằm lẫn với đợt mới. Muốn tuyển tiếp thì đăng
+ * tin mới.
+ *
+ * Chỉ nhận `OPEN`. `DRAFT`/`PENDING` chưa từng công khai nên không có gì để
+ * đóng — muốn bỏ thì xoá hẳn.
+ */
+export async function closeJob(userId: string, jobId: string): Promise<EmployerJobResponse> {
+  const { job } = await layTinCuaToi(userId, jobId)
+
+  if (job.status !== 'OPEN') {
+    throw conflict(
+      job.status === 'CLOSED'
+        ? 'Tin này đã đóng rồi'
+        : 'Chỉ đóng được tin đang hiển thị công khai. Tin chưa duyệt thì xoá hẳn.',
+    )
+  }
+
+  const daDong = await prisma.job.update({
+    where: { id: jobId },
+    data: { status: 'CLOSED', closedAt: new Date() },
+    select: CHON_JOB,
+  })
+
+  return toEmployerJobResponse(daDong)
+}
+
+/**
  * Kiểm mọi `skillId` gửi lên đều có thật.
  *
  * Không có bước này thì một id sai sẽ vỡ ở tầng khoá ngoại của Postgres, và

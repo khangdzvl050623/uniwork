@@ -99,6 +99,9 @@ DRAFT → (gửi duyệt) → PENDING → (admin duyệt)  → OPEN → (hết h
 | Sửa tin đang `OPEN` | Quay lại `PENDING`, phải duyệt lại |
 | **Sửa tin đã `CLOSED`** | **409 — không cho sửa, gợi ý đăng tin mới** (bổ sung khi làm T70, xem lý do bên dưới) |
 | Sửa tin của nhà tuyển dụng khác | 403 — kiểm chủ sở hữu, không chỉ kiểm vai trò |
+| **Xoá tin `OPEN` hoặc `CLOSED`** | **409 — chỉ xoá được `DRAFT`/`PENDING`; muốn gỡ tin đã duyệt thì đóng tin** (bổ sung khi làm T71) |
+| **Đóng tin** (`OPEN` → `CLOSED`) | Tin rời trang công khai, bản ghi và mọi đơn ứng tuyển giữ nguyên. Không có đường mở lại |
+| Tin bị xoá mất giữa lúc một request khác đang thao tác | 404 — lưới an toàn ở `error-handler.ts` chuyển `P2025` của Prisma thành `NOT_FOUND` thay vì để rơi thành 500 |
 
 #### Vì sao chặn sửa tin `CLOSED`
 

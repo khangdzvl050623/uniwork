@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import request from 'supertest'
+import { Prisma } from '@prisma/client'
 import { createApp } from '../../app.js'
 import { prisma } from '../../lib/prisma.js'
 import { signAccessToken } from '../../lib/token.js'
@@ -9,7 +10,7 @@ vi.mock('../../lib/prisma.js', () => ({
   prisma: {
     employerProfile: { findUnique: vi.fn() },
     skill: { count: vi.fn() },
-    job: { create: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn() },
+    job: { create: vi.fn(), findMany: vi.fn(), findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
   },
 }))
 
@@ -19,6 +20,7 @@ const jobCreate = prisma.job.create as unknown as Mock
 const jobFindMany = prisma.job.findMany as unknown as Mock
 const jobFindUnique = prisma.job.findUnique as unknown as Mock
 const jobUpdate = prisma.job.update as unknown as Mock
+const jobDelete = prisma.job.delete as unknown as Mock
 
 const ntdToken = signAccessToken({ sub: 'u-ntd', role: 'EMPLOYER' })
 const svToken = signAccessToken({ sub: 'u-sv', role: 'STUDENT' })
@@ -740,5 +742,192 @@ describe('T70 — sửa gì thì tin quay về PENDING', () => {
 
     const data = jobUpdate.mock.calls[0][0].data as Record<string, unknown>
     expect(data).not.toHaveProperty('rejectionReason')
+  })
+})
+
+/* ------------------------------------------------------------------ T71 -- */
+
+/** Gửi request xoá tin, với trạng thái tin cũ cho trước. */
+function guiXoaTin(status: string, ghiDe: Record<string, unknown> = {}, token = ntdToken) {
+  jobFindUnique.mockResolvedValue({
+    ...HANG_JOB,
+    employerProfileId: 'ep-1',
+    status,
+    ...ghiDe,
+  })
+  jobDelete.mockResolvedValue({ id: 'job-1' })
+
+  return request(createApp())
+    .delete('/api/ntd/tin-tuyen-dung/job-1')
+    .set('Authorization', `Bearer ${token}`)
+}
+
+describe('DELETE /api/ntd/tin-tuyen-dung/:id — xoá tin', () => {
+  it('xoá được tin DRAFT', async () => {
+    const res = await guiXoaTin('DRAFT')
+
+    expect(res.status).toBe(200)
+    expect(res.body.data).toEqual({ id: 'job-1' })
+    expect(jobDelete).toHaveBeenCalledWith({ where: { id: 'job-1' } })
+  })
+
+  it('xoá được tin PENDING — chưa từng công khai nên chưa thể có đơn nào', async () => {
+    // Bắt NTD rút về DRAFT rồi mới cho xoá là thêm một bước mà không bảo vệ được
+    // gì. Đúng nguyên tắc dùng xuyên suốt: chỉ cấm cái mâu thuẫn.
+    const res = await guiXoaTin('PENDING')
+
+    expect(res.status).toBe(200)
+    expect(jobDelete).toHaveBeenCalled()
+  })
+
+  it('KHÔNG xoá được tin OPEN — đơn ứng tuyển sẽ bị cascade theo', async () => {
+    /*
+     * `Application.job` khai `onDelete: Cascade`. Xoá tin OPEN là xoá theo mọi
+     * đơn của tin đó — sinh viên đang chờ kết quả mất sạch đơn khỏi danh sách,
+     * không phải "bị từ chối" mà là biến mất không dấu vết. BRD Module 3 cấm
+     * đúng điều này: "tin bị gỡ sau khi đã ứng tuyển → đơn giữ nguyên".
+     */
+    const res = await guiXoaTin('OPEN')
+
+    expect(res.status).toBe(409)
+    expect(res.body.error.message).toContain('đóng tin')
+    expect(jobDelete).not.toHaveBeenCalled()
+  })
+
+  it('KHÔNG xoá được tin CLOSED — mất luôn lịch sử đơn của đợt tuyển đã xong', async () => {
+    const res = await guiXoaTin('CLOSED')
+
+    expect(res.status).toBe(409)
+    expect(jobDelete).not.toHaveBeenCalled()
+  })
+
+  it('xoá tin của NTD khác thì 403', async () => {
+    const res = await guiXoaTin('DRAFT', { employerProfileId: 'ep-KHAC' })
+
+    expect(res.status).toBe(403)
+    expect(jobDelete).not.toHaveBeenCalled()
+  })
+
+  it('sinh viên không xoá được', async () => {
+    const res = await guiXoaTin('DRAFT', {}, svToken)
+
+    expect(res.status).toBe(403)
+    expect(jobDelete).not.toHaveBeenCalled()
+  })
+})
+
+describe('POST /api/ntd/tin-tuyen-dung/:id/dong — đóng tin', () => {
+  function guiDongTin(status: string, ghiDe: Record<string, unknown> = {}, token = ntdToken) {
+    jobFindUnique.mockResolvedValue({
+      ...HANG_JOB,
+      employerProfileId: 'ep-1',
+      status,
+      ...ghiDe,
+    })
+    jobUpdate.mockResolvedValue({ ...HANG_JOB, status: 'CLOSED', closedAt: new Date() })
+
+    return request(createApp())
+      .post('/api/ntd/tin-tuyen-dung/job-1/dong')
+      .set('Authorization', `Bearer ${token}`)
+  }
+
+  it('đóng được tin OPEN, đặt luôn closedAt', async () => {
+    // Đây là đường ĐÚNG để gỡ một tin đã duyệt xuống — thay cho việc xoá. Tin
+    // rời trang công khai (T79 chỉ lọc OPEN) nhưng bản ghi và đơn vẫn nguyên.
+    const res = await guiDongTin('OPEN')
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.status).toBe('CLOSED')
+    expect(jobUpdate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { status: 'CLOSED', closedAt: expect.any(Date) },
+      }),
+    )
+  })
+
+  it('tin đã CLOSED thì báo rõ là đã đóng rồi', async () => {
+    const res = await guiDongTin('CLOSED')
+
+    expect(res.status).toBe(409)
+    expect(res.body.error.message).toContain('đã đóng rồi')
+    expect(jobUpdate).not.toHaveBeenCalled()
+  })
+
+  it('tin DRAFT/PENDING không có gì để đóng — hướng sang xoá hẳn', async () => {
+    for (const status of ['DRAFT', 'PENDING'] as const) {
+      vi.clearAllMocks()
+      ntdFindUnique.mockResolvedValue({ id: 'ep-1', verifiedAt: new Date() })
+
+      const res = await guiDongTin(status)
+      expect(res.status).toBe(409)
+      expect(res.body.error.message).toContain('xoá hẳn')
+    }
+  })
+
+  it('đóng tin của NTD khác thì 403', async () => {
+    const res = await guiDongTin('OPEN', { employerProfileId: 'ep-KHAC' })
+    expect(res.status).toBe(403)
+  })
+})
+
+/*
+ * Đua giữa "NTD xoá tin" và "một request khác đang thao tác trên đúng tin đó".
+ *
+ * Mọi endpoint sửa/xoá đều có hình dạng "đọc kiểm tồn tại → rồi ghi", và giữa
+ * hai câu truy vấn đó có một khe: request khác kịp xoá đúng hàng ấy. Prisma khi
+ * đó ném P2025.
+ *
+ * Không bắt thì P2025 rơi xuống nhánh cuối của error-handler thành 500 — báo
+ * "máy chủ hỏng" trong khi chuyện thật chỉ là dữ liệu vừa bị xoá. Lưới an toàn
+ * nằm ở `middlewares/error-handler.ts`, nên MỌI endpoint cùng hình dạng đều
+ * được bảo vệ, kể cả endpoint duyệt tin của admin sẽ viết ở T78.
+ */
+describe('đua: tin biến mất giữa lúc đang thao tác', () => {
+  /** Đúng lỗi Prisma ném ra khi update/delete một hàng không còn tồn tại. */
+  function loiHangDaBienMat() {
+    return new Prisma.PrismaClientKnownRequestError('Record to update not found', {
+      code: 'P2025',
+      clientVersion: '6.19.3',
+    })
+  }
+
+  it('SỬA tin vừa bị xoá mất → 404 rõ ràng, không phải 500', async () => {
+    jobFindUnique.mockResolvedValue({ ...HANG_JOB, employerProfileId: 'ep-1', status: 'DRAFT' })
+    jobUpdate.mockRejectedValue(loiHangDaBienMat())
+
+    const res = await request(createApp())
+      .put('/api/ntd/tin-tuyen-dung/job-1')
+      .set('Authorization', `Bearer ${ntdToken}`)
+      .send(tinHopLe())
+
+    expect(res.status).toBe(404)
+    expect(res.body.error.code).toBe('NOT_FOUND')
+  })
+
+  it('ĐÓNG tin vừa bị xoá mất → 404 rõ ràng', async () => {
+    jobFindUnique.mockResolvedValue({ ...HANG_JOB, employerProfileId: 'ep-1', status: 'OPEN' })
+    jobUpdate.mockRejectedValue(loiHangDaBienMat())
+
+    const res = await request(createApp())
+      .post('/api/ntd/tin-tuyen-dung/job-1/dong')
+      .set('Authorization', `Bearer ${ntdToken}`)
+
+    expect(res.status).toBe(404)
+  })
+
+  it('XOÁ một tin đã bị xoá trước đó → 404 rõ ràng', async () => {
+    jobFindUnique.mockResolvedValue({ ...HANG_JOB, employerProfileId: 'ep-1', status: 'DRAFT' })
+    jobDelete.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Record to delete does not exist', {
+        code: 'P2025',
+        clientVersion: '6.19.3',
+      }),
+    )
+
+    const res = await request(createApp())
+      .delete('/api/ntd/tin-tuyen-dung/job-1')
+      .set('Authorization', `Bearer ${ntdToken}`)
+
+    expect(res.status).toBe(404)
   })
 })

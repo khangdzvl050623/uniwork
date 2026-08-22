@@ -47,3 +47,19 @@ export const updateJobController: RequestHandler = async (req, res) => {
   const input = parse(updateJobSchema, req.body)
   ok(res, await jobsService.updateJob(userId, id, input))
 }
+
+/*
+ * Tra 200 kem { id } thay vi 204 rong — cung ly do nhu DELETE ky nang: apiFetch
+ * phia web goi response.json() vo dieu kien.
+ */
+export const deleteJobController: RequestHandler = async (req, res) => {
+  const userId = requireUserId(req)
+  const { id } = parse(thamSoId, req.params)
+  ok(res, await jobsService.deleteJob(userId, id))
+}
+
+export const closeJobController: RequestHandler = async (req, res) => {
+  const userId = requireUserId(req)
+  const { id } = parse(thamSoId, req.params)
+  ok(res, await jobsService.closeJob(userId, id))
+}

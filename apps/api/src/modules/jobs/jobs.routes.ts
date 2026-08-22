@@ -2,7 +2,9 @@ import { Router } from 'express'
 import { requireAuth, requireRole } from '../../middlewares/auth.js'
 import { rateLimit } from '../../middlewares/rate-limit.js'
 import {
+  closeJobController,
   createJobController,
+  deleteJobController,
   getMyJobController,
   listMyJobsController,
   updateJobController,
@@ -46,3 +48,7 @@ employerJobRoutes.post('/', taoTinLimit, createJobController)
 employerJobRoutes.get('/', listMyJobsController)
 employerJobRoutes.get('/:id', getMyJobController)
 employerJobRoutes.put('/:id', updateJobController)
+employerJobRoutes.delete('/:id', deleteJobController)
+
+// Dong tin la duong DUNG de go mot tin da duyet xuong — xem closeJob().
+employerJobRoutes.post('/:id/dong', closeJobController)
