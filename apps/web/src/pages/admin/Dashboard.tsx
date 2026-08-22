@@ -1,10 +1,15 @@
 import { useState } from 'react'
 import { Building2, ClipboardCheck, GraduationCap, Users } from 'lucide-react'
-import { SCHEDULE_TYPES, STATS_RANGES, type StatsRange } from '@uniwork/shared'
+import {
+  SCHEDULE_TYPES,
+  SCHEDULE_TYPE_LABELS,
+  STATS_RANGES,
+  type StatsRange,
+} from '@uniwork/shared'
 import { DonutChart, ProgressRow, StatusBadge, TrendChart } from '@/components/admin/Charts'
 import { KpiCard } from '@/components/admin/KpiCard'
 import { useAdminStats } from '@/hooks/useAdminStats'
-import { SCHEDULE_TYPE_LABELS } from '@/data/mock'
+
 import { cn, formatDate } from '@/lib/utils'
 
 const RANGE_LABELS: Record<StatsRange, string> = {

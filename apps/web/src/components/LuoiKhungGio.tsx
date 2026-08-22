@@ -16,12 +16,53 @@ const khoa = (day: DayOfWeek, slot: TimeSlot) => `${day}:${slot}`
 
 interface Props {
   value: AvailabilitySlot[]
-  onChange: (slots: AvailabilitySlot[]) => void
+  /**
+   * Bỏ trống là lưới CHỈ ĐỌC — dùng ở trang chi tiết tin, nơi ca làm chỉ để
+   * xem chứ không sửa được.
+   */
+  onChange?: (slots: AvailabilitySlot[]) => void
   disabled?: boolean
+  /**
+   * Ô viền nhạt vẽ chồng lên, KHÔNG bấm được.
+   *
+   * Dùng để đối chiếu hai lịch với nhau: trang chi tiết tin vẽ ca làm của tin ở
+   * `value` và lịch rảnh của sinh viên đang xem ở đây, nên nhìn phát biết mình
+   * có làm được ca nào không mà không phải nhớ lịch của chính mình.
+   */
+  overlay?: AvailabilitySlot[]
+  /** Nhãn cho trình đọc màn hình, vì lưới này giờ dùng ở ba màn hình khác nhau. */
+  ariaLabel?: string
+  /**
+   * Giới hạn những thứ được chọn. Bỏ trống là cho chọn cả bảy.
+   *
+   * Sinh ra cho tin "một buổi": việc diễn ra đúng một ngày cụ thể, nên ca làm
+   * chỉ có thể rơi vào thứ của ngày đó. Không khoá thì người dùng chọn được ca
+   * Thứ Hai cho một buổi tổ chức Thứ Tư — dữ liệu tự mâu thuẫn, và tới Sprint 3
+   * nó sẽ được gợi ý cho đúng những sinh viên KHÔNG rảnh hôm ấy.
+   *
+   * Đây là lớp hướng dẫn; luật thật nằm ở `createJobSchema`.
+   */
+  ngayChoPhep?: DayOfWeek[]
 }
 
 /**
- * Lưới 7 ngày × 3 buổi, kéo chuột chọn được cả vùng (T61).
+ * Lưới 7 ngày × 3 buổi — dùng chung cho lịch rảnh sinh viên VÀ ca làm của tin.
+ *
+ * ---------------------------------------------------------------------------
+ * VÌ SAO MỘT COMPONENT CHO CẢ HAI
+ * ---------------------------------------------------------------------------
+ * `Availability` (lịch rảnh sinh viên) và `job_shifts` (ca làm của tin) cố ý có
+ * cùng bộ cột `(dayOfWeek, slot)` — đó là thứ làm phép ghép lịch ở Sprint 3 trở
+ * thành một câu JOIN thay vì một thuật toán so khoảng thời gian.
+ *
+ * Trước đây phía web có HAI lưới riêng cho hai chỗ dùng: một cái đọc kiểu từ
+ * `@uniwork/shared` (chữ hoa `'MORNING'`), một cái tự khai kiểu trong file mock
+ * (chữ thường `'morning'`). Hệ quả là mỗi lần nối API phải viết một lớp dịch
+ * hoa↔thường, và bản mock không có tính năng kéo chọn nhiều ô — nhà tuyển dụng
+ * đăng tin ca tối 6 ngày phải bấm 6 lần trong khi sinh viên kéo một phát xong.
+ *
+ * Gộp lại thì hết cả hai chuyện, và hình dạng dữ liệu phía web khớp luôn với
+ * hình dạng trong database.
  *
  * ---------------------------------------------------------------------------
  * CHẾ ĐỘ TÔ QUYẾT ĐỊNH BỞI Ô ĐẦU TIÊN
@@ -42,8 +83,22 @@ interface Props {
  * Đổi lại, trên cảm ứng chạm từng ô vẫn chọn được bình thường. Mất một tính
  * năng phụ còn hơn hỏng thao tác cuộn — thứ người dùng cần ở mọi trang.
  */
-export function AvailabilityGrid({ value, onChange, disabled }: Props) {
+export function LuoiKhungGio({
+  value,
+  onChange,
+  disabled,
+  overlay,
+  ariaLabel,
+  ngayChoPhep,
+}: Props) {
   const daChon = new Set(value.map((s) => khoa(s.dayOfWeek, s.slot)))
+  const oPhu = new Set((overlay ?? []).map((s) => khoa(s.dayOfWeek, s.slot)))
+
+  // Không truyền `onChange` nghĩa là lưới chỉ để xem. Gộp luôn vào `disabled`
+  // thay vì rải hai điều kiện khắp nơi bên dưới.
+  const khoaTuongTac = disabled || !onChange
+
+  const choPhep = (day: DayOfWeek) => !ngayChoPhep || ngayChoPhep.includes(day)
 
   // `null` = không kéo. `true` = đang tô bật, `false` = đang tô tắt.
   const cheDoTo = useRef<boolean | null>(null)
@@ -72,6 +127,8 @@ export function AvailabilityGrid({ value, onChange, disabled }: Props) {
   }, [dangKeo, ketThucKeo])
 
   function dat(day: DayOfWeek, slot: TimeSlot, bat: boolean) {
+    if (!onChange) return
+
     const k = khoa(day, slot)
     const dangCo = daChon.has(k)
     if (bat === dangCo) return
@@ -84,7 +141,7 @@ export function AvailabilityGrid({ value, onChange, disabled }: Props) {
   }
 
   function batDauO(day: DayOfWeek, slot: TimeSlot, laCamUng: boolean) {
-    if (disabled) return
+    if (khoaTuongTac || !choPhep(day)) return
 
     const bat = !daChon.has(khoa(day, slot))
     dat(day, slot, bat)
@@ -97,13 +154,14 @@ export function AvailabilityGrid({ value, onChange, disabled }: Props) {
   }
 
   function keoQuaO(day: DayOfWeek, slot: TimeSlot) {
-    if (disabled || cheDoTo.current === null) return
+    if (khoaTuongTac || !choPhep(day) || cheDoTo.current === null) return
     dat(day, slot, cheDoTo.current)
   }
 
   return (
     <div className="overflow-x-auto">
       <table
+        aria-label={ariaLabel}
         className="w-full min-w-[520px] border-separate border-spacing-1"
         // Đang kéo thì cấm bôi đen chữ, nếu không cả bảng bị bôi xanh trông như lỗi.
         style={{ userSelect: dangKeo ? 'none' : undefined }}
@@ -131,14 +189,18 @@ export function AvailabilityGrid({ value, onChange, disabled }: Props) {
 
               {THU_TU_NGAY.map((day) => {
                 const on = daChon.has(khoa(day, slot))
+                const phu = oPhu.has(khoa(day, slot))
+                const ngoaiPhamVi = !choPhep(day)
 
                 return (
                   <td key={day} className="p-0">
                     <button
                       type="button"
-                      disabled={disabled}
+                      disabled={khoaTuongTac || ngoaiPhamVi}
                       aria-pressed={on}
-                      aria-label={`${DAY_LABELS[day]} buổi ${TIME_SLOT_LABELS[slot].label.toLowerCase()}`}
+                      aria-label={`${DAY_LABELS[day]} buổi ${TIME_SLOT_LABELS[slot].label.toLowerCase()}${
+                        phu ? ' (bạn rảnh)' : ''
+                      }`}
                       onPointerDown={(e) => batDauO(day, slot, e.pointerType === 'touch')}
                       onPointerEnter={() => keoQuaO(day, slot)}
                       className={cn(
@@ -151,8 +213,24 @@ export function AvailabilityGrid({ value, onChange, disabled }: Props) {
                         on
                           ? 'border-brand-600 bg-brand-600 text-white'
                           : 'border-slate-200 bg-slate-50 text-transparent',
-                        !disabled && !on && 'hover:border-brand-300 hover:bg-brand-50',
-                        disabled && 'opacity-60',
+                        /*
+                         * Ô "bạn rảnh" mà tin KHÔNG có ca: viền đứt nhạt, không
+                         * tô nền. Tô nền thì mắt đọc nhầm thành đã chọn, mà đây
+                         * chỉ là thông tin đối chiếu.
+                         *
+                         * Đặt sau nhánh `on` để ô vừa là ca làm vừa nằm trong
+                         * lịch rảnh giữ nguyên màu đậm — trùng nhau mới là tin
+                         * tốt, không nên làm nó nhạt đi.
+                         */
+                        phu && !on && 'border-dashed border-brand-400 bg-brand-50/60',
+                        !khoaTuongTac && !ngoaiPhamVi && !on && 'hover:border-brand-300 hover:bg-brand-50',
+                        khoaTuongTac && 'opacity-60',
+                        // Ô ngoài phạm vi mờ hẳn và gạch chéo nhẹ, để mắt thấy
+                        // ngay là cả cột đó không dùng được — khác với ô trống
+                        // bình thường chỉ là chưa chọn.
+                        ngoaiPhamVi && 'cursor-not-allowed bg-slate-100 opacity-40',
+                        // Chỉ để xem thì con trỏ không nên gợi ý là bấm được.
+                        !onChange && 'cursor-default',
                       )}
                     >
                       {on ? '✓' : '·'}

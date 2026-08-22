@@ -1,43 +1,88 @@
 import { CalendarCheck } from 'lucide-react'
-import { DISTRICTS, SCHEDULE_TYPE_LABELS, SKILLS, type ScheduleType } from '@/data/mock'
+import { SCHEDULE_TYPES, SCHEDULE_TYPE_LABELS, type ScheduleType } from '@uniwork/shared'
+import { DISTRICTS } from '@/lib/khu-vuc'
+import { cn } from '@/lib/utils'
 
 interface Props {
-  onlyMatchingSchedule: boolean
-  onToggleMatching: (value: boolean) => void
+  district?: string
+  scheduleType?: ScheduleType
+  onDoiDistrict: (v: string | undefined) => void
+  onDoiScheduleType: (v: ScheduleType | undefined) => void
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+/**
+ * Bộ lọc trang việc làm.
+ *
+ * ---------------------------------------------------------------------------
+ * BỘ LỌC NÀO NỐI THẬT, BỘ LỌC NÀO CHƯA — VÀ VÌ SAO KHÔNG XOÁ CÁI CHƯA NỐI
+ * ---------------------------------------------------------------------------
+ * Sprint 2 chỉ có ba tiêu chí so sánh bằng ở API: `city`, `district`,
+ * `scheduleType`. Bốn thứ còn lại — khớp lịch rảnh, mức lương, kỹ năng, cam kết
+ * tối thiểu — thuộc Sprint 3.
+ *
+ * Giữ chúng trên màn hình ở trạng thái vô hiệu hoá kèm nhãn "Có ở Sprint 3",
+ * không xoá: dựng lại từ đầu ở sprint sau là phí công hai lần, và giữ lại cũng
+ * cho người dùng biết hệ thống đang đi về đâu.
+ *
+ * Nhưng vô hiệu hoá THẬT — trước đây các ô này là checkbox bấm được mà không
+ * làm gì cả, tức là hứa với người dùng một thứ không tồn tại.
+ */
+function Section({
+  title,
+  children,
+  sapCo,
+}: {
+  title: string
+  children: React.ReactNode
+  /** Đánh dấu phần thuộc sprint sau: làm mờ và chú thích rõ. */
+  sapCo?: boolean
+}) {
   return (
-    <div className="border-t border-slate-100 px-5 py-4">
-      <h3 className="mb-3 text-sm font-semibold text-slate-900">{title}</h3>
+    <div className={cn('border-t border-slate-100 px-5 py-4', sapCo && 'opacity-50')}>
+      <div className="mb-3 flex items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold text-slate-900">{title}</h3>
+        {sapCo && <span className="text-[11px] text-slate-400">Có ở Sprint 3</span>}
+      </div>
       {children}
     </div>
   )
 }
 
-export function FilterSidebar({ onlyMatchingSchedule, onToggleMatching }: Props) {
+export function FilterSidebar({
+  district,
+  scheduleType,
+  onDoiDistrict,
+  onDoiScheduleType,
+}: Props) {
   return (
     <aside className="rounded-xl border border-slate-200 bg-white">
-      <div className="px-5 py-4">
+      <div className="flex items-center justify-between gap-2 px-5 py-4">
         <h2 className="font-semibold text-slate-900">Bộ lọc</h2>
+        {(district || scheduleType) && (
+          <button
+            onClick={() => {
+              onDoiDistrict(undefined)
+              onDoiScheduleType(undefined)
+            }}
+            className="text-xs font-medium text-brand-600 transition-colors hover:text-brand-700"
+          >
+            Xoá lọc
+          </button>
+        )}
       </div>
 
-      {/* Bộ lọc lõi của UniWork — thứ các job board khác không có */}
-      <div className="mx-3 rounded-lg border border-brand-200 bg-brand-50 p-3">
-        <label className="flex cursor-pointer items-start gap-2.5">
-          <input
-            type="checkbox"
-            checked={onlyMatchingSchedule}
-            onChange={(e) => onToggleMatching(e.target.checked)}
-            className="mt-0.5 h-4 w-4 shrink-0 accent-brand-600"
-          />
+      {/* Bộ lọc lõi của UniWork — thứ các trang việc làm khác không có. Chưa nối
+          được vì phép giao lịch rảnh × ca làm thuộc Sprint 3. */}
+      <div className="mx-3 rounded-lg border border-slate-200 bg-slate-50 p-3 opacity-60">
+        <label className="flex cursor-not-allowed items-start gap-2.5">
+          <input type="checkbox" disabled className="mt-0.5 h-4 w-4 shrink-0 accent-brand-600" />
           <span>
-            <span className="flex items-center gap-1.5 text-sm font-semibold text-brand-800">
+            <span className="flex items-center gap-1.5 text-sm font-semibold text-slate-700">
               <CalendarCheck size={15} />
               Chỉ hiện việc khớp lịch rảnh
             </span>
-            <span className="mt-0.5 block text-xs text-brand-700/80">
-              Lọc theo khung giờ bạn đã khai trong học kỳ này
+            <span className="mt-0.5 block text-xs text-slate-500">
+              Lọc theo khung giờ bạn đã khai — có ở Sprint 3
             </span>
           </span>
         </label>
@@ -45,12 +90,23 @@ export function FilterSidebar({ onlyMatchingSchedule, onToggleMatching }: Props)
 
       <Section title="Khu vực">
         <div className="space-y-2">
-          {DISTRICTS.slice(0, 5).map((d) => (
+          {DISTRICTS.map((d) => (
             <label
               key={d}
               className="flex cursor-pointer items-center gap-2 text-sm text-slate-600"
             >
-              <input type="checkbox" className="h-4 w-4 accent-brand-600" />
+              {/*
+                Radio chứ không phải checkbox: API nhận ĐÚNG MỘT `district`, so
+                sánh bằng. Checkbox gợi ý chọn được nhiều quận — một lời hứa mà
+                endpoint hiện tại không giữ được.
+              */}
+              <input
+                type="radio"
+                name="district"
+                checked={district === d}
+                onChange={() => onDoiDistrict(d)}
+                className="h-4 w-4 accent-brand-600"
+              />
               {d}
             </label>
           ))}
@@ -59,24 +115,31 @@ export function FilterSidebar({ onlyMatchingSchedule, onToggleMatching }: Props)
 
       <Section title="Loại thời gian">
         <div className="space-y-2">
-          {(Object.keys(SCHEDULE_TYPE_LABELS) as ScheduleType[]).map((key) => (
+          {SCHEDULE_TYPES.map((key) => (
             <label
               key={key}
               className="flex cursor-pointer items-center gap-2 text-sm text-slate-600"
             >
-              <input type="checkbox" className="h-4 w-4 accent-brand-600" />
+              <input
+                type="radio"
+                name="scheduleType"
+                checked={scheduleType === key}
+                onChange={() => onDoiScheduleType(key)}
+                className="h-4 w-4 accent-brand-600"
+              />
               {SCHEDULE_TYPE_LABELS[key]}
             </label>
           ))}
         </div>
       </Section>
 
-      <Section title="Mức lương theo giờ">
+      <Section title="Mức lương theo giờ" sapCo>
         <input
           type="range"
           min={15000}
           max={60000}
           step={5000}
+          disabled
           className="w-full accent-brand-600"
         />
         <div className="mt-1 flex justify-between text-xs text-slate-400">
@@ -85,25 +148,12 @@ export function FilterSidebar({ onlyMatchingSchedule, onToggleMatching }: Props)
         </div>
       </Section>
 
-      <Section title="Kỹ năng">
-        <div className="flex flex-wrap gap-1.5">
-          {SKILLS.slice(0, 8).map((s) => (
-            <button
-              key={s}
-              className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-600 hover:border-brand-400 hover:text-brand-700"
-            >
-              {s}
-            </button>
-          ))}
-        </div>
-      </Section>
-
-      <Section title="Cam kết tối thiểu">
-        <select className="h-9 w-full rounded-lg border border-slate-200 px-2 text-sm text-slate-600 outline-none">
+      <Section title="Cam kết tối thiểu" sapCo>
+        <select
+          disabled
+          className="h-9 w-full rounded-lg border border-slate-200 px-2 text-sm text-slate-600 outline-none"
+        >
           <option>Không giới hạn</option>
-          <option>Dưới 1 tháng</option>
-          <option>1 – 3 tháng</option>
-          <option>Trên 3 tháng</option>
         </select>
       </Section>
     </aside>

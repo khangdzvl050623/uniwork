@@ -30,8 +30,22 @@ export function formatNumber(value: number) {
 }
 
 /** Hiển thị mức lương theo cách người Việt quen đọc. */
-export function formatSalary(min: number, max: number, unit: 'HOUR' | 'SHIFT' | 'MONTH') {
+/**
+ * Chuỗi lương hiện trên thẻ tin.
+ *
+ * Nhận `null` cho hai con số vì tin có thể để "Thoả thuận" — khi đó
+ * `salaryNegotiable = true` và CHECK trong database bắt cả hai cột phải null.
+ * Đơn vị vẫn phải có: "thoả thuận theo giờ" khác "thoả thuận theo tháng".
+ */
+export function formatSalary(
+  min: number | null,
+  max: number | null,
+  unit: 'HOUR' | 'SHIFT' | 'MONTH',
+  negotiable = false,
+) {
   const suffix = { HOUR: '/giờ', SHIFT: '/ca', MONTH: '/tháng' }[unit]
+
+  if (negotiable || min === null || max === null) return `Thoả thuận${suffix}`
   if (min === max) return `${formatNumber(min)}đ${suffix}`
   return `${formatNumber(min)} - ${formatNumber(max)}đ${suffix}`
 }

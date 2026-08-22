@@ -18,8 +18,37 @@ export type UserStatus = (typeof USER_STATUSES)[number]
 export const SCHEDULE_TYPES = ['RECURRING', 'SEASONAL', 'ONE_TIME'] as const
 export type ScheduleType = (typeof SCHEDULE_TYPES)[number]
 
+/**
+ * Nhãn tiếng Việt cho các giá trị cố định.
+ *
+ * Ở đây chứ không phải trong `apps/web`, cùng chỗ với `TIME_SLOT_LABELS`: ba
+ * màn hình khác nhau đang hiện cùng những giá trị này (đăng tin, quản lý tin,
+ * duyệt tin, danh sách việc làm). Mỗi nơi tự khai một bảng nhãn thì sớm muộn
+ * cùng một `ONE_TIME` hiện thành "Một buổi" ở trang này và "Làm một lần" ở
+ * trang kia.
+ */
+export const SCHEDULE_TYPE_LABELS: Record<ScheduleType, string> = {
+  RECURRING: 'Định kỳ',
+  SEASONAL: 'Thời vụ',
+  ONE_TIME: 'Một buổi',
+}
+
+/** Mô tả ngắn đi kèm, dùng ở form đăng tin để người chọn hiểu mình đang chọn gì. */
+export const SCHEDULE_TYPE_HINTS: Record<ScheduleType, string> = {
+  RECURRING: 'Lặp lại hằng tuần, không có ngày kết thúc',
+  SEASONAL: 'Chạy trong một khoảng thời gian rồi dừng',
+  ONE_TIME: 'Chỉ diễn ra đúng một buổi',
+}
+
 export const JOB_STATUSES = ['DRAFT', 'PENDING', 'OPEN', 'CLOSED'] as const
 export type JobStatus = (typeof JOB_STATUSES)[number]
+
+export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
+  DRAFT: 'Nháp',
+  PENDING: 'Chờ duyệt',
+  OPEN: 'Đang hiển thị',
+  CLOSED: 'Đã đóng',
+}
 
 export const APPLICATION_STATUSES = [
   'PENDING',
@@ -34,6 +63,13 @@ export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number]
 /** Cách quy đổi con số lương của tin tuyển dụng. */
 export const SALARY_UNITS = ['HOUR', 'SHIFT', 'MONTH'] as const
 export type SalaryUnit = (typeof SALARY_UNITS)[number]
+
+/** Dạng ngắn để ghép sau con số: "25.000đ/giờ". */
+export const SALARY_UNIT_LABELS: Record<SalaryUnit, string> = {
+  HOUR: 'giờ',
+  SHIFT: 'ca',
+  MONTH: 'tháng',
+}
 
 /**
  * Ba khung giờ trong ngày.
@@ -102,4 +138,20 @@ export const DAY_LABELS: Record<DayOfWeek, string> = {
   4: 'T5',
   5: 'T6',
   6: 'T7',
+}
+
+/**
+ * Tên đầy đủ, dùng trong câu văn.
+ *
+ * `DAY_LABELS` viết tắt để vừa một ô hẹp trên lưới; ở giữa một câu thông báo
+ * lỗi thì "T4" đọc lên khó hiểu hơn hẳn "Thứ Tư".
+ */
+export const DAY_FULL_LABELS: Record<DayOfWeek, string> = {
+  0: 'Chủ nhật',
+  1: 'Thứ Hai',
+  2: 'Thứ Ba',
+  3: 'Thứ Tư',
+  4: 'Thứ Năm',
+  5: 'Thứ Sáu',
+  6: 'Thứ Bảy',
 }

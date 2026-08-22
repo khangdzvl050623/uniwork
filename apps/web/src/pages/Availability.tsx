@@ -3,7 +3,7 @@ import { CheckCircle2, Info, Loader2, MousePointerClick } from 'lucide-react'
 import type { AvailabilitySlot } from '@uniwork/shared'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
-import { AvailabilityGrid } from '@/components/profile/AvailabilityGrid'
+import { LuoiKhungGio } from '@/components/LuoiKhungGio'
 import { useAvailability, useUpdateAvailability } from '@/hooks/useProfile'
 
 const khoa = (s: AvailabilitySlot) => `${s.dayOfWeek}:${s.slot}`
@@ -65,7 +65,7 @@ export function Availability() {
         />
 
         <div className="px-5 py-5">
-          <AvailabilityGrid value={slots} onChange={setSlots} disabled={luu.isPending} />
+          <LuoiKhungGio value={slots} onChange={setSlots} disabled={luu.isPending} />
 
           <div className="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center">
             <p className="flex-1 text-sm text-slate-500">
