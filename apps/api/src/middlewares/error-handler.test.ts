@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { Request, Response } from 'express'
 import { MulterError } from 'multer'
+import { Prisma } from '@prisma/client'
 
 /**
  * Ép middleware tin rằng nó đang chạy trên production.
@@ -91,5 +92,67 @@ describe('errorHandler với lỗi từ multer (T56/T57)', () => {
       ok: false,
       error: { code: 'VALIDATION_ERROR' },
     })
+  })
+})
+
+/*
+ * Lỗi ràng buộc từ Prisma — lưới an toàn cho MỌI endpoint.
+ *
+ * Gần như mọi endpoint sửa/xoá đều theo hình dạng "đọc kiểm tồn tại → rồi ghi".
+ * Giữa hai câu truy vấn đó có một khe: một request khác kịp xoá đúng hàng ấy.
+ * Bắt tập trung ở đây thay vì try/catch từng nơi, vì khe đó có ở mọi endpoint
+ * cùng hình dạng — bắt lẻ nghĩa là phải nhớ bọc đúng mọi chỗ hôm nay và mọi chỗ
+ * thêm về sau.
+ */
+function loiPrisma(code: string) {
+  return new Prisma.PrismaClientKnownRequestError('thông điệp gốc của Prisma', {
+    code,
+    clientVersion: '6.19.3',
+  })
+}
+
+describe('errorHandler với lỗi ràng buộc Prisma', () => {
+  it('P2025 (hàng cần sửa/xoá không còn) trả 404, KHÔNG phải 500', () => {
+    const res = taoResGia()
+
+    // Không có nhánh này thì người dùng nhận "máy chủ hỏng" trong khi chuyện
+    // thật chỉ là dữ liệu vừa bị người khác xoá.
+    errorHandler(loiPrisma('P2025'), reqGia, res, vi.fn())
+
+    expect(res.status).toHaveBeenCalledWith(404)
+    expect(res.json.mock.calls[0][0]).toMatchObject({
+      ok: false,
+      error: { code: 'NOT_FOUND' },
+    })
+  })
+
+  it('P2002 (trùng ràng buộc duy nhất) trả 409', () => {
+    const res = taoResGia()
+
+    errorHandler(loiPrisma('P2002'), reqGia, res, vi.fn())
+
+    expect(res.status).toHaveBeenCalledWith(409)
+    expect(res.json.mock.calls[0][0]).toMatchObject({ error: { code: 'CONFLICT' } })
+  })
+
+  it('P2003 (vi phạm khoá ngoại) trả 409', () => {
+    const res = taoResGia()
+
+    errorHandler(loiPrisma('P2003'), reqGia, res, vi.fn())
+
+    expect(res.status).toHaveBeenCalledWith(409)
+    expect(res.json.mock.calls[0][0]).toMatchObject({ error: { code: 'CONFLICT' } })
+  })
+
+  it('mã Prisma lạ vẫn rơi về 500 — không đoán bừa là lỗi người dùng', () => {
+    const res = taoResGia()
+
+    // Chỉ ba mã trên là chắc chắn do phía người gửi. Mã khác (mất kết nối, hết
+    // hạn mức, timeout…) là lỗi hạ tầng thật, trả 404/409 cho chúng là che mất
+    // sự cố cần được biết.
+    errorHandler(loiPrisma('P1001'), reqGia, res, vi.fn())
+
+    expect(res.status).toHaveBeenCalledWith(500)
+    expect(res.json.mock.calls[0][0]).toMatchObject({ error: { code: 'INTERNAL_ERROR' } })
   })
 })

@@ -1,4 +1,14 @@
-import type { DayOfWeek, DocumentType, ReviewStatus, Role, ScheduleType, TimeSlot, UserStatus } from './domain.js'
+import type {
+  DayOfWeek,
+  DocumentType,
+  JobStatus,
+  ReviewStatus,
+  Role,
+  SalaryUnit,
+  ScheduleType,
+  TimeSlot,
+  UserStatus,
+} from './domain.js'
 
 /**
  * Hợp đồng giữa web và api.
@@ -428,3 +438,172 @@ export interface ReviewDocumentInput {
 export interface VerifyEmployerInput {
   verified: boolean
 }
+
+/**
+ * Một dòng trong bảng "Danh mục kỹ năng" của khu quản trị.
+ *
+ * Có HAI con số đếm chứ không phải một. Cả `JobSkill` lẫn `StudentSkill` đều
+ * tham chiếu `Skill` với `onDelete: Restrict`, nên chỉ cần một trong hai còn
+ * dùng là không xoá được. Trả mỗi `jobCount` thì admin thấy "0 tin" mà bấm xoá
+ * vẫn lỗi, không hiểu vì sao — hoá ra 5 sinh viên đang khai kỹ năng đó.
+ */
+export interface AdminSkillResponse {
+  id: string
+  name: string
+  /** Khoá tra cứu ổn định, dùng trong URL lọc. Đổi `name` KHÔNG đổi cái này. */
+  slug: string
+  /** Số tin tuyển dụng đang yêu cầu kỹ năng này. */
+  jobCount: number
+  /** Số sinh viên đang khai kỹ năng này trong hồ sơ. */
+  studentCount: number
+}
+
+/** GET /api/admin/ky-nang. */
+export interface AdminSkillListResponse {
+  skills: AdminSkillResponse[]
+}
+
+/** POST /api/admin/ky-nang — slug do server sinh từ `name`, không nhận từ client. */
+export interface CreateSkillInput {
+  name: string
+}
+
+/**
+ * PUT /api/admin/ky-nang/:id — CHỈ đổi được tên hiển thị.
+ *
+ * `slug` cố ý không sửa được: tin tuyển dụng và link lọc (`/viec-lam?skill=pha-che`)
+ * tham chiếu kỹ năng bằng slug. Cho đổi slug là làm chết mọi link đã phát ra
+ * ngoài, đổi lại chỉ được một chuỗi đẹp hơn trong URL.
+ */
+export interface UpdateSkillInput {
+  name: string
+}
+
+/*
+ * ===========================================================================
+ * Tin tuyển dụng — Sprint 2
+ * ===========================================================================
+ */
+
+/**
+ * Một ca làm: một ô trong lưới 7 ngày × 3 buổi.
+ *
+ * Cùng hình dạng với `AvailabilitySlot` của sinh viên, và đó là chủ đích — nhờ
+ * vậy phép ghép lịch ở Sprint 3 chỉ là một câu JOIN chứ không phải thuật toán
+ * so khoảng thời gian.
+ */
+export interface JobShiftItem {
+  /** 0 = Chủ nhật … 6 = Thứ 7, theo `Date.prototype.getDay()`. */
+  dayOfWeek: number
+  slot: TimeSlot
+}
+
+/** Kỹ năng gắn trên tin — đủ để hiện nhãn và dựng link lọc, không hơn. */
+export interface JobSkillItem {
+  id: string
+  name: string
+  slug: string
+}
+
+/**
+ * Tin tuyển dụng nhìn từ phía NHÀ TUYỂN DỤNG (chủ tin).
+ *
+ * Khác bản công khai ở chỗ có `status`, `rejectionReason` và các mốc thời gian
+ * nội bộ — chủ tin cần biết tin đang nằm ở đâu trong luồng duyệt và vì sao bị
+ * từ chối. Bản công khai (Sprint 2, T79–T80) sẽ không có những trường này.
+ */
+export interface EmployerJobResponse {
+  id: string
+  title: string
+  description: string
+  requirements: string[]
+  benefits: string[]
+
+  city: string
+  district: string
+  quantity: number
+
+  /** true = "Thoả thuận", và khi đó `salaryMin`/`salaryMax` LUÔN null. */
+  salaryNegotiable: boolean
+  salaryMin: number | null
+  salaryMax: number | null
+  /** Bắt buộc kể cả khi thoả thuận — "thoả thuận theo giờ" khác "theo tháng". */
+  salaryUnit: SalaryUnit
+
+  scheduleType: ScheduleType
+  /** Chỉ RECURRING mới có. */
+  commitmentMonths: number | null
+  /** RECURRING và SEASONAL. Vô nghĩa với ONE_TIME nên luôn null ở đó. */
+  minShiftsPerWeek: number | null
+  /** RECURRING (tuỳ chọn) và SEASONAL (bắt buộc). */
+  startDate: string | null
+  /** Chỉ SEASONAL. */
+  endDate: string | null
+  /** Chỉ ONE_TIME. */
+  workDate: string | null
+
+  deadline: string
+
+  status: JobStatus
+  /** Lý do admin từ chối, để chủ tin biết phải sửa gì trước khi gửi lại. */
+  rejectionReason: string | null
+  publishedAt: string | null
+  closedAt: string | null
+  viewCount: number
+
+  shifts: JobShiftItem[]
+  skills: JobSkillItem[]
+
+  createdAt: string
+  updatedAt: string
+}
+
+/** GET /api/ntd/tin-tuyen-dung — mọi tin của chính mình, đủ mọi trạng thái. */
+export interface EmployerJobListResponse {
+  jobs: EmployerJobResponse[]
+}
+
+/**
+ * Dữ liệu tạo/sửa một tin.
+ *
+ * Ba nhóm trường thời gian loại trừ nhau theo `scheduleType`, và luật đó được
+ * canh ở BA tầng: form ẩn/hiện ô, `createJobSchema` phía shared, và CHECK
+ * `jobs_schedule_fields_check` trong database. Xem bảng luật trong
+ * `validation.ts`.
+ *
+ * `slug`/`status`/`publishedAt` KHÔNG có ở đây — chúng do server quyết định.
+ * Tin luôn sinh ra ở `DRAFT`, muốn công khai phải đi qua gửi duyệt và admin
+ * duyệt.
+ */
+export interface CreateJobInput {
+  title: string
+  description: string
+  requirements: string[]
+  benefits: string[]
+
+  city: string
+  district: string
+  quantity: number
+
+  salaryNegotiable: boolean
+  salaryMin?: number | null
+  salaryMax?: number | null
+  salaryUnit: SalaryUnit
+
+  scheduleType: ScheduleType
+  commitmentMonths?: number | null
+  minShiftsPerWeek?: number | null
+  /** Gửi lên dạng chuỗi ISO; server tự đổi sang Date. */
+  startDate?: string | null
+  endDate?: string | null
+  workDate?: string | null
+
+  deadline: string
+
+  /** Bắt buộc có ít nhất một ca — thiếu ca thì tin không lọc theo lịch được. */
+  shifts: JobShiftItem[]
+  skillIds: string[]
+}
+
+/** Sửa tin: cùng hình dạng với lúc tạo, thay TOÀN BỘ nội dung. */
+export type UpdateJobInput = CreateJobInput
