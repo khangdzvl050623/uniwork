@@ -1,8 +1,15 @@
 import type { Prisma } from '@prisma/client'
 import type {
+  AdminJobResponse,
   CreateJobData,
   EmployerJobResponse,
   JobShiftItem,
+  JobStatus,
+  PublicJobDetail,
+  PublicJobListResponse,
+  PublicJobQuery,
+  PublicJobSummary,
+  ReviewJobData,
   UpdateJobData,
 } from '@uniwork/shared'
 import { prisma } from '../../lib/prisma.js'
@@ -559,4 +566,293 @@ export async function createJob(userId: string, input: CreateJobData): Promise<E
   })
 
   return toEmployerJobResponse(job)
+}
+
+/* ------------------------------------------------- T77–T78: admin duyệt -- */
+
+/**
+ * Tin kèm thông tin doanh nghiệp — bản dành cho admin.
+ *
+ * Thêm `employerProfile` vào `CHON_JOB` thay vì khai một select riêng: admin
+ * cần ĐỦ nội dung tin để phán đoán, nhất là `description` — nơi tin lừa đảo
+ * thật sự nằm. Cắt bớt thành bản tóm tắt rồi bắt gọi thêm một endpoint chi tiết
+ * chỉ đổi một lần tải thành hai.
+ */
+const CHON_JOB_ADMIN = {
+  ...CHON_JOB,
+  employerProfile: { select: { id: true, companyName: true, verifiedAt: true } },
+} satisfies Prisma.JobSelect
+
+type HangJobAdmin = Prisma.JobGetPayload<{ select: typeof CHON_JOB_ADMIN }>
+
+function toAdminJobResponse(job: HangJobAdmin): AdminJobResponse {
+  return {
+    ...toEmployerJobResponse(job),
+    employer: {
+      id: job.employerProfile.id,
+      companyName: job.employerProfile.companyName,
+      verifiedAt: job.employerProfile.verifiedAt?.toISOString() ?? null,
+    },
+  }
+}
+
+/**
+ * Hàng đợi duyệt tin của admin.
+ *
+ * Mặc định `PENDING` — đó là việc admin thật sự phải làm. Truyền `status` khác
+ * để tra lại tin đã duyệt hoặc đã từ chối.
+ *
+ * Sắp xếp theo `updatedAt` TĂNG dần, khác với mọi danh sách khác trong dự án.
+ * Đây là hàng đợi công việc, không phải bảng tin: tin chờ lâu nhất phải nổi lên
+ * đầu, nếu không thì tin gửi sớm bị đẩy xuống mãi mỗi khi có tin mới — đúng
+ * kiểu để một nhà tuyển dụng chờ vô hạn mà không ai nhận ra.
+ *
+ * Dùng `updatedAt` chứ không `createdAt`: một tin sửa xong rồi gửi lại phải vào
+ * hàng đợi theo thời điểm GỬI LẠI, không phải thời điểm soạn lần đầu.
+ */
+export async function listJobsForAdmin(status: JobStatus = 'PENDING'): Promise<AdminJobResponse[]> {
+  const jobs = await prisma.job.findMany({
+    where: { status },
+    select: CHON_JOB_ADMIN,
+    orderBy: { updatedAt: 'asc' },
+  })
+
+  return jobs.map(toAdminJobResponse)
+}
+
+/**
+ * Admin duyệt hoặc từ chối một tin đang chờ.
+ *
+ * ---------------------------------------------------------------------------
+ * CHỈ TIN `PENDING` MỚI DUYỆT ĐƯỢC
+ * ---------------------------------------------------------------------------
+ * Tin `DRAFT` chưa ai gửi đi. Tin `OPEN` đã duyệt rồi — duyệt lại chỉ dời
+ * `publishedAt` và đẩy tin lên đầu danh sách công khai mà không có lý do gì.
+ * Tin `CLOSED` đã kết thúc.
+ *
+ * Đây cũng là chỗ chặn cuộc đua đã bàn ở T71: nhà tuyển dụng xoá tin `PENDING`
+ * đúng lúc admin bấm duyệt. Khi đó `findUnique` trả null → 404 rõ ràng; và nếu
+ * tin biến mất muộn hơn nữa, giữa lúc `update` đang chạy, thì lưới an toàn
+ * `P2025` ở `error-handler.ts` cũng cho ra 404 chứ không phải 500.
+ *
+ * ---------------------------------------------------------------------------
+ * DUYỆT → `OPEN`, TỪ CHỐI → `DRAFT`
+ * ---------------------------------------------------------------------------
+ * Đúng luồng BRD. Từ chối đưa tin về tay nhà tuyển dụng để sửa, không phải vứt
+ * vào một trạng thái chết — kèm `rejectionReason` để họ biết sửa gì. Lý do đó
+ * được xoá khi họ gửi lại (T72).
+ *
+ * `publishedAt` chỉ đặt ở lần duyệt ĐẦU. Tin sửa rồi duyệt lại giữ nguyên mốc
+ * cũ — đó là "tin này lên sàn từ bao giờ", không phải "lần duyệt gần nhất".
+ * Ghi đè mỗi lần duyệt sẽ khiến một tin đăng ba tháng trước trông như vừa mới
+ * đăng, và người tìm việc mất luôn cách phân biệt tin cũ với tin mới.
+ */
+export async function reviewJob(
+  jobId: string,
+  input: ReviewJobData,
+): Promise<AdminJobResponse> {
+  const job = await prisma.job.findUnique({
+    where: { id: jobId },
+    select: { status: true, publishedAt: true },
+  })
+  if (!job) throw notFound('Không tìm thấy tin tuyển dụng')
+
+  if (job.status !== 'PENDING') {
+    const lyDo: Record<typeof job.status, string> = {
+      DRAFT: 'Tin này chưa được gửi đi duyệt',
+      OPEN: 'Tin này đã được duyệt rồi',
+      CLOSED: 'Tin này đã đóng',
+    }
+    throw conflict(lyDo[job.status])
+  }
+
+  const duyet = input.decision === 'APPROVE'
+
+  const daXuLy = await prisma.job.update({
+    where: { id: jobId },
+    data: duyet
+      ? {
+          status: 'OPEN',
+          publishedAt: job.publishedAt ?? new Date(),
+          rejectionReason: null,
+        }
+      : {
+          status: 'DRAFT',
+          rejectionReason: input.rejectionReason ?? null,
+        },
+    select: CHON_JOB_ADMIN,
+  })
+
+  return toAdminJobResponse(daXuLy)
+}
+
+/* ------------------------------------------------- T79–T80: công khai --- */
+
+/**
+ * Cột trả ra cho người đi tìm việc.
+ *
+ * Khai RIÊNG, không tái dùng `CHON_JOB`. `CHON_JOB` có `status`,
+ * `rejectionReason`, `closedAt` — chuyện nội bộ giữa nhà tuyển dụng và admin.
+ * Dùng lại rồi bỏ bớt lúc map thì mỗi cột nội bộ thêm về sau sẽ tự động đi ra
+ * tới đây, và chỉ lộ khi có người tình cờ đọc response.
+ *
+ * Khai riêng thì chiều mặc định đảo lại: thêm cột mới KHÔNG lộ, trừ khi ai đó
+ * chủ động viết vào danh sách này.
+ */
+const CHON_JOB_PUBLIC = {
+  id: true,
+  title: true,
+  description: true,
+  requirements: true,
+  benefits: true,
+  city: true,
+  district: true,
+  quantity: true,
+  salaryNegotiable: true,
+  salaryMin: true,
+  salaryMax: true,
+  salaryUnit: true,
+  scheduleType: true,
+  commitmentMonths: true,
+  minShiftsPerWeek: true,
+  startDate: true,
+  endDate: true,
+  workDate: true,
+  deadline: true,
+  publishedAt: true,
+  viewCount: true,
+  shifts: { select: { dayOfWeek: true, slot: true } },
+  skills: { select: { skill: { select: { id: true, name: true, slug: true } } } },
+  employerProfile: {
+    select: { companyName: true, verifiedAt: true, address: true, website: true },
+  },
+} satisfies Prisma.JobSelect
+
+type HangJobPublic = Prisma.JobGetPayload<{ select: typeof CHON_JOB_PUBLIC }>
+
+function toPublicJobSummary(job: HangJobPublic): PublicJobSummary {
+  return {
+    id: job.id,
+    title: job.title,
+    employer: {
+      companyName: job.employerProfile.companyName,
+      // Trả boolean chứ không trả mốc thời gian: người tìm việc chỉ cần biết
+      // "đã xác minh hay chưa", còn xác minh lúc nào là chuyện của admin.
+      verified: job.employerProfile.verifiedAt !== null,
+    },
+    city: job.city,
+    district: job.district,
+    quantity: job.quantity,
+    salaryNegotiable: job.salaryNegotiable,
+    salaryMin: job.salaryMin,
+    salaryMax: job.salaryMax,
+    salaryUnit: job.salaryUnit,
+    scheduleType: job.scheduleType,
+    commitmentMonths: job.commitmentMonths,
+    deadline: job.deadline.toISOString(),
+    /*
+     * `publishedAt` khai nullable trong schema nhưng ở đây chắc chắn có giá
+     * trị: chỉ tin `OPEN` mới ra tới endpoint này, mà `reviewJob` luôn đặt mốc
+     * đó lúc duyệt. `?? ''` chỉ để TypeScript yên tâm, không phải một trường
+     * hợp thật.
+     */
+    publishedAt: job.publishedAt?.toISOString() ?? '',
+    skills: job.skills.map((s) => s.skill),
+    shifts: job.shifts.map((s) => ({ dayOfWeek: s.dayOfWeek, slot: s.slot })),
+  }
+}
+
+function toPublicJobDetail(job: HangJobPublic): PublicJobDetail {
+  return {
+    ...toPublicJobSummary(job),
+    description: job.description,
+    requirements: job.requirements,
+    benefits: job.benefits,
+    minShiftsPerWeek: job.minShiftsPerWeek,
+    startDate: job.startDate?.toISOString() ?? null,
+    endDate: job.endDate?.toISOString() ?? null,
+    workDate: job.workDate?.toISOString() ?? null,
+    viewCount: job.viewCount,
+    employerAddress: job.employerProfile.address,
+    employerWebsite: job.employerProfile.website,
+  }
+}
+
+/**
+ * Số hàng tối đa trả về trong một lần gọi.
+ *
+ * KHÔNG phải phân trang — chỉ là chặn cứng để endpoint này không bao giờ dump
+ * cả bảng dù nó phình tới đâu. Phân trang thật thuộc Sprint 3, khi bộ lọc được
+ * dựng lại và mới quyết được là "trang số" hay "tải thêm".
+ *
+ * `total` trong response vẫn là số tin THẬT khớp bộ lọc, nên giao diện biết
+ * được mình đang xem một phần hay toàn bộ.
+ */
+const GIOI_HAN_CONG_KHAI = 100
+
+/**
+ * Danh sách việc làm công khai.
+ *
+ * ---------------------------------------------------------------------------
+ * CHỈ TIN `OPEN`, VÀ ĐÓ LÀ TOÀN BỘ LỚP BẢO VỆ Ở ĐÂY
+ * ---------------------------------------------------------------------------
+ * Endpoint này KHÔNG đòi đăng nhập — ai cũng gọi được. Nên điều kiện
+ * `status: 'OPEN'` không phải một bộ lọc tiện tay, nó là thứ duy nhất ngăn tin
+ * nháp và tin đang chờ duyệt của mọi nhà tuyển dụng lọt ra ngoài. Không bao giờ
+ * để người gọi truyền `status` vào đây.
+ *
+ * Phạm vi Sprint 2 dừng ở ba bộ lọc so sánh bằng. Tìm toàn văn, ghép lịch rảnh
+ * và điểm phù hợp thuộc Sprint 3 — giao diện đã dựng sẵn ô "chỉ hiện việc khớp
+ * lịch rảnh" từ thời còn mock, nên đây là chỗ rất dễ lỡ tay làm luôn.
+ */
+export async function listPublicJobs(query: PublicJobQuery): Promise<PublicJobListResponse> {
+  const where: Prisma.JobWhereInput = {
+    status: 'OPEN',
+    ...(query.city ? { city: query.city } : {}),
+    ...(query.district ? { district: query.district } : {}),
+    ...(query.scheduleType ? { scheduleType: query.scheduleType } : {}),
+  }
+
+  // Đếm và lấy trong cùng một transaction để `total` không lệch với danh sách
+  // khi có tin được duyệt xen vào giữa hai câu truy vấn.
+  const [jobs, total] = await prisma.$transaction([
+    prisma.job.findMany({
+      where,
+      select: CHON_JOB_PUBLIC,
+      orderBy: { publishedAt: 'desc' },
+      take: GIOI_HAN_CONG_KHAI,
+    }),
+    prisma.job.count({ where }),
+  ])
+
+  return { jobs: jobs.map(toPublicJobSummary), total }
+}
+
+/**
+ * Chi tiết một tin công khai, và tăng lượt xem.
+ *
+ * Dùng `findFirst` với điều kiện kép `{ id, status: 'OPEN' }` chứ không
+ * `findUnique` theo id rồi kiểm trạng thái sau. Kết quả với người gọi giống
+ * nhau, nhưng cách này không có nhánh nào lỡ tay trả về dữ liệu của tin chưa
+ * duyệt — kể cả khi ai đó thêm một câu `console.log` hay một trường vào giữa.
+ *
+ * Tin `DRAFT`/`PENDING`/`CLOSED` đều ra `NOT_FOUND`, không phải `FORBIDDEN`:
+ * với người ngoài, một tin chưa công khai thì đúng nghĩa là không tồn tại. Trả
+ * 403 sẽ xác nhận "có tin ở id này" cho bất kỳ ai dò.
+ */
+export async function getPublicJob(jobId: string): Promise<PublicJobDetail> {
+  const job = await prisma.job.findFirst({
+    where: { id: jobId, status: 'OPEN' },
+    select: CHON_JOB_PUBLIC,
+  })
+  if (!job) throw notFound('Không tìm thấy tin tuyển dụng')
+
+  await prisma.job.update({
+    where: { id: jobId },
+    data: { viewCount: { increment: 1 } },
+  })
+
+  // Cộng thêm 1 vào bản đang cầm thay vì đọc lại từ database: tiết kiệm một
+  // vòng truy vấn, và con số hiện ra đúng bằng thứ vừa ghi xuống.
+  return toPublicJobDetail({ ...job, viewCount: job.viewCount + 1 })
 }

@@ -6,7 +6,11 @@ import {
   createJobController,
   deleteJobController,
   getMyJobController,
+  getPublicJobController,
+  listJobsForAdminController,
+  listPublicJobsController,
   listMyJobsController,
+  reviewJobController,
   submitJobController,
   updateJobController,
 } from './jobs.controller.js'
@@ -56,3 +60,37 @@ employerJobRoutes.post('/:id/dong', closeJobController)
 
 // Gui duyet: DRAFT -> PENDING. Doi NTD da duoc xac minh, xem submitJob().
 employerJobRoutes.post('/:id/gui-duyet', submitJobController)
+
+/**
+ * Duyệt tin — phía ADMIN.
+ *
+ * Router riêng vì luật truy cập khác hẳn nhánh của NTD ở trên: KHÔNG kiểm chủ
+ * sở hữu (admin duyệt tin của mọi người), đổi lại đòi vai ADMIN. Cùng một bảng
+ * `Job`, hai thế giới khác nhau — và đó là lý do không gộp hai router làm một
+ * rồi phân nhánh bằng `if` bên trong controller.
+ *
+ * Mount ở `/admin/tin-tuyen-dung` trong `routes.ts`.
+ */
+export const adminJobRoutes = Router()
+
+adminJobRoutes.use(requireAuth, requireRole('ADMIN'))
+
+adminJobRoutes.get('/', listJobsForAdminController)
+adminJobRoutes.put('/:id/duyet', reviewJobController)
+
+/**
+ * Việc làm — bản CÔNG KHAI.
+ *
+ * KHÔNG có `requireAuth`, và đó là chủ đích: người chưa đăng nhập phải xem
+ * được danh sách việc làm, nếu không thì trang chủ chẳng có gì để xem và cũng
+ * không ai có lý do đăng ký.
+ *
+ * Đổi lại, toàn bộ lớp bảo vệ dồn vào điều kiện `status: 'OPEN'` trong service.
+ * Không bao giờ để người gọi truyền `status` vào hai endpoint này.
+ *
+ * Mount ở `/viec-lam` trong `routes.ts`.
+ */
+export const publicJobRoutes = Router()
+
+publicJobRoutes.get('/', listPublicJobsController)
+publicJobRoutes.get('/:id', getPublicJobController)

@@ -607,3 +607,122 @@ export interface CreateJobInput {
 
 /** Sửa tin: cùng hình dạng với lúc tạo, thay TOÀN BỘ nội dung. */
 export type UpdateJobInput = CreateJobInput
+
+/**
+ * Tin trong hàng đợi duyệt của admin.
+ *
+ * Là `EmployerJobResponse` cộng thông tin doanh nghiệp. Admin cần ĐỦ nội dung
+ * tin để phán đoán — nhất là `description`, nơi tin lừa đảo thật sự nằm — nên
+ * không cắt bớt thành một bản tóm tắt rồi bắt gọi thêm một endpoint chi tiết.
+ */
+export interface AdminJobResponse extends EmployerJobResponse {
+  employer: {
+    /** id của `EmployerProfile`. */
+    id: string
+    companyName: string
+    /** null nghĩa là chưa xác minh — tin của họ đáng ngờ hơn hẳn. */
+    verifiedAt: string | null
+  }
+}
+
+/** GET /api/admin/tin-tuyen-dung?status=PENDING */
+export interface AdminJobListResponse {
+  jobs: AdminJobResponse[]
+}
+
+/**
+ * PUT /api/admin/tin-tuyen-dung/:id/duyet
+ *
+ * Dùng động từ nghiệp vụ (`APPROVE`/`REJECT`) thay vì trạng thái đích. Duyệt
+ * đưa tin sang `OPEN`, còn từ chối đưa về `DRAFT` — không phải một enum đối
+ * xứng nào cả, nên gọi tên theo QUYẾT ĐỊNH thì đọc code rõ hơn là bắt người
+ * viết nhớ "REJECT nghĩa là DRAFT".
+ */
+export interface ReviewJobInput {
+  decision: 'APPROVE' | 'REJECT'
+  /** Bắt buộc khi từ chối: nhà tuyển dụng cần biết phải sửa gì. */
+  rejectionReason?: string | null
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * Tin tuyển dụng — bản CÔNG KHAI (T79–T80)
+ * ---------------------------------------------------------------------------
+ *
+ * Cố ý KHÔNG kế thừa `EmployerJobResponse`. Kiểu đó mang `status`,
+ * `rejectionReason`, `closedAt` — chuyện nội bộ giữa nhà tuyển dụng và admin,
+ * không việc gì tới người đi tìm việc. Kế thừa rồi `Omit` mấy trường ấy đi thì
+ * mỗi lần thêm cột nội bộ mới, nó tự động lọt ra API công khai cho tới khi có
+ * người nhớ bổ sung vào danh sách loại trừ.
+ *
+ * Khai riêng thì chiều mặc định đảo lại: thêm trường mới KHÔNG lộ ra, trừ khi
+ * ai đó chủ động viết nó vào đây.
+ */
+
+/** Doanh nghiệp, phần người tìm việc được thấy. */
+export interface PublicEmployer {
+  companyName: string
+  /** Đã được admin xác minh giấy tờ hay chưa — hiện thành dấu tick trên thẻ tin. */
+  verified: boolean
+}
+
+/** Một thẻ tin trong danh sách việc làm. */
+export interface PublicJobSummary {
+  id: string
+  title: string
+  employer: PublicEmployer
+
+  city: string
+  district: string
+  quantity: number
+
+  salaryNegotiable: boolean
+  salaryMin: number | null
+  salaryMax: number | null
+  salaryUnit: SalaryUnit
+
+  scheduleType: ScheduleType
+  commitmentMonths: number | null
+
+  deadline: string
+  /** Mốc tin lên sàn. Luôn có giá trị vì chỉ tin đã duyệt mới ra tới đây. */
+  publishedAt: string
+
+  skills: JobSkillItem[]
+  shifts: JobShiftItem[]
+}
+
+/** Trang chi tiết tin. */
+export interface PublicJobDetail extends PublicJobSummary {
+  description: string
+  requirements: string[]
+  benefits: string[]
+  minShiftsPerWeek: number | null
+  startDate: string | null
+  endDate: string | null
+  workDate: string | null
+  viewCount: number
+  /** Thông tin liên hệ của doanh nghiệp — chỉ ở trang chi tiết. */
+  employerAddress: string | null
+  employerWebsite: string | null
+}
+
+/**
+ * GET /api/viec-lam
+ *
+ * `total` là số tin khớp bộ lọc, có thể LỚN HƠN `jobs.length` vì server chặn
+ * cứng số hàng trả về. Phân trang thật thuộc Sprint 3, khi bộ lọc được dựng
+ * lại — thêm `total` ngay từ bây giờ để lúc đó chỉ việc thêm `page`/`limit`
+ * vào cùng object này, không phải đổi hình dạng response.
+ */
+export interface PublicJobListResponse {
+  jobs: PublicJobSummary[]
+  total: number
+}
+
+/** Bộ lọc của `GET /api/viec-lam`. Sprint 2 chỉ có ba tiêu chí so sánh bằng. */
+export interface PublicJobQuery {
+  city?: string
+  district?: string
+  scheduleType?: ScheduleType
+}
