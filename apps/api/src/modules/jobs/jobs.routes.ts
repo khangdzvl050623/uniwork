@@ -1,7 +1,11 @@
 import { Router } from 'express'
 import { requireAuth, requireRole } from '../../middlewares/auth.js'
 import { rateLimit } from '../../middlewares/rate-limit.js'
-import { createJobController } from './jobs.controller.js'
+import {
+  createJobController,
+  getMyJobController,
+  listMyJobsController,
+} from './jobs.controller.js'
 
 /**
  * Tin tuyển dụng, phía NHÀ TUYỂN DỤNG quản lý tin của chính mình.
@@ -36,3 +40,7 @@ const taoTinLimit = rateLimit({
 })
 
 employerJobRoutes.post('/', taoTinLimit, createJobController)
+
+// Đọc thì không giới hạn nhịp — chỉ thao tác GHI mới có nguy cơ tạo rác.
+employerJobRoutes.get('/', listMyJobsController)
+employerJobRoutes.get('/:id', getMyJobController)

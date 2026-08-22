@@ -23,8 +23,20 @@ function requireUserId(req: Request): string {
   return req.user.id
 }
 
+const thamSoId = z.object({ id: z.string().min(1) })
+
 export const createJobController: RequestHandler = async (req, res) => {
   const userId = requireUserId(req)
   const input = parse(createJobSchema, req.body)
   ok(res, await jobsService.createJob(userId, input), 201)
+}
+
+export const listMyJobsController: RequestHandler = async (req, res) => {
+  ok(res, { jobs: await jobsService.listMyJobs(requireUserId(req)) })
+}
+
+export const getMyJobController: RequestHandler = async (req, res) => {
+  const userId = requireUserId(req)
+  const { id } = parse(thamSoId, req.params)
+  ok(res, await jobsService.getMyJob(userId, id))
 }

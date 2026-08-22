@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client'
 import type { CreateJobData, EmployerJobResponse } from '@uniwork/shared'
 import { prisma } from '../../lib/prisma.js'
-import { badRequest, notFound } from '../../lib/errors.js'
+import { badRequest, forbidden, notFound } from '../../lib/errors.js'
 
 /**
  * Nghiệp vụ tin tuyển dụng.
@@ -98,6 +98,75 @@ function toEmployerJobResponse(job: HangJob): EmployerJobResponse {
     createdAt: job.createdAt.toISOString(),
     updatedAt: job.updatedAt.toISOString(),
   }
+}
+
+/**
+ * Lấy một tin VÀ kiểm chủ sở hữu. Trả kèm hồ sơ NTD của người gọi.
+ *
+ * ---------------------------------------------------------------------------
+ * MỌI ENDPOINT ĐỤNG TỚI MỘT TIN CỤ THỂ ĐỀU PHẢI ĐI QUA ĐÂY
+ * ---------------------------------------------------------------------------
+ * `requireRole('EMPLOYER')` ở tầng route chỉ trả lời "người này có phải nhà
+ * tuyển dụng không" — KHÔNG trả lời "tin này có phải của họ không". Thiếu bước
+ * thứ hai thì NTD A sửa và xoá được tin của NTD B chỉ bằng cách đổi id trên
+ * URL. Đây là lỗ hổng nghiêm trọng nhất có thể có ở module này.
+ *
+ * Gom vào một hàm thay vì lặp lại bốn lần ở T69–T72: lặp lại là chuyện sớm
+ * muộn quên một chỗ, mà chỗ quên đó không có biểu hiện gì cho tới khi bị lợi
+ * dụng.
+ *
+ * Lấy luôn cả tin đầy đủ (`CHON_JOB`) chứ không chỉ `employerProfileId`: cả
+ * bốn endpoint đều cần nội dung tin ngay sau đó — sửa cần biết giá trị cũ để so,
+ * xoá và gửi duyệt cần biết trạng thái hiện tại. Tách làm hai câu truy vấn chỉ
+ * để "kiểm trước, lấy sau" là thêm một vòng tới database mà không được gì.
+ *
+ * Trả `FORBIDDEN` chứ không phải `NOT_FOUND` theo đúng điều kiện nghiệm thu
+ * T69. Đánh đổi có biết: 403 xác nhận id đó tồn tại. Chấp nhận được vì id là
+ * `cuid()` — không đoán tuần tự được, nên biết "tồn tại" gần như vô giá trị với
+ * người dò.
+ */
+async function layTinCuaToi(
+  userId: string,
+  jobId: string,
+): Promise<{ job: HangJob; ntd: { id: string; verifiedAt: Date | null } }> {
+  const ntd = await layHoSoNtd(userId)
+
+  const job = await prisma.job.findUnique({
+    where: { id: jobId },
+    select: { ...CHON_JOB, employerProfileId: true },
+  })
+  if (!job) throw notFound('Không tìm thấy tin tuyển dụng')
+  if (job.employerProfileId !== ntd.id) throw forbidden('Tin này không thuộc về bạn')
+
+  return { job, ntd }
+}
+
+/**
+ * Toàn bộ tin của chính mình, ĐỦ MỌI TRẠNG THÁI.
+ *
+ * Khác hẳn endpoint công khai (T79) vốn chỉ trả `OPEN`: chủ tin cần thấy cả tin
+ * nháp lẫn tin đang chờ duyệt lẫn tin bị từ chối — nếu không thì tin bị từ chối
+ * biến mất khỏi màn hình và không ai sửa lại được.
+ *
+ * Không phân trang, cùng lý do như `listUsers`: một nhà tuyển dụng thực tế có
+ * dưới vài chục tin, và `rateLimit` ở bước tạo giữ cho con số đó không phình.
+ */
+export async function listMyJobs(userId: string): Promise<EmployerJobResponse[]> {
+  const ntd = await layHoSoNtd(userId)
+
+  const jobs = await prisma.job.findMany({
+    where: { employerProfileId: ntd.id },
+    select: CHON_JOB,
+    orderBy: { createdAt: 'desc' },
+  })
+
+  return jobs.map(toEmployerJobResponse)
+}
+
+/** Chi tiết một tin của chính mình. */
+export async function getMyJob(userId: string, jobId: string): Promise<EmployerJobResponse> {
+  const { job } = await layTinCuaToi(userId, jobId)
+  return toEmployerJobResponse(job)
 }
 
 /**

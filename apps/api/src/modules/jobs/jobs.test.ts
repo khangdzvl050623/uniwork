@@ -9,13 +9,15 @@ vi.mock('../../lib/prisma.js', () => ({
   prisma: {
     employerProfile: { findUnique: vi.fn() },
     skill: { count: vi.fn() },
-    job: { create: vi.fn() },
+    job: { create: vi.fn(), findMany: vi.fn(), findUnique: vi.fn() },
   },
 }))
 
 const ntdFindUnique = prisma.employerProfile.findUnique as unknown as Mock
 const skillCount = prisma.skill.count as unknown as Mock
 const jobCreate = prisma.job.create as unknown as Mock
+const jobFindMany = prisma.job.findMany as unknown as Mock
+const jobFindUnique = prisma.job.findUnique as unknown as Mock
 
 const ntdToken = signAccessToken({ sub: 'u-ntd', role: 'EMPLOYER' })
 const svToken = signAccessToken({ sub: 'u-sv', role: 'STUDENT' })
@@ -438,5 +440,112 @@ describe('chống tạo tin dồn dập', () => {
     const res = await gui()
     expect(res.status).toBe(429)
     expect(res.body.error.code).toBe('RATE_LIMITED')
+  })
+})
+
+/* ------------------------------------------------------------------ T69 -- */
+
+describe('GET /api/ntd/tin-tuyen-dung — danh sách tin của chính mình', () => {
+  it('chỉ lấy tin của đúng hồ sơ người gọi, đủ mọi trạng thái', async () => {
+    jobFindMany.mockResolvedValue([HANG_JOB, { ...HANG_JOB, id: 'job-2', status: 'OPEN' }])
+
+    const res = await request(createApp())
+      .get('/api/ntd/tin-tuyen-dung')
+      .set('Authorization', `Bearer ${ntdToken}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.jobs).toHaveLength(2)
+
+    /*
+     * Khoá chặt điều kiện lọc. Thiếu `where` này thì NTD nào cũng thấy tin của
+     * mọi NTD khác — và đó là kiểu lỗi không có biểu hiện gì trên màn hình của
+     * người đang thử, vì máy dev thường chỉ có một nhà tuyển dụng.
+     */
+    expect(jobFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { employerProfileId: 'ep-1' } }),
+    )
+  })
+
+  it('KHÔNG lọc theo status — tin nháp và tin bị từ chối vẫn phải thấy', async () => {
+    // Chủ tin mà không thấy tin bị từ chối thì không ai sửa lại được nó.
+    jobFindMany.mockResolvedValue([])
+
+    await request(createApp())
+      .get('/api/ntd/tin-tuyen-dung')
+      .set('Authorization', `Bearer ${ntdToken}`)
+
+    const where = jobFindMany.mock.calls[0][0].where as Record<string, unknown>
+    expect(where).not.toHaveProperty('status')
+  })
+
+  it('chưa có tin nào thì trả mảng rỗng, không phải 404', async () => {
+    jobFindMany.mockResolvedValue([])
+
+    const res = await request(createApp())
+      .get('/api/ntd/tin-tuyen-dung')
+      .set('Authorization', `Bearer ${ntdToken}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.jobs).toEqual([])
+  })
+
+  it('sinh viên không xem được danh sách tin của NTD', async () => {
+    const res = await request(createApp())
+      .get('/api/ntd/tin-tuyen-dung')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.status).toBe(403)
+    expect(jobFindMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('GET /api/ntd/tin-tuyen-dung/:id — chi tiết tin của chính mình', () => {
+  it('lấy được tin của mình', async () => {
+    jobFindUnique.mockResolvedValue({ ...HANG_JOB, employerProfileId: 'ep-1' })
+
+    const res = await request(createApp())
+      .get('/api/ntd/tin-tuyen-dung/job-1')
+      .set('Authorization', `Bearer ${ntdToken}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.id).toBe('job-1')
+    // Ca làm và kỹ năng đã được phẳng ra, web không phải đọc job.skills[].skill.
+    expect(res.body.data.skills[0]).toEqual({ id: 'sk-1', name: 'Pha chế', slug: 'pha-che' })
+    expect(res.body.data.shifts[0]).toEqual({ dayOfWeek: 2, slot: 'EVENING' })
+  })
+
+  it('XEM TIN CỦA NTD KHÁC thì 403', async () => {
+    /*
+     * Lỗ hổng nghiêm trọng nhất có thể có ở module này. `requireRole('EMPLOYER')`
+     * chỉ trả lời "người này có phải nhà tuyển dụng không", KHÔNG trả lời "tin
+     * này có phải của họ không". Thiếu bước hai thì đổi id trên URL là xem được
+     * tin của bất kỳ ai.
+     */
+    jobFindUnique.mockResolvedValue({ ...HANG_JOB, employerProfileId: 'ep-KHAC' })
+
+    const res = await request(createApp())
+      .get('/api/ntd/tin-tuyen-dung/job-cua-nguoi-khac')
+      .set('Authorization', `Bearer ${ntdToken}`)
+
+    expect(res.status).toBe(403)
+  })
+
+  it('tin không tồn tại thì 404', async () => {
+    jobFindUnique.mockResolvedValue(null)
+
+    const res = await request(createApp())
+      .get('/api/ntd/tin-tuyen-dung/khong-co')
+      .set('Authorization', `Bearer ${ntdToken}`)
+
+    expect(res.status).toBe(404)
+  })
+
+  it('sinh viên không xem được', async () => {
+    const res = await request(createApp())
+      .get('/api/ntd/tin-tuyen-dung/job-1')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.status).toBe(403)
+    expect(jobFindUnique).not.toHaveBeenCalled()
   })
 })
