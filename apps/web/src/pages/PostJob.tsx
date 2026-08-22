@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Loader2, ShieldAlert } from 'lucide-react'
 import {
+  DAY_FULL_LABELS,
   SALARY_UNITS,
   SALARY_UNIT_LABELS,
   SCHEDULE_TYPES,
@@ -10,6 +11,7 @@ import {
   createJobSchema,
   type AvailabilitySlot,
   type CreateJobInput,
+  type DayOfWeek,
   type SalaryUnit,
   type ScheduleType,
 } from '@uniwork/shared'
@@ -22,7 +24,7 @@ import {
   useSubmitJob,
   useUpdateJob,
 } from '@/hooks/useEmployerJobs'
-import { useSkills } from '@/hooks/useProfile'
+import { useMe, useSkills } from '@/hooks/useProfile'
 import { useZodForm } from '@/hooks/useZodForm'
 import { ApiClientError } from '@/lib/api'
 import { DISTRICTS } from '@/lib/khu-vuc'
@@ -126,6 +128,7 @@ export function PostJob() {
 
   const { data: tinCu, isLoading: dangTaiTin } = useMyJob(jobId)
   const { data: danhMucKyNang } = useSkills()
+  const { data: toi } = useMe()
   const taoTin = useCreateJob()
   const suaTin = useUpdateJob()
   const guiDuyet = useSubmitJob()
@@ -200,6 +203,36 @@ export function PostJob() {
 
   const kyNang = useMemo(() => danhMucKyNang ?? [], [danhMucKyNang])
   const loaiHienTai = form.values.scheduleType
+  const ntd = toi?.employerProfile
+
+  /**
+   * Thứ trong tuần của ngày làm việc — chỉ có nghĩa với tin một buổi.
+   *
+   * `null` khi chưa chọn ngày, hoặc khi không phải loại ONE_TIME.
+   */
+  const thuLamViec: DayOfWeek | null = useMemo(() => {
+    if (loaiHienTai !== 'ONE_TIME' || !form.values.workDate) return null
+    const d = new Date(String(form.values.workDate))
+    return Number.isNaN(d.getTime()) ? null : (d.getDay() as DayOfWeek)
+  }, [loaiHienTai, form.values.workDate])
+
+  /**
+   * Đổi ngày làm việc thì BỎ những ca không còn rơi vào thứ đó.
+   *
+   * Không bỏ thì người dùng chọn ca Thứ Tư, đổi ngày sang một Thứ Sáu, và form
+   * im lặng mang theo một ca Thứ Tư mà lưới đã khoá — họ không nhìn thấy nó
+   * nữa nhưng vẫn bị `createJobSchema` chặn với một lỗi trỏ vào chỗ trống.
+   */
+  function doiNgayLamViec(giaTri: string) {
+    setValue('workDate', giaTri || null)
+
+    if (!giaTri) return
+    const thu = new Date(giaTri).getDay()
+    setValue(
+      'shifts',
+      form.values.shifts.filter((s) => s.dayOfWeek === thu),
+    )
+  }
 
   const dangGui = taoTin.isPending || suaTin.isPending || guiDuyet.isPending
 
@@ -406,11 +439,19 @@ export function PostJob() {
             )}
 
             {loaiHienTai === 'ONE_TIME' && (
-              <Row label="Ngày làm việc" error={form.errors.workDate}>
+              <Row
+                label="Ngày làm việc"
+                hint={
+                  thuLamViec === null
+                    ? 'Chọn ngày trước, rồi mới chọn được ca làm bên dưới'
+                    : `Ca làm chỉ chọn được trong ${DAY_FULL_LABELS[thuLamViec]}`
+                }
+                error={form.errors.workDate}
+              >
                 <input
                   type="date"
                   value={String(form.values.workDate ?? '')}
-                  onChange={(e) => setValue('workDate', e.target.value || null)}
+                  onChange={(e) => doiNgayLamViec(e.target.value)}
                   className={inputClass}
                 />
               </Row>
@@ -418,7 +459,13 @@ export function PostJob() {
 
             <Row
               label="Ca làm cụ thể"
-              hint="Kéo chuột để chọn nhiều ô. Hệ thống dùng đúng dữ liệu này để tìm sinh viên rảnh."
+              hint={
+                loaiHienTai === 'ONE_TIME'
+                  ? thuLamViec === null
+                    ? 'Chọn ngày làm việc ở trên trước.'
+                    : `Việc một buổi nên chỉ chọn được ca trong ${DAY_FULL_LABELS[thuLamViec]}. Chọn nhiều buổi trong ngày đó nếu công việc chạy cả ngày.`
+                  : 'Kéo chuột để chọn nhiều ô. Hệ thống dùng đúng dữ liệu này để tìm sinh viên rảnh.'
+              }
               error={form.errors.shifts}
             >
               <LuoiKhungGio
@@ -426,6 +473,14 @@ export function PostJob() {
                 value={form.values.shifts as AvailabilitySlot[]}
                 onChange={(moi) => setValue('shifts', moi)}
                 disabled={dangGui}
+                /*
+                 * Tin một buổi: khoá mọi thứ trừ thứ của ngày làm việc. Chưa
+                 * chọn ngày thì khoá cả lưới — chọn ca trước rồi mới chọn ngày
+                 * sẽ khiến những ca vừa chọn bị xoá ngay sau đó.
+                 */
+                ngayChoPhep={
+                  loaiHienTai === 'ONE_TIME' ? (thuLamViec === null ? [] : [thuLamViec]) : undefined
+                }
               />
             </Row>
           </div>
@@ -534,11 +589,31 @@ export function PostJob() {
           </div>
         </Card>
 
-        <div className="flex items-start gap-3 rounded-xl border border-accent-500/30 bg-accent-50 p-4">
-          <ShieldAlert size={18} className="mt-0.5 shrink-0 text-accent-600" />
-          <p className="text-sm text-amber-900">
-            Tin đăng phải kèm giấy phép kinh doanh hoặc mã số thuế đã xác minh. Tin có dấu hiệu lừa
-            đảo sẽ bị gỡ và khoá tài khoản vĩnh viễn.
+        {/*
+          Hai câu này CỐ Ý tách làm hai khối, vì chúng nói với hai người khác nhau.
+
+          Câu về giấy tờ chỉ đúng với nhà tuyển dụng CHƯA xác minh — người đã
+          nộp đủ và được admin duyệt mà vẫn bị nhắc "phải kèm giấy phép kinh
+          doanh" thì hoặc họ tưởng mình làm thiếu, hoặc họ học được rằng cảnh
+          báo trên trang này không đáng đọc. Cả hai đều tệ.
+
+          Câu về tin lừa đảo thì đúng với mọi người, và luôn hiện.
+        */}
+        {ntd && !ntd.verifiedAt && (
+          <div className="flex items-start gap-3 rounded-xl border border-accent-500/30 bg-accent-50 p-4">
+            <ShieldAlert size={18} className="mt-0.5 shrink-0 text-accent-600" />
+            <p className="text-sm text-amber-900">
+              Hồ sơ doanh nghiệp chưa được xác minh. Bạn vẫn lưu nháp được, nhưng phải nộp giấy
+              phép kinh doanh hoặc mã số thuế và chờ duyệt trước khi gửi tin đi.
+            </p>
+          </div>
+        )}
+
+        <div className="flex items-start gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <ShieldAlert size={18} className="mt-0.5 shrink-0 text-slate-400" />
+          <p className="text-sm text-slate-600">
+            Tin có dấu hiệu lừa đảo — thu phí trước, yêu cầu đặt cọc, mô tả không khớp thực tế — sẽ
+            bị gỡ và khoá tài khoản vĩnh viễn.
           </p>
         </div>
 

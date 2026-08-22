@@ -42,6 +42,11 @@ function saoNgay(soNgay: number): string {
   return new Date(Date.now() + soNgay * 24 * 60 * 60 * 1000).toISOString()
 }
 
+/** Thứ trong tuần của một ngày ISO (0 = CN … 6 = T7), theo `Date.getDay()`. */
+function thuCua(iso: string): number {
+  return new Date(iso).getDay()
+}
+
 /** Tin RECURRING hợp lệ. Mọi ca test dưới đây sửa từ đây ra. */
 function tinHopLe(ghiDe: Record<string, unknown> = {}) {
   return {
@@ -283,13 +288,20 @@ describe('luật lịch phải khớp CHECK jobs_schedule_fields_check', () => {
     expect(res.body.error.details).toHaveProperty('endDate')
   })
 
-  it('ONE_TIME: chỉ cần workDate là hợp lệ', async () => {
+  it('ONE_TIME: workDate kèm ca ĐÚNG THỨ hôm đó là hợp lệ', async () => {
+    const ngayLam = saoNgay(7)
+
     const res = await guiTaoTin(
       tinHopLe({
         scheduleType: 'ONE_TIME',
         commitmentMonths: null,
         minShiftsPerWeek: null,
-        workDate: saoNgay(7),
+        workDate: ngayLam,
+        // Cho phép NHIỀU buổi trong cùng một ngày — sự kiện chạy cả ngày.
+        shifts: [
+          { dayOfWeek: thuCua(ngayLam), slot: 'MORNING' },
+          { dayOfWeek: thuCua(ngayLam), slot: 'AFTERNOON' },
+        ],
       }),
     )
     expect(res.status).toBe(201)
@@ -317,6 +329,88 @@ describe('luật lịch phải khớp CHECK jobs_schedule_fields_check', () => {
 
     expect(res.status).toBe(400)
     expect(res.body.error.details).toHaveProperty('minShiftsPerWeek')
+  })
+
+  /*
+   * Ca làm của việc MỘT BUỔI phải rơi đúng vào thứ của `workDate`.
+   *
+   * Thiếu luật này thì tạo được một tin diễn ra Thứ Tư 02/09 nhưng mang ca Thứ
+   * Hai sáng và Thứ Sáu tối — dữ liệu tự mâu thuẫn mà không tầng nào chặn.
+   * CHECK trong database bất lực vì `workDate` ở bảng `jobs` còn `dayOfWeek` ở
+   * bảng `job_shifts`, mà CHECK của Postgres không bắc qua hai bảng.
+   *
+   * Hậu quả không dừng ở chỗ trông kỳ: Sprint 3 ghép `job_shifts` với
+   * `availabilities` theo `(dayOfWeek, slot)`, nên tin đó sẽ được gợi ý cho
+   * đúng những sinh viên KHÔNG rảnh hôm ấy — bộ lọc sai mà không báo lỗi gì.
+   */
+  it('ONE_TIME: ca làm rơi vào thứ KHÁC ngày làm việc thì bị chặn', async () => {
+    const ngayLam = saoNgay(7)
+    const thuKhac = (thuCua(ngayLam) + 2) % 7
+
+    const res = await guiTaoTin(
+      tinHopLe({
+        scheduleType: 'ONE_TIME',
+        commitmentMonths: null,
+        minShiftsPerWeek: null,
+        workDate: ngayLam,
+        shifts: [{ dayOfWeek: thuKhac, slot: 'MORNING' }],
+      }),
+    )
+
+    expect(res.status).toBe(400)
+    expect(res.body.error.details).toHaveProperty('shifts')
+    expect(jobCreate).not.toHaveBeenCalled()
+  })
+
+  it('ONE_TIME: chỉ cần MỘT ca lệch thứ là chặn cả tin', async () => {
+    // Không cho "gần đúng": một ca lạc sang thứ khác vẫn làm dữ liệu sai.
+    const ngayLam = saoNgay(7)
+
+    const res = await guiTaoTin(
+      tinHopLe({
+        scheduleType: 'ONE_TIME',
+        commitmentMonths: null,
+        minShiftsPerWeek: null,
+        workDate: ngayLam,
+        shifts: [
+          { dayOfWeek: thuCua(ngayLam), slot: 'MORNING' },
+          { dayOfWeek: (thuCua(ngayLam) + 3) % 7, slot: 'EVENING' },
+        ],
+      }),
+    )
+
+    expect(res.status).toBe(400)
+    expect(res.body.error.details).toHaveProperty('shifts')
+  })
+
+  it('luật này KHÔNG áp cho RECURRING và SEASONAL', async () => {
+    // Hai loại kia lặp theo tuần nên ca rải nhiều thứ là chuyện bình thường.
+    for (const ghiDe of [
+      { scheduleType: 'RECURRING' as const },
+      {
+        scheduleType: 'SEASONAL' as const,
+        commitmentMonths: null,
+        startDate: saoNgay(10),
+        endDate: saoNgay(20),
+      },
+    ]) {
+      vi.clearAllMocks()
+      resetRateLimits()
+      ntdFindUnique.mockResolvedValue({ id: 'ep-1', verifiedAt: new Date() })
+      skillCount.mockResolvedValue(1)
+      jobCreate.mockResolvedValue(HANG_JOB)
+
+      const res = await guiTaoTin(
+        tinHopLe({
+          ...ghiDe,
+          shifts: [
+            { dayOfWeek: 1, slot: 'MORNING' },
+            { dayOfWeek: 5, slot: 'EVENING' },
+          ],
+        }),
+      )
+      expect(res.status).toBe(201)
+    }
   })
 })
 

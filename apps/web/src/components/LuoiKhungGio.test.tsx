@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { AvailabilitySlot } from '@uniwork/shared'
+import type { AvailabilitySlot, DayOfWeek } from '@uniwork/shared'
 import { LuoiKhungGio } from './LuoiKhungGio'
 
 /**
@@ -30,10 +30,12 @@ function Bao({
   banDau = [],
   disabled,
   onChange,
+  ngayChoPhep,
 }: {
   banDau?: AvailabilitySlot[]
   disabled?: boolean
   onChange?: (slots: AvailabilitySlot[]) => void
+  ngayChoPhep?: DayOfWeek[]
 }) {
   const [slots, setSlots] = useState<AvailabilitySlot[]>(banDau)
 
@@ -41,6 +43,7 @@ function Bao({
     <LuoiKhungGio
       value={slots}
       disabled={disabled}
+      ngayChoPhep={ngayChoPhep}
       onChange={(moi) => {
         setSlots(moi)
         onChange?.(moi)
@@ -300,5 +303,66 @@ describe('LuoiKhungGio — lớp phủ đối chiếu hai lịch', () => {
     bam(o('T5', 'sáng'))
 
     expect(onChange).toHaveBeenCalledWith([{ dayOfWeek: 4, slot: 'MORNING' }])
+  })
+})
+
+
+/*
+ * Giới hạn thứ được chọn — sinh ra cho tin "một buổi".
+ *
+ * Việc diễn ra đúng một ngày cụ thể thì ca làm chỉ có thể rơi vào thứ của ngày
+ * đó. Không khoá thì chọn được ca Thứ Hai cho một buổi tổ chức Thứ Tư — dữ liệu
+ * tự mâu thuẫn, và tới Sprint 3 nó sẽ được gợi ý cho đúng những sinh viên KHÔNG
+ * rảnh hôm ấy.
+ */
+describe('LuoiKhungGio — giới hạn thứ được chọn', () => {
+  it('ô ngoài phạm vi bị khoá, ô trong phạm vi vẫn bấm được', () => {
+    // dayOfWeek 3 = Thứ Tư, hiển thị là "T4".
+    render(<Bao ngayChoPhep={[3]} />)
+
+    expect((o('T4', 'tối') as HTMLButtonElement).disabled).toBe(false)
+    expect((o('T2', 'tối') as HTMLButtonElement).disabled).toBe(true)
+    expect((o('CN', 'sáng') as HTMLButtonElement).disabled).toBe(true)
+  })
+
+  it('bấm ô ngoài phạm vi thì KHÔNG đổi gì', () => {
+    const onChange = vi.fn()
+    render(<Bao ngayChoPhep={[3]} onChange={onChange} />)
+
+    bam(o('T2', 'tối'))
+
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('bấm ô trong phạm vi vẫn chọn được bình thường', () => {
+    const onChange = vi.fn()
+    render(<Bao ngayChoPhep={[3]} onChange={onChange} />)
+
+    bam(o('T4', 'tối'))
+
+    expect(onChange).toHaveBeenCalledWith([{ dayOfWeek: 3, slot: 'EVENING' }])
+  })
+
+  it('KÉO qua ô ngoài phạm vi thì ô đó không bị tô', () => {
+    // Chế độ kéo phải tôn trọng giới hạn ở TỪNG ô, không chỉ ở ô bắt đầu.
+    const onChange = vi.fn()
+    render(<Bao ngayChoPhep={[3, 4]} onChange={onChange} />)
+
+    fireEvent.pointerDown(o('T4', 'tối'), { pointerType: 'mouse' })
+    fireEvent.pointerEnter(o('T5', 'tối'))
+    // T6 (dayOfWeek 5) nằm ngoài phạm vi — kéo qua cũng không được tô.
+    fireEvent.pointerEnter(o('T6', 'tối'))
+    fireEvent.pointerUp(window)
+
+    const cuoi = onChange.mock.lastCall?.[0] as AvailabilitySlot[]
+    expect(cuoi.map((s) => s.dayOfWeek).sort()).toEqual([3, 4])
+  })
+
+  it('không truyền ngayChoPhep thì cả bảy thứ đều chọn được', () => {
+    render(<Bao />)
+
+    for (const nut of screen.getAllByRole('button')) {
+      expect((nut as HTMLButtonElement).disabled).toBe(false)
+    }
   })
 })

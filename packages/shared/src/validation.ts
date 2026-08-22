@@ -1,11 +1,13 @@
 import { z } from 'zod'
 import { SIGNUP_ROLES } from './api.js'
 import {
+  DAY_FULL_LABELS,
   JOB_STATUSES,
   SALARY_UNITS,
   SCHEDULE_TYPES,
   TIME_SLOTS,
   USER_STATUSES,
+  type DayOfWeek,
 } from './domain.js'
 
 /**
@@ -379,6 +381,40 @@ function kiemLuatCheo(val: z.infer<typeof baseJobSchema>, ctx: z.RefinementCtx) 
     cam('endDate', 'Việc một lần chỉ cần ngày làm việc')
     cam('commitmentMonths', 'Việc một lần không có cam kết tháng')
     cam('minShiftsPerWeek', 'Việc chỉ diễn ra một buổi thì "số ca mỗi tuần" vô nghĩa')
+
+    /*
+     * Ca làm PHẢI rơi đúng vào thứ của `workDate`.
+     *
+     * -----------------------------------------------------------------------
+     * VÌ SAO LUẬT NÀY QUAN TRỌNG HƠN VẺ NGOÀI CỦA NÓ
+     * -----------------------------------------------------------------------
+     * Thiếu nó thì tạo được một tin "một buổi" diễn ra Thứ Tư 02/09 nhưng mang
+     * ca làm Thứ Hai sáng và Thứ Sáu tối — dữ liệu tự mâu thuẫn, và không tầng
+     * nào chặn: CHECK trong database không kiểm được vì `workDate` nằm ở bảng
+     * `jobs` còn `dayOfWeek` ở bảng `job_shifts`, mà CHECK của Postgres không
+     * bắc qua hai bảng được (muốn vậy phải viết trigger).
+     *
+     * Hậu quả không dừng ở chỗ trông kỳ. Tính năng lõi của UniWork ở Sprint 3
+     * ghép `job_shifts` với `availabilities` theo `(dayOfWeek, slot)`. Một tin
+     * diễn ra Thứ Tư mà mang ca Thứ Hai sẽ được gợi ý cho đúng những sinh viên
+     * KHÔNG rảnh hôm đó — bộ lọc trả kết quả sai mà không báo lỗi gì.
+     *
+     * Cho phép NHIỀU buổi trong cùng một ngày (sáng + chiều của một sự kiện
+     * chạy cả ngày), chỉ cấm rải sang thứ khác. Ràng buộc thật ở đây là "đúng
+     * một NGÀY", không phải "đúng một ô".
+     */
+    if (val.workDate) {
+      const thuCuaNgayLam = val.workDate.getDay()
+      const caLech = val.shifts.filter((s) => s.dayOfWeek !== thuCuaNgayLam)
+
+      if (caLech.length > 0) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['shifts'],
+          message: `Việc một buổi chỉ được chọn ca trong ${DAY_FULL_LABELS[thuCuaNgayLam as DayOfWeek]} — đúng ngày làm việc đã chọn`,
+        })
+      }
+    }
   }
 
   /* ---- lương: khớp jobs_salary_check ---- */

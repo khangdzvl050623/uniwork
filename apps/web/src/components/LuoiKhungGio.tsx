@@ -32,6 +32,17 @@ interface Props {
   overlay?: AvailabilitySlot[]
   /** Nhãn cho trình đọc màn hình, vì lưới này giờ dùng ở ba màn hình khác nhau. */
   ariaLabel?: string
+  /**
+   * Giới hạn những thứ được chọn. Bỏ trống là cho chọn cả bảy.
+   *
+   * Sinh ra cho tin "một buổi": việc diễn ra đúng một ngày cụ thể, nên ca làm
+   * chỉ có thể rơi vào thứ của ngày đó. Không khoá thì người dùng chọn được ca
+   * Thứ Hai cho một buổi tổ chức Thứ Tư — dữ liệu tự mâu thuẫn, và tới Sprint 3
+   * nó sẽ được gợi ý cho đúng những sinh viên KHÔNG rảnh hôm ấy.
+   *
+   * Đây là lớp hướng dẫn; luật thật nằm ở `createJobSchema`.
+   */
+  ngayChoPhep?: DayOfWeek[]
 }
 
 /**
@@ -72,13 +83,22 @@ interface Props {
  * Đổi lại, trên cảm ứng chạm từng ô vẫn chọn được bình thường. Mất một tính
  * năng phụ còn hơn hỏng thao tác cuộn — thứ người dùng cần ở mọi trang.
  */
-export function LuoiKhungGio({ value, onChange, disabled, overlay, ariaLabel }: Props) {
+export function LuoiKhungGio({
+  value,
+  onChange,
+  disabled,
+  overlay,
+  ariaLabel,
+  ngayChoPhep,
+}: Props) {
   const daChon = new Set(value.map((s) => khoa(s.dayOfWeek, s.slot)))
   const oPhu = new Set((overlay ?? []).map((s) => khoa(s.dayOfWeek, s.slot)))
 
   // Không truyền `onChange` nghĩa là lưới chỉ để xem. Gộp luôn vào `disabled`
   // thay vì rải hai điều kiện khắp nơi bên dưới.
   const khoaTuongTac = disabled || !onChange
+
+  const choPhep = (day: DayOfWeek) => !ngayChoPhep || ngayChoPhep.includes(day)
 
   // `null` = không kéo. `true` = đang tô bật, `false` = đang tô tắt.
   const cheDoTo = useRef<boolean | null>(null)
@@ -121,7 +141,7 @@ export function LuoiKhungGio({ value, onChange, disabled, overlay, ariaLabel }: 
   }
 
   function batDauO(day: DayOfWeek, slot: TimeSlot, laCamUng: boolean) {
-    if (khoaTuongTac) return
+    if (khoaTuongTac || !choPhep(day)) return
 
     const bat = !daChon.has(khoa(day, slot))
     dat(day, slot, bat)
@@ -134,7 +154,7 @@ export function LuoiKhungGio({ value, onChange, disabled, overlay, ariaLabel }: 
   }
 
   function keoQuaO(day: DayOfWeek, slot: TimeSlot) {
-    if (khoaTuongTac || cheDoTo.current === null) return
+    if (khoaTuongTac || !choPhep(day) || cheDoTo.current === null) return
     dat(day, slot, cheDoTo.current)
   }
 
@@ -170,12 +190,13 @@ export function LuoiKhungGio({ value, onChange, disabled, overlay, ariaLabel }: 
               {THU_TU_NGAY.map((day) => {
                 const on = daChon.has(khoa(day, slot))
                 const phu = oPhu.has(khoa(day, slot))
+                const ngoaiPhamVi = !choPhep(day)
 
                 return (
                   <td key={day} className="p-0">
                     <button
                       type="button"
-                      disabled={khoaTuongTac}
+                      disabled={khoaTuongTac || ngoaiPhamVi}
                       aria-pressed={on}
                       aria-label={`${DAY_LABELS[day]} buổi ${TIME_SLOT_LABELS[slot].label.toLowerCase()}${
                         phu ? ' (bạn rảnh)' : ''
@@ -202,8 +223,12 @@ export function LuoiKhungGio({ value, onChange, disabled, overlay, ariaLabel }: 
                          * tốt, không nên làm nó nhạt đi.
                          */
                         phu && !on && 'border-dashed border-brand-400 bg-brand-50/60',
-                        !khoaTuongTac && !on && 'hover:border-brand-300 hover:bg-brand-50',
+                        !khoaTuongTac && !ngoaiPhamVi && !on && 'hover:border-brand-300 hover:bg-brand-50',
                         khoaTuongTac && 'opacity-60',
+                        // Ô ngoài phạm vi mờ hẳn và gạch chéo nhẹ, để mắt thấy
+                        // ngay là cả cột đó không dùng được — khác với ô trống
+                        // bình thường chỉ là chưa chọn.
+                        ngoaiPhamVi && 'cursor-not-allowed bg-slate-100 opacity-40',
                         // Chỉ để xem thì con trỏ không nên gợi ý là bấm được.
                         !onChange && 'cursor-default',
                       )}

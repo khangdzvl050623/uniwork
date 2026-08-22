@@ -139,3 +139,19 @@ export const DAY_LABELS: Record<DayOfWeek, string> = {
   5: 'T6',
   6: 'T7',
 }
+
+/**
+ * Tên đầy đủ, dùng trong câu văn.
+ *
+ * `DAY_LABELS` viết tắt để vừa một ô hẹp trên lưới; ở giữa một câu thông báo
+ * lỗi thì "T4" đọc lên khó hiểu hơn hẳn "Thứ Tư".
+ */
+export const DAY_FULL_LABELS: Record<DayOfWeek, string> = {
+  0: 'Chủ nhật',
+  1: 'Thứ Hai',
+  2: 'Thứ Ba',
+  3: 'Thứ Tư',
+  4: 'Thứ Năm',
+  5: 'Thứ Sáu',
+  6: 'Thứ Bảy',
+}
