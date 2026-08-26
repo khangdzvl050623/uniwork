@@ -8,6 +8,7 @@ import {
   type PublicJobSummary,
 } from '@uniwork/shared'
 import { Badge } from '@/components/ui/Badge'
+import { BadgePhuHop } from '@/components/BadgePhuHop'
 import { NutLuuTin } from '@/components/NutLuuTin'
 import { cn, formatSalary } from '@/lib/utils'
 
@@ -109,6 +110,10 @@ export function JobCard({ job }: { job: PublicJobSummary }) {
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {/* Đứng TRƯỚC các badge khác: điểm phù hợp là thứ phân biệt tin này
+                với tin kia nhanh nhất khi mắt lướt qua một danh sách dài. Tự ẩn
+                khi chưa đo được — xem BadgePhuHop. */}
+            <BadgePhuHop job={job} />
             <Badge tone="brand">{SCHEDULE_TYPE_LABELS[job.scheduleType]}</Badge>
             {job.commitmentMonths && <Badge>Cam kết {job.commitmentMonths} tháng</Badge>}
             {job.skills.slice(0, 2).map((s) => (

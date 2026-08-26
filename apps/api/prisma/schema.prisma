@@ -446,7 +446,19 @@ model Availability {
   @@map("availabilities")
 }
 
-/// Một ca làm của tin tuyển dụng.
+/// Một ca nhà tuyển dụng MỞ cho ứng viên chọn.
+///
+/// Chốt 2026-08-27: đây là các ca employer mở, KHÔNG phải các ca ứng viên bắt
+/// buộc làm hết. Số ca phải nhận nằm ở `Job.minShiftsPerWeek`.
+///
+/// Cách hiểu kia — "đây là lịch cố định, nhận là làm hết" — khiến chính cột
+/// `minShiftsPerWeek` trở nên vô nghĩa: làm hết thì lấy đâu ra "tối thiểu". Nó
+/// cũng không khớp tin part-time thật ở Việt Nam, nơi quán mở gần như cả tuần
+/// rồi yêu cầu người làm nhận tối thiểu N ca.
+///
+/// Hệ quả cho phép ghép lịch (`ghepLich` phía shared):
+///   eligible   = số ca trùng >= minShiftsPerWeek   ← có nhận nổi việc không
+///   matchScore = số ca trùng / tổng số ca mở        ← hợp lịch tới đâu
 model JobShift {
   id String @id @default(cuid())
 
@@ -526,9 +538,19 @@ model Job {
   /// tin cái nào.
   commitmentMonths Int?
 
-  /// Số ca tối thiểu mỗi tuần. Dùng được cho cả RECURRING và SEASONAL — đây là
-  /// cách diễn đạt "cường độ" của đợt thời vụ, thay cho việc mượn tạm
-  /// `commitmentMonths`. Vô nghĩa với ONE_TIME.
+  /// Số ca tối thiểu mỗi tuần ứng viên phải nhận, TRONG SỐ các ca đã mở ở
+  /// `shifts`. Dùng được cho cả RECURRING và SEASONAL — đây là cách diễn đạt
+  /// "cường độ" của đợt thời vụ, thay cho việc mượn tạm `commitmentMonths`.
+  /// Vô nghĩa với ONE_TIME.
+  ///
+  /// Luôn phải `<= shifts.length` — mở 3 ca mà đòi nhận 5 là tin không ai thoả
+  /// được. `createJobSchema` chặn ở tầng Zod (CHECK của Postgres không bắc qua
+  /// hai bảng được), và `ghepLich` chặn trần thêm lần nữa cho dữ liệu cũ.
+  ///
+  /// Cố ý TÁCH khỏi `commitmentMonths`: một cái là cường độ mỗi tuần, một cái
+  /// là thời gian gắn bó. Tin part-time thật thường quy định đồng thời cả hai
+  /// ("tối thiểu 5 ca/tuần, gắn bó tối thiểu 3 tháng"), nên gộp làm một là lấy
+  /// mất khả năng diễn đạt của cả nhà tuyển dụng lẫn người lọc.
   minShiftsPerWeek Int?
 
   /// RECURRING: ngày bắt đầu làm, có thể bỏ trống (tuyển là đi làm ngay).

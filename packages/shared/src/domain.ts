@@ -64,6 +64,37 @@ export type ApplicationStatus = (typeof APPLICATION_STATUSES)[number]
 export const SALARY_UNITS = ['HOUR', 'SHIFT', 'MONTH'] as const
 export type SalaryUnit = (typeof SALARY_UNITS)[number]
 
+/**
+ * Khoảng lương hợp lý của TỪNG đơn vị, dùng cho thanh trượt lọc.
+ *
+ * Ba đơn vị KHÔNG quy đổi về cùng một thang được: quy đổi đòi giả định "một ca
+ * mấy giờ" và "một tháng mấy ca", hai con số thay đổi theo từng tin. Nên mỗi
+ * đơn vị có thang riêng, và bộ lọc chỉ so số trong cùng một đơn vị.
+ *
+ * Các mốc lấy theo dữ liệu thật trong `prisma/seed.ts` rồi nới rộng hai đầu để
+ * còn chỗ cho tin mới — không phải số bịa: HOUR 24–32k, SHIFT 120–350k,
+ * MONTH 2–3,5 triệu.
+ */
+export const KHOANG_LUONG: Record<SalaryUnit, { min: number; max: number; buoc: number }> = {
+  HOUR: { min: 15_000, max: 60_000, buoc: 5_000 },
+  SHIFT: { min: 100_000, max: 500_000, buoc: 50_000 },
+  MONTH: { min: 1_000_000, max: 15_000_000, buoc: 500_000 },
+}
+
+/**
+ * Cách sắp xếp danh sách việc làm công khai.
+ *
+ * `match` chỉ dùng được khi người xem là sinh viên đã khai lịch rảnh — không có
+ * lịch thì mọi tin đều `null` điểm và thứ tự trở thành ngẫu nhiên.
+ */
+export const PUBLIC_JOB_SORTS = ['newest', 'match'] as const
+export type PublicJobSort = (typeof PUBLIC_JOB_SORTS)[number]
+
+export const PUBLIC_JOB_SORT_LABELS: Record<PublicJobSort, string> = {
+  newest: 'Mới đăng trước',
+  match: 'Phù hợp lịch nhất',
+}
+
 /** Dạng ngắn để ghép sau con số: "25.000đ/giờ". */
 export const SALARY_UNIT_LABELS: Record<SalaryUnit, string> = {
   HOUR: 'giờ',
@@ -72,21 +103,68 @@ export const SALARY_UNIT_LABELS: Record<SalaryUnit, string> = {
 }
 
 /**
- * Ba khung giờ trong ngày.
+ * Ba KHUNG KHAI BÁO trong ngày — không phải ca làm việc của doanh nghiệp.
  *
- * Chia sẵn thành ba khung thay vì cho nhập giờ tự do là quyết định có chủ đích:
- * nhờ đó lịch rảnh của sinh viên và ca làm của tin cùng một tập giá trị rời rạc,
- * và việc ghép hai bên trở thành phép giao tập hợp — một câu JOIN, không phải
- * bài toán so khoảng thời gian chồng lấn.
+ * ---------------------------------------------------------------------------
+ * ĐÂY LÀ PHÂN BIỆT QUAN TRỌNG NHẤT CỦA CẢ MÔ HÌNH GHÉP LỊCH (chốt 2026-08-27)
+ * ---------------------------------------------------------------------------
+ * `TimeSlot` là khung thời gian CHUẨN HOÁ để hai bên khai báo và ghép được với
+ * nhau. Nó KHÔNG mô tả giờ làm chính xác:
+ *
+ *   Sinh viên khai `T2 MORNING`  = "thứ Hai buổi sáng tôi có thể làm"
+ *   Tin khai `T2 MORNING`        = "cần người có thể làm thứ Hai buổi sáng"
+ *
+ * Quán cần người 10:00–16:00 sẽ khai `MORNING` + `AFTERNOON` — nghĩa là "ứng
+ * viên phải rảnh được trong cả hai khung này", không phải "ca kéo dài 12 tiếng".
+ * Giờ làm cụ thể do hai bên chốt khi phỏng vấn.
+ *
+ * Vì sao chia khung rời rạc thay vì cho nhập giờ tự do: nhờ đó lịch rảnh và ca
+ * làm cùng một tập giá trị, và phép ghép trở thành giao tập hợp — một câu JOIN,
+ * không phải bài toán so khoảng thời gian chồng lấn.
+ *
+ * ---------------------------------------------------------------------------
+ * HỆ QUẢ CHO GIAO DIỆN — ĐỪNG QUẢNG BÁ ĐÂY LÀ GIỜ LÀM THẬT
+ * ---------------------------------------------------------------------------
+ * Đã cân nhắc và BỎ phương án tăng lên 6 khung (06–09, 09–12, …): nó không giải
+ * quyết vấn đề gốc, vì ca thật ở tin part-time Việt Nam dài 6–8 tiếng với ranh
+ * giới mỗi nơi một khác. Mịn hơn vẫn chỉ là xấp xỉ. Muốn đúng hẳn phải chuyển
+ * sang `startTime`/`endTime`, và khi đó phép ghép, lưới khai lịch, validate và
+ * ràng buộc đều phải dựng lại — việc của v2.
+ *
+ * Trong lúc chưa làm việc đó, mô hình này ĐÚNG chứ không phải tạm bợ — miễn là
+ * giao diện gọi đúng tên: "khung giờ có thể làm", không phải "ca làm việc".
  */
 export const TIME_SLOTS = ['MORNING', 'AFTERNOON', 'EVENING'] as const
 export type TimeSlot = (typeof TIME_SLOTS)[number]
 
+/**
+ * `range` là RANH GIỚI CỦA KHUNG, không phải giờ vào ca.
+ *
+ * Hiện dưới nhãn "Sáng" thì người đọc rất dễ hiểu thành "ca sáng bắt đầu 6h,
+ * kéo 6 tiếng". Chỗ nào hiện `range` cũng phải kèm câu nói rõ đây là khung để
+ * đối chiếu lịch — xem `LuoiKhungGio` và `JobDetail`.
+ */
 export const TIME_SLOT_LABELS: Record<TimeSlot, { label: string; range: string }> = {
   MORNING: { label: 'Sáng', range: '06:00 – 12:00' },
   AFTERNOON: { label: 'Chiều', range: '12:00 – 18:00' },
   EVENING: { label: 'Tối', range: '18:00 – 22:00' },
 }
+
+/**
+ * Tổng số ô trong lưới khai lịch: 7 ngày × số khung giờ.
+ *
+ * ---------------------------------------------------------------------------
+ * VÌ SAO SUY RA CHỨ KHÔNG GHI CỨNG 21
+ * ---------------------------------------------------------------------------
+ * Con số 21 từng được viết thẳng ở ba chỗ trong `validation.ts` (trần số ô lịch
+ * rảnh, trần `minShiftsPerWeek`, trần `maxShiftsPerWeek`). Thêm một khung giờ
+ * thứ tư vào `TIME_SLOTS` thì cả ba chỗ đó lặng lẽ sai: lịch rảnh bị cắt ở ô
+ * thứ 21, và nhà tuyển dụng không khai nổi số ca thật của mình.
+ *
+ * Không có lỗi nào bắn ra — chỉ là một cái trần vô hình mà không ai nhớ đã đặt
+ * ở đâu. Suy ra từ `TIME_SLOTS.length` thì thêm hay bớt khung giờ đều tự đúng.
+ */
+export const SO_O_MOI_TUAN = 7 * TIME_SLOTS.length
 
 /** Giấy tờ nhà tuyển dụng nộp để được xác minh (BRD Đăng tin). */
 export const DOCUMENT_TYPES = ['BUSINESS_LICENSE', 'TAX_CODE', 'ID_CARD'] as const

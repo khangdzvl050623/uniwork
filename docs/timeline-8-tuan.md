@@ -38,6 +38,7 @@ BA luôn chạy trước hai dev **một sprint**: trong lúc dev làm sprint hi
 | E2E test diện rộng | Chỉ giữ 2 luồng: đăng tin và ứng tuyển |
 | Tuần riêng cho tài liệu | Gộp vào tuần 8; BA viết rải suốt 8 tuần thay vì dồn cuối |
 | Role phụ dưới ADMIN (kiểu "moderator"/"editor" quản lý student, employer riêng) | Nice-to-have, đề xuất 2026-08-21. Team hiện chỉ 2 dev, chưa có ai thật sự cần phân quyền kiểu này. Cần thêm giá trị enum `Role`, viết lại `requireRole` theo từng nhánh quyền hạn cụ thể, và test lại toàn bộ ca phân quyền — chi phí không nhỏ cho nhu cầu chưa xuất hiện. Cân nhắc lại nếu sau này có thêm người (vd. CTV kiểm duyệt tin) cần vai trò trung gian thật sự |
+| Lịch rảnh có hạn dùng (`effectiveFrom`/`effectiveUntil`) | **Hoãn thi công, không cắt hẳn** — đã chốt nghiệp vụ 2026-08-27. Lịch rảnh hiện sống mãi, nên sau vài tháng hệ thống vẫn chấm điểm phù hợp rất tự tin trên dữ liệu đã sai. Ước tính 1,5–2 ngày: migration + exclusion constraint (`btree_gist`) + ghép theo khoảng làm việc của tin thay vì `NOW()` + ô chọn khoảng ngày. Hoãn vì tuần 7 là Sprint 4 (Ứng tuyển) — chưa viết dòng nào, mà không có nó thì demo không đi hết được một vòng tuyển dụng. Yêu cầu kỹ thuật đầy đủ: `docs/lich-ranh-co-han-dung.md` |
 
 ## Rủi ro
 

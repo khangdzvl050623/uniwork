@@ -46,7 +46,12 @@ interface Props {
 }
 
 /**
- * Lưới 7 ngày × 3 buổi — dùng chung cho lịch rảnh sinh viên VÀ ca làm của tin.
+ * Lưới 7 ngày × 3 khung giờ — dùng chung cho lịch rảnh sinh viên VÀ khung giờ
+ * tin cần người.
+ *
+ * `TimeSlot` là khung khai báo CHUẨN HOÁ để hai bên ghép lịch, không phải giờ
+ * vào ca của doanh nghiệp — xem `TIME_SLOTS` phía shared. Mọi câu chữ quanh
+ * lưới này phải nói đúng như vậy.
  *
  * ---------------------------------------------------------------------------
  * VÌ SAO MỘT COMPONENT CHO CẢ HAI
@@ -184,7 +189,17 @@ export function LuoiKhungGio({
                 <div className="text-sm font-medium text-slate-700">
                   {TIME_SLOT_LABELS[slot].label}
                 </div>
-                <div className="text-[11px] text-slate-400">{TIME_SLOT_LABELS[slot].range}</div>
+                {/*
+                  Khoảng giờ là RANH GIỚI CỦA KHUNG, không phải giờ vào ca.
+
+                  Đứng một mình ngay dưới chữ "Sáng" thì nó đọc thành "ca sáng
+                  bắt đầu 6h, kéo 6 tiếng". Thêm dấu ngã ở đầu để mắt nhận ra
+                  đây là một khoảng ước chừng, và chỗ nào dùng lưới này cũng có
+                  một câu nói rõ bên ngoài (xem `JobDetail`, `PostJob`).
+                */}
+                <div className="text-[11px] text-slate-400">
+                  ~{TIME_SLOT_LABELS[slot].range}
+                </div>
               </th>
 
               {THU_TU_NGAY.map((day) => {

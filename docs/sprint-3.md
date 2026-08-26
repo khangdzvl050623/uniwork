@@ -35,7 +35,7 @@ Sprint 3 không rơi vào tình huống đó, vì mọi dữ liệu nền đã c
 
 Vì vậy sprint này chia theo **tính năng** (vertical slice) thay vì theo pha BE/FE: mỗi tính năng là một khối trọn vẹn (đủ BE nếu cần + FE + test), làm xong khối nào **commit khối đó**, không dồn hết BE của cả 5 tính năng lại rồi mới bắt đầu FE. Một khối làm xong là một thứ demo được ngay, không phải chờ khối khác mới nhìn thấy kết quả.
 
-**Tính năng 3 (lõi) thậm chí không cần đụng backend** — xem phần bên dưới.
+**Tính năng 3 (lõi) ban đầu dự tính làm thuần frontend, nhưng đã chuyển sang server** — lý do và chi phí ở phần bên dưới.
 
 ## Bảng tính năng
 
@@ -43,7 +43,7 @@ Vì vậy sprint này chia theo **tính năng** (vertical slice) thay vì theo p
 | --- | --- | --- | --- | --- |
 | 1 | Lưu tin | 3 endpoint mới, module riêng | Nút bookmark trên `JobCard`, trang "Tin đã lưu" | Không đụng tới `GET /api/viec-lam` hay bất cứ tính năng nào khác — bảng `SavedJob` độc lập hoàn toàn |
 | 2 | Full-text search | Thêm tham số `q` vào query đã có | Ô tìm kiếm trên `JobList` | Thêm tham số, không sửa tham số cũ nào |
-| 3 | Lọc lịch rảnh + điểm phù hợp | **Không có** | Toàn bộ tính bằng dữ liệu đã có trong tay | Xem giải thích riêng bên dưới |
+| 3 | Lọc lịch rảnh + điểm phù hợp | `optionalAuth` + phép giao trong SQL | Badge điểm trên thẻ tin, ô lọc, nút sắp xếp | Không đụng bộ lọc nào khác — chỉ thêm tham số |
 | 4 | Lọc đa tiêu chí | Thêm 4 tham số vào query đã có | Bật 3 ô đang khoá trong `FilterSidebar` + chọn đơn vị lương | Thêm tham số, không sửa tham số cũ |
 | 5 | Phân trang | Thêm `page`/`limit`, đã có `total` sẵn | "Tải thêm" hoặc phân trang số trong `JobList` | Object response đã bọc sẵn từ Sprint 1 — thêm trường không phá hợp đồng cũ |
 
@@ -85,40 +85,85 @@ Model `SavedJob(studentProfileId, jobId)` có từ Sprint 0, chưa có endpoint 
 
 ## Tính năng 3 — Lọc theo lịch rảnh + điểm phù hợp (lõi)
 
-**Đây là tính năng thuần frontend.** Dữ liệu cần đã có đủ ở cả hai đầu:
+**Chạy ở SERVER, không phải frontend** — đổi so với bản kế hoạch đầu, xem phần dưới.
 
-- `PublicJobSummary.shifts` — ca làm của tin, đã trả kèm mỗi tin từ Sprint 2
-- `useAvailability()` — lịch rảnh của sinh viên đang đăng nhập, đã có từ Sprint 1
+Hai bảng `job_shifts`/`availabilities` cố ý cùng hình dạng `(dayOfWeek, slot)` từ Sprint 0 — lý do ghi rõ trong `LuoiKhungGio.tsx` — nên phép so khớp là giao hai tập hợp, chạy được thẳng trong SQL.
 
-Hai bảng `job_shifts`/`availabilities` cố ý cùng hình dạng `(dayOfWeek, slot)` — lý do ghi rõ trong `LuoiKhungGio.tsx` — nên phép so khớp chỉ là giao hai tập hợp, không cần JOIN ở database.
+### Hai câu hỏi khác nhau, hai con số khác nhau
 
-**Công thức điểm phù hợp** (đặt ở một hàm thuần, dễ unit test):
+Chốt 2026-08-27 sau khi rà lại `minShiftsPerWeek`:
 
 ```ts
-tinhDiemPhuHop(caLam: JobShiftItem[], lichRanh: AvailabilitySlot[]): number | null
+ghepLich(caLam, lichRanh, minShiftsPerWeek): {
+  matchedShifts: number
+  totalJobShifts: number
+  eligible:   boolean | null   // "tôi CÓ nhận nổi việc này không?"
+  matchScore: number  | null   // "việc này hợp lịch tôi tới đâu?"
+}
 ```
 
 ```
-điểm = (số ca làm của tin TRÙNG với lịch rảnh) / (tổng số ca làm của tin) × 100%
+eligible   = matchedShifts >= minShiftsPerWeek   (null → ngưỡng là 1)
+matchScore = matchedShifts / totalJobShifts × 100
 ```
 
-**Kiểu trả về là `number | null`, không phải `number`** — và đây là điểm quan trọng chứ không phải chi tiết cú pháp. Có hai chuyện khác hẳn nhau dễ bị gộp làm một:
+**Gộp hai thứ làm một là hỏng theo cả hai chiều:**
 
-| Tình huống | Trả về | Hiện gì |
-| --- | --- | --- |
-| Sinh viên **chưa khai** lịch rảnh | `null` | "Khai lịch rảnh để xem độ phù hợp" + dẫn sang trang hồ sơ |
-| Đã khai, nhưng **không trùng ca nào** | `0` | 0% thật, hiện bình thường |
-| Đã khai, trùng toàn bộ ca | `100` | 100% |
+- Lấy `matched / minShiftsPerWeek` làm điểm thì **mọi** người đủ điều kiện đều thành 100%. Sinh viên trùng 5/20 ca và sinh viên trùng 18/20 ca hiện giống hệt nhau — điểm mất sạch khả năng phân biệt, mà phân biệt chính là lý do nó tồn tại.
+- Lấy `matched / totalJobShifts` làm cổng vào thì tin mở 20 ca cần 5 sẽ loại oan người trùng 8 ca (40%), dù 8 ≥ 5 nên họ thừa sức nhận việc.
 
-Nếu để hàm trả `0` cho cả hai dòng đầu thì giao diện đọc "chưa đo được" thành "không hợp" — sai nghĩa hoàn toàn, và sinh viên chưa khai lịch sẽ thấy mọi tin đều 0% rồi kết luận trang này không có việc nào hợp với mình.
+Ngưỡng được **chặn trần ở tổng số ca mở**: tin mở 3 ca mà đòi nhận 5 là lỗi nhập liệu, không phải yêu cầu khắt khe — không chặn thì tin đó không bao giờ `eligible` với ai và biến mất khỏi mọi kết quả lọc, trong khi nhà tuyển dụng thấy tin mình vẫn `OPEN`. `createJobSchema` chặn ở tầng Zod cho tin mới, `ghepLich` chặn thêm lần nữa cho dữ liệu cũ.
 
-Dùng `null` chứ không dựa vào quy ước "nhớ kiểm tra `lichRanh.length` trước khi hiển thị": quy ước thì ai quên là hỏng, còn `number | null` thì TypeScript **bắt** mọi chỗ dùng phải xử lý nhánh `null` mới cho biên dịch qua.
+### `null` khác `0`, và `null` khác `false`
+
+| Tình huống | `matchScore` | `eligible` | Giao diện |
+| --- | --- | --- | --- |
+| Chưa khai lịch / khách / NTD | `null` | `null` | Badge tự ẩn; lời mời khai lịch hiện **một lần** ở đầu `JobList` |
+| Đã khai, không trùng ca nào | `0` | `false` | "Chưa đủ ca" |
+| Đã khai, trùng nhưng chưa đủ ngưỡng | vd. `25` | `false` | "Chưa đủ ca — bạn rảnh 1/4 ca" |
+| Đủ ngưỡng | vd. `50` | `true` | "50%" |
+
+Trả `0` cho dòng đầu thì sinh viên chưa khai lịch thấy **mọi tin đều 0%** rồi kết luận trang này không có việc nào hợp với mình. Kiểu `number | null` đẩy việc phân biệt vào tầng kiểu — TypeScript **bắt** mọi chỗ hiển thị phải xử lý nhánh `null` mới cho biên dịch qua.
+
+### Sắp xếp: đủ điều kiện trước, rồi mới tới điểm
+
+`matchScore` lấy mẫu số là tổng số ca của tin, nên tin mở nhiều ca luôn khó đạt điểm cao hơn tin ít ca. Sắp thuần theo điểm sẽ đẩy tin người ta **không nhận nổi** lên trên tin họ nhận được — hỏng đúng mục đích của việc sắp xếp.
+
+**`TimeSlot` là KHUNG KHAI BÁO, không phải ca làm việc** (chốt 2026-08-27).
+
+Đây là phân biệt quan trọng nhất của cả mô hình ghép lịch:
+
+- Sinh viên khai `T2 MORNING` = *"thứ Hai buổi sáng tôi có thể làm"*
+- Tin khai `T2 MORNING` = *"cần người có thể làm thứ Hai buổi sáng"*
+
+Quán cần người 10:00–16:00 sẽ khai `MORNING` + `AFTERNOON` — nghĩa là "ứng viên phải rảnh được trong cả hai khung", **không** phải "ca kéo 12 tiếng". Giờ làm cụ thể do hai bên chốt khi phỏng vấn.
+
+Đã cân nhắc và **bỏ** phương án tăng lên 6 khung (06–09, 09–12…): nó không giải quyết vấn đề gốc, vì ca thật ở tin part-time Việt Nam dài 6–8 tiếng với ranh giới mỗi nơi một khác — mịn hơn vẫn chỉ là xấp xỉ. Muốn đúng hẳn phải chuyển sang `startTime`/`endTime`, và khi đó phép ghép, lưới khai lịch, validate lẫn ràng buộc đều phải dựng lại (việc của v2).
+
+Hệ quả **bắt buộc** cho giao diện: không chỗ nào được gọi đây là "ca làm việc". Đã sửa `JobDetail` ("Khung giờ cần người"), `PostJob` ("Khung giờ cần người"), và `LuoiKhungGio` (khoảng giờ hiện `~06:00 – 12:00` để đọc ra là ước chừng).
 
 **Bậc màu gợi ý** (tinh chỉnh khi làm UI, không phải luật cứng): ≥ 80% xanh lá, 40–79% vàng, < 40% xám.
 
-**Lọc "chỉ hiện việc khớp lịch rảnh":** bật ô checkbox đang khoá trong `FilterSidebar.tsx` (dòng 76–89) — khi bật, lọc **client-side** trên danh sách `jobs` đã tải, giữ lại tin có điểm phù hợp > 0%.
+**Lọc "chỉ hiện việc khớp lịch rảnh" chạy ở SERVER** — đổi so với bản kế hoạch đầu (2026-08-27).
 
-**Vì sao lọc client-side chấp nhận được, không phải làm ẩu:** quy mô dữ liệu thật của đồ án là 30–50 tin (đã ghi trong `docs/sprint-2.md`, mục phân trang). Toàn bộ tin của một trang kết quả tải về máy sinh viên vốn đã có `shifts`, tính thêm một phép giao tập hợp trên vài chục phần tử là chi phí không đáng kể. Nếu về sau dữ liệu lớn hơn nhiều (hàng nghìn tin), phép lọc này nên chuyển thành JOIN ở `GET /api/viec-lam` — ghi lại đây để không ai quên khi cần mở rộng.
+Bản đầu định lọc client-side với lý do quy mô nhỏ. Lý do đó đúng nhưng **không phải lý do quan trọng nhất**, và bỏ qua một lỗi thật:
+
+- Lọc ở web thì `total` do server đếm kể một câu chuyện khác với số thẻ đang hiện — "Tìm thấy 40 tin" trong khi màn hình có 12 thẻ.
+- Tới **tính năng 5 (Phân trang)**, mỗi trang tải 20 tin rồi lọc còn 6, trang sau còn 11 — số lượng nhảy loạn mỗi lần bấm "Tải thêm". Đó là lỗi đúng nghĩa, không phải chuyện quy mô.
+
+Chi phí để làm đúng nhỏ hơn dự tính: phép giao diễn đạt được bằng Prisma, **không cần raw SQL**.
+
+```ts
+shifts: { some: { OR: lichRanh.map((o) => ({ dayOfWeek: o.dayOfWeek, slot: o.slot })) } }
+```
+
+Dùng đúng `@@index([dayOfWeek, slot])` đã có sẵn trên `job_shifts` từ Sprint 0 — chính là lý do hai bảng `job_shifts`/`availabilities` được thiết kế cùng bộ cột.
+
+**Endpoint cần biết ai đang xem, nhưng vẫn phải mở cho khách.** Giải bằng middleware `optionalAuth` mới: đọc token nếu có, không có thì cho qua như khách, token hỏng cũng cho qua (phiên vừa hết hạn mà mở trang việc làm phải thấy danh sách, không phải trang lỗi). Đây **không** phải nới lỏng bảo mật — phạm vi dữ liệu vẫn đúng bằng `status = 'OPEN'`; danh tính chỉ thêm một trường và bật một bộ lọc tuỳ chọn.
+
+**Điểm số tính bằng JS trên tập kết quả, không phải trong SQL.** `CHON_JOB_PUBLIC` vốn đã lấy `shifts` của mỗi tin nên không tốn thêm truy vấn nào. Sắp xếp theo điểm cũng chạy ở đây và **đúng**, vì `take: 100` lấy về toàn bộ tập kết quả chứ không phải một trang.
+
+> ⚠ **Ràng buộc phải nhớ khi làm tính năng 5:** phép cắt trang phải diễn ra **sau** bước chấm điểm và sắp xếp trong service, không được đẩy thành `skip`/`take` trong SQL. Đẩy xuống SQL thì database sắp theo `publishedAt` rồi mới cắt, và ta chấm điểm trên một trang đã bị cắt sai — kết quả trông vẫn hợp lý nên sẽ không ai nhận ra. Tính điểm bằng `$queryRaw` sẽ gỡ được ràng buộc này, đổi lại phải chép toàn bộ mệnh đề lọc sang SQL viết tay và giữ hai bản khớp nhau mãi mãi.
 
 **Chỉ áp dụng cho sinh viên đã đăng nhập** — nút và badge ẩn hẳn với khách và với nhà tuyển dụng đang xem thử trang công khai, không hiện disabled kèm giải thích như Sprint 2 làm với "Ứng tuyển" (khác nhau: "Ứng tuyển" disabled vì tính năng CHƯA XONG, còn cái này ẩn vì đối tượng xem KHÔNG ÁP DỤNG được — sinh viên A xem lịch rảnh của ai khi chưa đăng nhập?).
 
@@ -196,7 +241,20 @@ Chú thích ở `schema.prisma` (`salaryNegotiable`) **đã sửa cho khớp** �
 BE: skills = { some: { skillId: { in: query.skillIds } } }
 ```
 
-**Cam kết tối thiểu** — lọc theo `minShiftsPerWeek` (áp dụng cho `RECURRING`/`SEASONAL`, vô nghĩa với `ONE_TIME` nên tin `ONE_TIME` luôn qua được bộ lọc này bất kể giá trị chọn).
+**Cam kết — HAI bộ lọc riêng, không gộp làm một** (chốt 2026-08-27).
+
+Bản kế hoạch đầu gộp thành một ô "Cam kết tối thiểu" lọc theo `minShiftsPerWeek`, trong khi nhãn trên `FilterSidebar` lại đọc như `commitmentMonths`. Hai cột đó nói hai chuyện khác nhau:
+
+| Cột | Nghĩa | Bộ lọc |
+| --- | --- | --- |
+| `minShiftsPerWeek` | Cường độ mỗi tuần | "Bạn nhận tối đa bao nhiêu ca/tuần?" → `<= X` |
+| `commitmentMonths` | Thời gian gắn bó | "Bạn gắn bó được tối đa bao lâu?" → `<= X` |
+
+Khảo sát tin part-time thật ở Việt Nam (IZONE, Ecombest, Dream Viet, Levents…) cho thấy chúng **tồn tại song song** chứ không thay thế nhau — nhiều tin quy định đồng thời "tối thiểu 5 ca/tuần" *và* "gắn bó tối thiểu 3–6 tháng". Gộp làm một là lấy mất khả năng diễn đạt nhu cầu thật của người lọc.
+
+Cả hai đều **để tin không quy định lọt qua** (`null` không vi phạm ngưỡng nào): `ONE_TIME` không có `minShiftsPerWeek`, `SEASONAL`/`ONE_TIME` không có `commitmentMonths`.
+
+Nhãn trên giao diện đứng từ phía **người lọc** nên là **tối đa**, không phải "tối thiểu" như cột trong database — người tìm việc nói "tôi nhận nhiều nhất 5 ca/tuần", còn tin nói "tôi cần ít nhất 5 ca/tuần".
 
 **Quan hệ giữa các bộ lọc:** **AND giữa các nhóm** (khu vực VÀ loại thời gian VÀ lương VÀ kỹ năng), **OR trong nhóm kỹ năng** (có bất kỳ kỹ năng nào trong danh sách chọn). Đây là mẫu người dùng quen từ mọi trang thương mại điện tử — chọn thêm một nhóm là thu hẹp kết quả, chọn thêm một mục trong cùng nhóm là mở rộng.
 
