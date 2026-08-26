@@ -4,9 +4,11 @@ import {
   DAY_LABELS,
   SCHEDULE_TYPE_LABELS,
   TIME_SLOT_LABELS,
+  duongDanTin,
   type PublicJobSummary,
 } from '@uniwork/shared'
 import { Badge } from '@/components/ui/Badge'
+import { NutLuuTin } from '@/components/NutLuuTin'
 import { cn, formatSalary } from '@/lib/utils'
 
 /** "T2, T4, T6 · ca tối" — gom ngày và buổi thay vì liệt kê từng ô một. */
@@ -65,11 +67,24 @@ export function JobCard({ job }: { job: PublicJobSummary }) {
         </div>
 
         <div className="min-w-0 flex-1">
-          <h3 className="min-w-0 font-semibold text-slate-900 group-hover:text-brand-700">
-            <Link to={`/viec-lam/${job.id}`} className="before:absolute before:inset-0">
-              {job.title}
-            </Link>
-          </h3>
+          <div className="flex items-start gap-2">
+            <h3 className="min-w-0 flex-1 font-semibold text-slate-900 group-hover:text-brand-700">
+              {/* Đường dẫn mang cả slug tiêu đề lẫn id — xem `duongDanTin`.
+                  Phần chữ chỉ để người đọc và máy tìm kiếm hiểu tin nói về gì;
+                  id ở cuối mới là thứ tra cứu. */}
+              <Link
+                to={`/viec-lam/${duongDanTin(job)}`}
+                className="before:absolute before:inset-0"
+              >
+                {job.title}
+              </Link>
+            </h3>
+
+            {/* Nút tự ẩn khi người xem không phải sinh viên — xem NutLuuTin.
+                Nó mang sẵn `relative z-10` để không bị lớp phủ của <Link> ở
+                trên nuốt mất cú bấm. */}
+            <NutLuuTin job={job} />
+          </div>
 
           <p className="mt-0.5 flex items-center gap-1 text-sm text-slate-500">
             {job.employer.companyName}

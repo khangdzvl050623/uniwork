@@ -1,4 +1,4 @@
-import { CalendarDays, LayoutDashboard, ShieldCheck, UserRound } from 'lucide-react'
+import { Bookmark, CalendarDays, LayoutDashboard, ShieldCheck, UserRound } from 'lucide-react'
 import type { Role } from '@uniwork/shared'
 
 /**
@@ -16,6 +16,7 @@ export const MENU_THEO_VAI: Record<
   STUDENT: [
     { to: '/ho-so', label: 'Hồ sơ của tôi', icon: UserRound },
     { to: '/lich-ranh', label: 'Lịch rảnh', icon: CalendarDays },
+    { to: '/tin-da-luu', label: 'Tin đã lưu', icon: Bookmark },
   ],
   EMPLOYER: [
     { to: '/ntd/ho-so', label: 'Hồ sơ doanh nghiệp', icon: UserRound },
