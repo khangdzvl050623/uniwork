@@ -491,8 +491,19 @@ model Job {
   /// Dùng cờ tường minh thay vì để null mang nghĩa "thoả thuận". Null một mình
   /// thì mơ hồ: không phân biệt được "nhà tuyển dụng cố ý không ghi số" với
   /// "nhà tuyển dụng quên điền". Có cờ thì truy vấn lọc lương cũng đọc rõ ràng:
-  /// sinh viên đặt sàn 25k thì lọc `salaryNegotiable = false AND salaryMin >=
-  /// 25000` — tin không ghi giá bị loại, đúng ý người lọc.
+  /// sinh viên đặt sàn 25k thì lọc `salaryUnit = <đơn vị chọn> AND
+  /// salaryNegotiable = false AND salaryMax >= 25000` — tin không ghi giá bị
+  /// loại, đúng ý người lọc.
+  ///
+  /// Dùng `salaryMax` chứ không `salaryMin` (chốt 2026-08-25, Sprint 3): tin ghi
+  /// 20–30k khi sinh viên lọc "từ 25k" thì GIỮ LẠI, vì nó thật sự có thể trả
+  /// 25k. So theo `salaryMin` sẽ loại nó — giấu mất một cơ hội có thật, mà sinh
+  /// viên không có cách nào biết mình vừa bỏ lỡ gì. Khoảng lương luôn hiện trên
+  /// thẻ tin nên người xem tự đánh giá được vì sao nó lọt vào.
+  ///
+  /// Lọc lương luôn kèm `salaryUnit`: ba đơn vị HOUR/SHIFT/MONTH không quy đổi
+  /// về cùng một thang được (quy đổi đòi giả định "một ca mấy giờ", thay đổi
+  /// theo từng tin), nên bộ lọc chỉ so số trong cùng một đơn vị.
   ///
   /// Ràng buộc chéo giữa ba cột này do CHECK `jobs_salary_check` canh ở
   /// database, không chỉ ở tầng service.
