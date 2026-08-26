@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { fireEvent, render, screen } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
-import type { AvailabilitySlot, DayOfWeek } from '@uniwork/shared'
+import { SO_O_MOI_TUAN, type AvailabilitySlot, type DayOfWeek } from '@uniwork/shared'
 import { LuoiKhungGio } from './LuoiKhungGio'
 
 /**
@@ -64,9 +64,11 @@ function bam(el: HTMLElement) {
 }
 
 describe('LuoiKhungGio — dựng lưới', () => {
-  it('có đủ 21 ô: 7 ngày × 3 buổi', () => {
+  it('có đủ số ô của lưới: 7 ngày × số khung giờ', () => {
     render(<Bao />)
-    expect(screen.getAllByRole('button')).toHaveLength(21)
+    // Suy ra tu TIME_SLOTS chu khong ghi cung 21: them mot khung gio thu tu thi
+    // luoi phai ve du o moi, va test nay phai di theo.
+    expect(screen.getAllByRole('button')).toHaveLength(SO_O_MOI_TUAN)
   })
 
   it('cột xếp Thứ 2 trước, Chủ nhật cuối — đúng cách người Việt đọc lịch', () => {

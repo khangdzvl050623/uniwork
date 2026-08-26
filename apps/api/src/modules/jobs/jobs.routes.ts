@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { requireAuth, requireRole } from '../../middlewares/auth.js'
+import { optionalAuth, requireAuth, requireRole } from '../../middlewares/auth.js'
 import { rateLimit } from '../../middlewares/rate-limit.js'
 import {
   closeJobController,
@@ -94,6 +94,18 @@ adminJobRoutes.put('/:id/duyet', reviewJobController)
  * Mount ở `/viec-lam` trong `routes.ts`.
  */
 export const publicJobRoutes = Router()
+
+/*
+ * `optionalAuth` chứ KHÔNG phải `requireAuth`.
+ *
+ * Từ Sprint 3, hai endpoint này chấm điểm phù hợp giữa ca làm của tin và lịch
+ * rảnh của người đang xem, nên chúng cần danh tính KHI CÓ. Nhưng khách vẫn phải
+ * xem được danh sách — đó là lý do endpoint này tồn tại.
+ *
+ * Đây không phải nới lỏng: phạm vi dữ liệu vẫn đúng bằng `status = 'OPEN'` như
+ * trước. Danh tính chỉ thêm một trường và bật một bộ lọc tuỳ chọn.
+ */
+publicJobRoutes.use(optionalAuth)
 
 publicJobRoutes.get('/', listPublicJobsController)
 publicJobRoutes.get('/:id', getPublicJobController)

@@ -2,6 +2,7 @@ import type {
   DayOfWeek,
   DocumentType,
   JobStatus,
+  PublicJobSort,
   ReviewStatus,
   Role,
   SalaryUnit,
@@ -698,6 +699,39 @@ export interface PublicJobSummary {
 
   skills: JobSkillItem[]
   shifts: JobShiftItem[]
+
+  /**
+   * Kết quả ghép ca làm của tin với lịch rảnh của NGƯỜI ĐANG XEM.
+   *
+   * ---------------------------------------------------------------------------
+   * VÌ SAO TRẢ CẢ BỐN CON SỐ CHỨ KHÔNG CHỈ MỘT PHẦN TRĂM
+   * ---------------------------------------------------------------------------
+   * `eligible` và `matchScore` trả lời hai câu hỏi khác nhau — "tôi có nhận nổi
+   * việc này không" và "nó hợp lịch tôi tới đâu" — nên không suy ra được từ
+   * nhau. Còn `matchedShifts`/`totalJobShifts` để giao diện nói được "8/20 ca":
+   * riêng phần trăm không cho biết quy mô, mà 50% của tin 2 ca khác hẳn 50% của
+   * tin 20 ca.
+   *
+   * Cả `eligible` lẫn `matchScore` đều `null` khi CHƯA ĐO ĐƯỢC — người xem là
+   * khách, là nhà tuyển dụng, hoặc là sinh viên chưa khai lịch rảnh. Khác hẳn
+   * `false`/`0` (đã đo, và kết quả là không). Xem `ghepLich`.
+   *
+   * Cụm này phụ thuộc NGƯỜI XEM chứ không chỉ phụ thuộc tin, nên cùng một URL
+   * cho hai sinh viên khác nhau sẽ ra hai giá trị khác nhau. Đó là lý do
+   * response của `/api/viec-lam` không được cache dùng chung ở tầng CDN/proxy;
+   * cache trong từng trình duyệt (TanStack Query) thì vẫn đúng.
+   */
+  matchScore: number | null
+  eligible: boolean | null
+  matchedShifts: number
+  /**
+   * Tổng số ca nhà tuyển dụng MỞ (không phải số ca bắt buộc làm).
+   *
+   * Luôn có giá trị, kể cả với khách chưa đăng nhập — đây là thuộc tính của tin,
+   * không phụ thuộc người xem. Bằng `shifts.length`, trả sẵn để giao diện khỏi
+   * phải đếm lại.
+   */
+  totalJobShifts: number
 }
 
 /** Trang chi tiết tin. */
@@ -728,11 +762,67 @@ export interface PublicJobListResponse {
   total: number
 }
 
-/** Bộ lọc của `GET /api/viec-lam`. Sprint 2 chỉ có ba tiêu chí so sánh bằng. */
+/**
+ * Bộ lọc của `GET /api/viec-lam`.
+ *
+ * Ba tiêu chí đầu có từ Sprint 2 (so sánh bằng). Phần còn lại thêm ở Sprint 3.
+ *
+ * Quan hệ giữa các nhóm là **AND** (thu hẹp dần), riêng trong nhóm `skillIds`
+ * là **OR** (khớp bất kỳ kỹ năng nào đã chọn) — đúng mẫu người dùng quen từ mọi
+ * trang thương mại điện tử.
+ */
 export interface PublicJobQuery {
   city?: string
   district?: string
   scheduleType?: ScheduleType
+
+  /**
+   * Chỉ trả tin người gọi ĐỦ ĐIỀU KIỆN nhận — tức là số ca trùng lịch rảnh đạt
+   * mức tối thiểu tin yêu cầu (`matchedShifts >= minShiftsPerWeek`).
+   *
+   * KHÔNG phải "có ít nhất một ca trùng". Tin mở 20 ca cần 5 mà bạn chỉ rảnh 1
+   * ca thì bạn không nhận được việc đó — hiện nó lên chỉ làm người tìm việc mất
+   * công mở ra rồi đóng lại.
+   *
+   * Đòi người gọi là sinh viên đã khai lịch rảnh. Gọi mà không thoả thì server
+   * trả lỗi rõ ràng chứ không lặng lẽ bỏ qua bộ lọc — bỏ qua là trả về một danh
+   * sách không hề được lọc trong khi giao diện đang hiện "đã bật".
+   */
+  matchAvailability?: boolean
+
+  /** Đơn vị lương cần lọc. Bắt buộc nếu có `salaryFrom`. */
+  salaryUnit?: SalaryUnit
+  /**
+   * Mức lương sàn người tìm việc mong muốn, tính theo `salaryUnit`.
+   *
+   * So với `salaryMax` của tin chứ không phải `salaryMin`: tin ghi 20–30k khi
+   * lọc "từ 25k" thì GIỮ LẠI, vì nó thật sự có thể trả 25k. Chốt 2026-08-25,
+   * xem chú thích ở `schema.prisma`.
+   */
+  salaryFrom?: number
+  /**
+   * Có giữ tin ghi "Thoả thuận" khi đang lọc theo `salaryFrom` không. Mặc định
+   * **giữ** (`true`).
+   *
+   * Tin thoả thuận không có `salaryMin`/`salaryMax` nên không so số được. Nhưng
+   * "không so được" KHÁC "trả thấp hơn mức bạn muốn" — cùng một sự phân biệt
+   * `null` với `0` đã dùng ở điểm phù hợp. Mặc định loại chúng đi là biến một
+   * điều chưa biết thành một lời từ chối, mà tin part-time ở Việt Nam ghi "thoả
+   * thuận" rất nhiều nên đó là giấu mất phần lớn bảng tin.
+   *
+   * Người dùng vẫn tắt được nếu chỉ muốn xem tin có con số rõ ràng.
+   */
+  includeNegotiable?: boolean
+
+  /** Khớp BẤT KỲ kỹ năng nào trong danh sách. */
+  skillIds?: string[]
+
+  /** Số ca mỗi tuần tối đa người tìm việc nhận. Tin không quy định luôn qua. */
+  maxShiftsPerWeek?: number
+  /** Số tháng cam kết tối đa người tìm việc nhận. Tin không quy định luôn qua. */
+  maxCommitmentMonths?: number
+
+  sort?: PublicJobSort
 }
 
 /* ------------------------------------------------- Tin đã lưu (Sprint 3) -- */

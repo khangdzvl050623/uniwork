@@ -1,11 +1,15 @@
-import type { Prisma, TimeSlot } from '@prisma/client'
+import { Prisma } from '@prisma/client'
+import type { TimeSlot } from '@prisma/client'
+import { ghepLich } from '@uniwork/shared'
 import type {
   AdminJobResponse,
+  AvailabilitySlot,
   CreateJobData,
   DayOfWeek,
   EmployerJobResponse,
   JobShiftItem,
   JobStatus,
+  KetQuaGhepLich,
   PublicJobDetail,
   PublicJobListResponse,
   PublicJobQuery,
@@ -16,7 +20,7 @@ import type {
   UpdateJobData,
 } from '@uniwork/shared'
 import { prisma } from '../../lib/prisma.js'
-import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js'
+import { badRequest, conflict, forbidden, notFound, unauthorized } from '../../lib/errors.js'
 
 /**
  * Nghiệp vụ tin tuyển dụng.
@@ -750,8 +754,20 @@ const CHON_JOB_PUBLIC = {
 
 type HangJobPublic = Prisma.JobGetPayload<{ select: typeof CHON_JOB_PUBLIC }>
 
-function toPublicJobSummary(job: HangJobPublic): PublicJobSummary {
+/**
+ * Kết quả ghép lịch truyền vào chứ không tính bên trong, vì nó KHÔNG phải thuộc
+ * tính của tin — cùng một tin cho hai sinh viên khác nhau ra hai kết quả khác
+ * nhau. Hàm này chỉ biết đổi hình dạng một hàng, không biết ai đang xem.
+ *
+ * Bỏ trống thì mặc định là "chưa đo được": `matchScore`/`eligible` là `null`,
+ * `matchedShifts` là 0. `totalJobShifts` vẫn đúng vì nó là thuộc tính của tin.
+ */
+function toPublicJobSummary(job: HangJobPublic, ghep?: KetQuaGhepLich): PublicJobSummary {
   return {
+    matchScore: ghep?.matchScore ?? null,
+    eligible: ghep?.eligible ?? null,
+    matchedShifts: ghep?.matchedShifts ?? 0,
+    totalJobShifts: job.shifts.length,
     id: job.id,
     title: job.title,
     employer: {
@@ -782,9 +798,9 @@ function toPublicJobSummary(job: HangJobPublic): PublicJobSummary {
   }
 }
 
-function toPublicJobDetail(job: HangJobPublic): PublicJobDetail {
+function toPublicJobDetail(job: HangJobPublic, ghep?: KetQuaGhepLich): PublicJobDetail {
   return {
-    ...toPublicJobSummary(job),
+    ...toPublicJobSummary(job, ghep),
     description: job.description,
     requirements: job.requirements,
     benefits: job.benefits,
@@ -795,6 +811,180 @@ function toPublicJobDetail(job: HangJobPublic): PublicJobDetail {
     viewCount: job.viewCount,
     employerAddress: job.employerProfile.address,
     employerWebsite: job.employerProfile.website,
+  }
+}
+
+/**
+ * Lịch rảnh của người đang xem, nếu đo được.
+ *
+ * Trả `null` cho cả ba trường hợp "không đo được": khách chưa đăng nhập, người
+ * xem không phải sinh viên (nhà tuyển dụng/admin không có `studentProfile`), và
+ * sinh viên chưa khai ô nào. Gộp làm một vì phía dùng đối xử giống hệt nhau —
+ * `ghepLich` trả `null`, và bộ lọc theo lịch không bật được.
+ *
+ * Cố ý KHÔNG ném lỗi khi người gọi là nhà tuyển dụng: họ mở trang việc làm công
+ * khai là chuyện bình thường, chỉ là không có điểm phù hợp để hiện.
+ */
+async function layLichRanh(userId?: string): Promise<AvailabilitySlot[] | null> {
+  if (!userId) return null
+
+  const rows = await prisma.availability.findMany({
+    where: { studentProfile: { userId } },
+    select: { dayOfWeek: true, slot: true },
+  })
+  if (rows.length === 0) return null
+
+  // Ép `as DayOfWeek` an toàn vì CHECK `availabilities_day_of_week_check` chặn
+  // mọi giá trị ngoài 0–6 ở database — cùng lý do đã viết ở `toShiftItems`.
+  return rows.map((r) => ({ dayOfWeek: r.dayOfWeek as DayOfWeek, slot: r.slot }))
+}
+
+/**
+ * Id những tin mà người này ĐỦ ĐIỀU KIỆN nhận.
+ *
+ * ---------------------------------------------------------------------------
+ * VÌ SAO PHẢI DÙNG SQL VIẾT TAY Ở ĐÚNG MỘT CHỖ NÀY
+ * ---------------------------------------------------------------------------
+ * Điều kiện là `COUNT(ca trùng lịch rảnh) >= minShiftsPerWeek`. Prisma diễn đạt
+ * được "có ít nhất một hàng con thoả" (`some` → `EXISTS`) nhưng KHÔNG diễn đạt
+ * được "đếm hàng con rồi so với một cột của bảng cha". Không có đường vòng nào
+ * trong query builder.
+ *
+ * Ba lựa chọn, và lý do chọn cái thứ ba:
+ *
+ * 1. Lọc `some` (≥1 ca) rồi tinh chỉnh bằng JS — hỏng `total`, đúng cái lỗi mà
+ *    việc chuyển bộ lọc lên server sinh ra để sửa.
+ * 2. Viết cả mệnh đề lọc bằng SQL tay — phải chép khu vực, lương, kỹ năng, hai
+ *    ngưỡng cam kết sang SQL và giữ hai bản khớp nhau mãi mãi.
+ * 3. **Chỉ hỏi SQL đúng phần nó làm được mà Prisma không làm được**, trả về
+ *    danh sách id, rồi để Prisma lọc `id IN (...)` cùng mọi tiêu chí khác.
+ *
+ * Giới hạn cần biết: danh sách id đi vào mệnh đề `IN`, nên nó phình theo số tin
+ * đủ điều kiện. Ở quy mô dự án (dưới 100 tin) thì không đáng kể; nếu bảng lên
+ * hàng nghìn tin thì phải đổi sang phương án 2 và chấp nhận chi phí bảo trì.
+ *
+ * `COALESCE(minShiftsPerWeek, 1)` và `LEAST(..., COUNT ca mở)` khớp chính xác
+ * hàm `nguongCan` phía shared — hai nơi phải cho cùng kết quả, nếu không tin
+ * hiện trong danh sách lại mang cờ `eligible: false`.
+ */
+async function layIdDuDieuKien(lichRanh: AvailabilitySlot[]): Promise<string[]> {
+  const oRanh = Prisma.join(
+    lichRanh.map((o) => Prisma.sql`(${o.dayOfWeek}, ${o.slot}::"TimeSlot")`),
+  )
+
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT j."id"
+    FROM "jobs" j
+    JOIN "job_shifts" js ON js."jobId" = j."id"
+    WHERE j."status" = 'OPEN'
+    GROUP BY j."id", j."minShiftsPerWeek"
+    HAVING COUNT(*) FILTER (WHERE (js."dayOfWeek", js."slot") IN (${oRanh}))
+         >= LEAST(COALESCE(j."minShiftsPerWeek", 1), COUNT(*))
+  `
+
+  return rows.map((r) => r.id)
+}
+
+/**
+ * Dựng mệnh đề lọc cho danh sách công khai.
+ *
+ * ---------------------------------------------------------------------------
+ * VÌ SAO GOM VÀO `AND: [...]` THAY VÌ RẢI THẲNG VÀO OBJECT
+ * ---------------------------------------------------------------------------
+ * Ba bộ lọc bên dưới đều cần dạng "hoặc tin không quy định, hoặc quy định trong
+ * ngưỡng" — tức là mỗi cái một mệnh đề `OR`. Mà một object chỉ có ĐÚNG MỘT khoá
+ * `OR`: viết hai lần thì cái sau ghi đè cái trước, TypeScript không kêu và
+ * Prisma cũng không kêu — bộ lọc đầu tiên lặng lẽ biến mất.
+ *
+ * Đẩy từng mệnh đề vào mảng `AND` thì bao nhiêu bộ lọc cũng cộng dồn được, và
+ * quan hệ giữa các nhóm là AND đúng như hợp đồng khai ở `PublicJobQuery`.
+ */
+function dungBoLoc(
+  query: PublicJobQuery,
+  idDuDieuKien: string[] | null,
+): Prisma.JobWhereInput {
+  const dieuKien: Prisma.JobWhereInput[] = []
+
+  /*
+   * Lọc theo lịch rảnh: giới hạn vào danh sách id ĐỦ ĐIỀU KIỆN đã tính sẵn.
+   *
+   * Điều kiện thật là `COUNT(ca trùng) >= minShiftsPerWeek` — Prisma không diễn
+   * đạt được "đếm quan hệ rồi so ngưỡng" trong `where`, nên phần đó chạy bằng
+   * một câu SQL riêng (`layIdDuDieuKien`) trả về danh sách id, còn ở đây chỉ
+   * việc lọc theo id.
+   *
+   * Tách như vậy thay vì viết cả mệnh đề lọc bằng SQL tay: mọi tiêu chí khác
+   * (khu vực, lương, kỹ năng, ngưỡng cam kết) vẫn nằm nguyên trong Prisma, nên
+   * không có hai bản luật lọc phải giữ khớp nhau.
+   */
+  if (query.matchAvailability && idDuDieuKien) {
+    dieuKien.push({ id: { in: idDuDieuKien } })
+  }
+
+  /*
+   * Lương — luôn đi kèm đơn vị, không bao giờ so số trần.
+   *
+   * Tin "Thoả thuận" MẶC ĐỊNH được giữ lại (`includeNegotiable` ngầm là `true`).
+   * Chúng không có `salaryMin`/`Max` nên không so số được — nhưng "không so
+   * được" khác hẳn "trả thấp hơn mức bạn muốn", đúng cùng một sự phân biệt
+   * `null` với `0` đã dùng ở điểm phù hợp. Loại chúng theo mặc định là biến một
+   * điều chưa biết thành một lời từ chối, mà tin part-time ở Việt Nam ghi "thoả
+   * thuận" rất nhiều nên đó là giấu mất phần lớn bảng tin.
+   */
+  if (query.salaryUnit) {
+    const soSanh: Prisma.JobWhereInput = {
+      salaryNegotiable: false,
+      salaryMax: { gte: query.salaryFrom },
+    }
+
+    dieuKien.push({
+      salaryUnit: query.salaryUnit,
+      ...(query.salaryFrom !== undefined
+        ? query.includeNegotiable === false
+          ? soSanh
+          : { OR: [soSanh, { salaryNegotiable: true }] }
+        : {}),
+    })
+  }
+
+  // Kỹ năng — OR trong nhóm: khớp BẤT KỲ kỹ năng nào đã chọn. Bắt khớp hết thì
+  // sinh viên chọn 3 kỹ năng gần như luôn nhận về danh sách rỗng.
+  if (query.skillIds?.length) {
+    dieuKien.push({ skills: { some: { skillId: { in: query.skillIds } } } })
+  }
+
+  /*
+   * Hai ngưỡng cam kết, cố ý TÁCH RIÊNG chứ không gộp làm một.
+   *
+   * `minShiftsPerWeek` là cường độ mỗi tuần, `commitmentMonths` là thời gian
+   * gắn bó — hai ràng buộc khác nhau, và tin part-time thật ở Việt Nam thường
+   * quy định ĐỒNG THỜI cả hai ("tối thiểu 5 ca/tuần, gắn bó tối thiểu 3 tháng").
+   * Gộp thành một ô "cam kết" thì người lọc không diễn đạt được nhu cầu thật.
+   *
+   * `null` luôn lọt qua: tin không quy định thì không có gì để vi phạm ngưỡng.
+   * Với `minShiftsPerWeek` thì đó là mọi tin `ONE_TIME` (làm đúng một buổi, số
+   * ca mỗi tuần vô nghĩa); với `commitmentMonths` là `SEASONAL` và `ONE_TIME`.
+   */
+  if (query.maxShiftsPerWeek !== undefined) {
+    dieuKien.push({
+      OR: [{ minShiftsPerWeek: null }, { minShiftsPerWeek: { lte: query.maxShiftsPerWeek } }],
+    })
+  }
+
+  if (query.maxCommitmentMonths !== undefined) {
+    dieuKien.push({
+      OR: [{ commitmentMonths: null }, { commitmentMonths: { lte: query.maxCommitmentMonths } }],
+    })
+  }
+
+  return {
+    // Thứ duy nhất ngăn tin nháp và tin chờ duyệt lọt ra ngoài. Không bao giờ
+    // để người gọi truyền `status` vào đây.
+    status: 'OPEN',
+    ...(query.city ? { city: query.city } : {}),
+    ...(query.district ? { district: query.district } : {}),
+    ...(query.scheduleType ? { scheduleType: query.scheduleType } : {}),
+    ...(dieuKien.length > 0 ? { AND: dieuKien } : {}),
   }
 }
 
@@ -825,17 +1015,40 @@ const GIOI_HAN_CONG_KHAI = 100
  * và điểm phù hợp thuộc Sprint 3 — giao diện đã dựng sẵn ô "chỉ hiện việc khớp
  * lịch rảnh" từ thời còn mock, nên đây là chỗ rất dễ lỡ tay làm luôn.
  */
-export async function listPublicJobs(query: PublicJobQuery): Promise<PublicJobListResponse> {
-  const where: Prisma.JobWhereInput = {
-    status: 'OPEN',
-    ...(query.city ? { city: query.city } : {}),
-    ...(query.district ? { district: query.district } : {}),
-    ...(query.scheduleType ? { scheduleType: query.scheduleType } : {}),
+export async function listPublicJobs(
+  query: PublicJobQuery,
+  userId?: string,
+): Promise<PublicJobListResponse> {
+  const lichRanh = await layLichRanh(userId)
+
+  /*
+   * Bộ lọc lịch rảnh KHÔNG được im lặng bỏ qua khi thiếu điều kiện.
+   *
+   * Nếu bỏ qua, người dùng nhận về một danh sách hoàn toàn KHÔNG lọc trong khi
+   * giao diện đang hiện "đã bật lọc theo lịch rảnh" — họ tin rằng mọi tin trên
+   * màn hình đều hợp lịch mình. Nói rõ mới đúng, kể cả khi phải trả lỗi.
+   */
+  if (query.matchAvailability) {
+    if (!userId) {
+      throw unauthorized('Đăng nhập bằng tài khoản sinh viên để lọc theo lịch rảnh')
+    }
+    if (!lichRanh) {
+      throw badRequest('Bạn chưa khai lịch rảnh, chưa lọc theo lịch được', {
+        matchAvailability: ['Khai lịch rảnh ở trang hồ sơ trước đã'],
+      })
+    }
   }
+
+  // Chỉ chạy câu SQL đếm ca khi thật sự cần lọc — nó không phục vụ việc chấm
+  // điểm, mà chấm điểm thì làm bằng JS trên dữ liệu đã lấy về.
+  const idDuDieuKien =
+    query.matchAvailability && lichRanh ? await layIdDuDieuKien(lichRanh) : null
+
+  const where = dungBoLoc(query, idDuDieuKien)
 
   // Đếm và lấy trong cùng một transaction để `total` không lệch với danh sách
   // khi có tin được duyệt xen vào giữa hai câu truy vấn.
-  const [jobs, total] = await prisma.$transaction([
+  const [rows, total] = await prisma.$transaction([
     prisma.job.findMany({
       where,
       select: CHON_JOB_PUBLIC,
@@ -845,7 +1058,50 @@ export async function listPublicJobs(query: PublicJobQuery): Promise<PublicJobLi
     prisma.job.count({ where }),
   ])
 
-  return { jobs: jobs.map(toPublicJobSummary), total }
+  const jobs = rows.map((row) =>
+    toPublicJobSummary(row, ghepLich(toShiftItems(row.shifts), lichRanh, row.minShiftsPerWeek)),
+  )
+
+  /*
+   * ---------------------------------------------------------------------------
+   * SẮP THEO ĐIỂM LÀM BẰNG JS, VÀ VÌ SAO ĐIỀU ĐÓ ĐÚNG Ở ĐÂY
+   * ---------------------------------------------------------------------------
+   * Nhìn qua thì sắp bằng JS là sai: sắp một trang thì chỉ đúng trong trang đó.
+   * Ở đây không sai, vì `take: GIOI_HAN_CONG_KHAI` lấy về TOÀN BỘ tập kết quả
+   * chứ không phải một trang — endpoint này chưa có phân trang. Sắp trên toàn
+   * tập cho thứ tự đúng.
+   *
+   * ⚠ KHI LÀM PHÂN TRANG (tính năng 5): phép cắt trang phải diễn ra SAU bước
+   * chấm điểm và sắp xếp ở đây, không được đẩy thành `skip`/`take` trong SQL.
+   * Đẩy xuống SQL thì database sắp theo `publishedAt` rồi mới cắt, và ta chấm
+   * điểm trên một trang đã bị cắt sai — kết quả trông vẫn hợp lý nên sẽ không
+   * ai nhận ra.
+   *
+   * Tính điểm trong SQL (`$queryRaw`) sẽ gỡ được ràng buộc đó, đổi lại phải chép
+   * toàn bộ mệnh đề lọc ở trên sang SQL viết tay và giữ hai bản khớp nhau mãi
+   * mãi. Không đáng ở quy mô này.
+   */
+  if (query.sort === 'match') {
+    /*
+     * ĐỦ ĐIỀU KIỆN đứng trước, RỒI mới tới điểm.
+     *
+     * Sắp thuần theo điểm là sai, vì `matchScore` lấy mẫu số là tổng số ca của
+     * tin: tin mở 20 ca mà bạn trùng 8 (thừa mức cần 5 → nhận được việc) chỉ
+     * được 40%, trong khi tin mở 2 ca bạn trùng cả 2 nhưng cần 2 ca cố định vào
+     * đúng giờ bạn bận thì được 100%. Đẩy tin bạn KHÔNG nhận nổi lên trên tin
+     * bạn nhận được là làm hỏng đúng mục đích của việc sắp xếp.
+     *
+     * Tin chưa đo được (`null`) xuống cuối cùng, không lẫn vào nhóm không đủ
+     * điều kiện: chúng không phải "không hợp", chỉ là chưa biết.
+     */
+    const hang = (e: boolean | null) => (e === true ? 2 : e === false ? 1 : 0)
+
+    jobs.sort(
+      (a, b) => hang(b.eligible) - hang(a.eligible) || (b.matchScore ?? -1) - (a.matchScore ?? -1),
+    )
+  }
+
+  return { jobs, total }
 }
 
 /**
@@ -860,7 +1116,7 @@ export async function listPublicJobs(query: PublicJobQuery): Promise<PublicJobLi
  * với người ngoài, một tin chưa công khai thì đúng nghĩa là không tồn tại. Trả
  * 403 sẽ xác nhận "có tin ở id này" cho bất kỳ ai dò.
  */
-export async function getPublicJob(jobId: string): Promise<PublicJobDetail> {
+export async function getPublicJob(jobId: string, userId?: string): Promise<PublicJobDetail> {
   const job = await prisma.job.findFirst({
     where: { id: jobId, status: 'OPEN' },
     select: CHON_JOB_PUBLIC,
@@ -872,9 +1128,17 @@ export async function getPublicJob(jobId: string): Promise<PublicJobDetail> {
     data: { viewCount: { increment: 1 } },
   })
 
+  // Chấm điểm ở đây nữa chứ không chỉ ở danh sách: `PublicJobDetail` kế thừa
+  // `PublicJobSummary` nên nó MANG SẴN trường `matchScore`. Bỏ trống là trả về
+  // `null` cho một sinh viên đã khai lịch — kiểu dữ liệu nói dối.
+  const lichRanh = await layLichRanh(userId)
+
   // Cộng thêm 1 vào bản đang cầm thay vì đọc lại từ database: tiết kiệm một
   // vòng truy vấn, và con số hiện ra đúng bằng thứ vừa ghi xuống.
-  return toPublicJobDetail({ ...job, viewCount: job.viewCount + 1 })
+  return toPublicJobDetail(
+    { ...job, viewCount: job.viewCount + 1 },
+    ghepLich(toShiftItems(job.shifts), lichRanh, job.minShiftsPerWeek),
+  )
 }
 
 /* ============================================================================
@@ -987,6 +1251,12 @@ export async function unsaveJob(userId: string, jobId: string): Promise<SavedJob
 export async function listSavedJobs(userId: string): Promise<SavedJobListResponse> {
   const studentProfileId = await layHoSoSinhVien(userId)
 
+  // Chấm điểm ở đây nữa, vì `SavedJobItem.job` là `PublicJobSummary` — nó mang
+  // sẵn `matchScore`. Bỏ trống thì trang "Tin đã lưu" hiện "chưa đo được" cho
+  // một sinh viên đã khai lịch rảnh, trong khi trang việc làm ngay cạnh lại
+  // hiện đúng điểm cho cùng tin đó.
+  const lichRanh = await layLichRanh(userId)
+
   const rows = await prisma.savedJob.findMany({
     where: { studentProfileId },
     orderBy: { createdAt: 'desc' },
@@ -999,7 +1269,10 @@ export async function listSavedJobs(userId: string): Promise<SavedJobListRespons
   })
 
   const savedJobs = rows.map((row) => ({
-    job: toPublicJobSummary(row.job),
+    job: toPublicJobSummary(
+      row.job,
+      ghepLich(toShiftItems(row.job.shifts), lichRanh, row.job.minShiftsPerWeek),
+    ),
     savedAt: row.createdAt.toISOString(),
     stillOpen: row.job.status === 'OPEN',
   }))

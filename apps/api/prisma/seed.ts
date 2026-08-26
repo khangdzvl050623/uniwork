@@ -386,9 +386,13 @@ const DEMO_JOBS: DemoJob[] = [
     status: JobStatus.OPEN,
     publishedAt: d('2026-08-10'),
     viewCount: 214,
+    // Quán mở ca tối 5 ngày trong tuần, người làm nhận tối thiểu 3 ca trong
+    // số đó — đúng cách hiểu đã chốt: `shifts` là ca MỞ, không phải ca bắt buộc.
     shifts: [
       [2, TimeSlot.EVENING],
+      [3, TimeSlot.EVENING],
       [4, TimeSlot.EVENING],
+      [5, TimeSlot.EVENING],
       [6, TimeSlot.EVENING],
     ],
     skills: ['giao-tiep', 'pha-che', 'cham-soc-khach-hang'],
@@ -414,9 +418,12 @@ const DEMO_JOBS: DemoJob[] = [
     status: JobStatus.OPEN,
     publishedAt: d('2026-08-12'),
     viewCount: 97,
+    // Mở cả sáng lẫn chiều hai ngày cuối tuần, nhận tối thiểu 2 ca.
     shifts: [
       [6, TimeSlot.MORNING],
+      [6, TimeSlot.AFTERNOON],
       [0, TimeSlot.MORNING],
+      [0, TimeSlot.AFTERNOON],
     ],
     skills: ['thu-ngan', 'giao-tiep'],
   },
@@ -449,9 +456,12 @@ const DEMO_JOBS: DemoJob[] = [
     status: JobStatus.OPEN,
     publishedAt: d('2026-08-11'),
     viewCount: 158,
+    // Phụ huynh mở 4 buổi tối để hai bên chốt lịch, gia sư nhận tối thiểu 2.
     shifts: [
+      [1, TimeSlot.EVENING],
       [3, TimeSlot.EVENING],
       [5, TimeSlot.EVENING],
+      [6, TimeSlot.EVENING],
     ],
     skills: ['gia-su', 'su-pham', 'kien-nhan'],
   },
@@ -476,8 +486,11 @@ const DEMO_JOBS: DemoJob[] = [
     status: JobStatus.OPEN,
     publishedAt: d('2026-08-08'),
     viewCount: 133,
+    // Trung tâm mở 4 ca cuối tuần, trợ giảng nhận tối thiểu 2.
     shifts: [
       [0, TimeSlot.MORNING],
+      [0, TimeSlot.AFTERNOON],
+      [6, TimeSlot.MORNING],
       [6, TimeSlot.AFTERNOON],
     ],
     skills: ['tieng-anh-giao-tiep', 'quan-ly-lop', 'kien-nhan'],
@@ -604,9 +617,15 @@ const DEMO_JOBS: DemoJob[] = [
     city: 'Toàn quốc',
     district: 'Làm từ xa',
     quantity: 2,
-    // Tin duy nhất để lương thoả thuận — mẫu để thử bộ lọc theo mức lương. Sinh
-    // viên đặt sàn 25k thì tin này phải BIẾN MẤT khỏi kết quả, vì không có số
-    // nào để so. Không có mẫu như vậy thì nhánh đó không bao giờ được chạy thử.
+    /*
+     * Tin duy nhất để lương thoả thuận — mẫu để thử bộ lọc theo mức lương.
+     *
+     * Cập nhật 2026-08-27: tin thoả thuận MẶC ĐỊNH VẪN HIỆN khi lọc theo mức
+     * lương, chỉ biến mất khi người dùng tự tắt "gồm cả tin thoả thuận". Lý do:
+     * không có số để so KHÁC "trả thấp hơn mức bạn muốn" — cùng sự phân biệt
+     * `null` với `0` dùng ở điểm phù hợp. Loại theo mặc định là giấu mất phần
+     * lớn bảng tin, vì tin part-time Việt Nam ghi "thoả thuận" rất nhiều.
+     */
     salaryNegotiable: true,
     salaryUnit: SalaryUnit.MONTH,
     scheduleType: ScheduleType.RECURRING,
@@ -615,8 +634,11 @@ const DEMO_JOBS: DemoJob[] = [
     status: JobStatus.OPEN,
     publishedAt: d('2026-08-14'),
     viewCount: 45,
+    // Mở 4 ca cuối tuần, cộng tác viên nhận tối thiểu 2.
     shifts: [
+      [6, TimeSlot.MORNING],
       [6, TimeSlot.AFTERNOON],
+      [0, TimeSlot.MORNING],
       [0, TimeSlot.AFTERNOON],
     ],
     skills: ['thiet-ke-do-hoa', 'tin-hoc-van-phong'],

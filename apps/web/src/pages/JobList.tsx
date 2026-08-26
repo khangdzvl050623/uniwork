@@ -1,30 +1,59 @@
 import { useState } from 'react'
-import { Loader2, SlidersHorizontal } from 'lucide-react'
-import type { ScheduleType } from '@uniwork/shared'
-import { FilterSidebar } from '@/components/FilterSidebar'
+import { Link } from 'react-router-dom'
+import { CalendarPlus, Loader2, SlidersHorizontal } from 'lucide-react'
+import {
+  PUBLIC_JOB_SORTS,
+  PUBLIC_JOB_SORT_LABELS,
+  type PublicJobSort,
+} from '@uniwork/shared'
+import { FilterSidebar, type BoLoc } from '@/components/FilterSidebar'
 import { JobCard } from '@/components/JobCard'
 import { Button } from '@/components/ui/Button'
+import { useAuth } from '@/hooks/useAuth'
+import { useAvailability, useSkills } from '@/hooks/useProfile'
 import { usePublicJobs } from '@/hooks/usePublicJobs'
+import { cn } from '@/lib/utils'
 
 /**
- * Danh sách việc làm công khai (T84).
+ * Danh sách việc làm công khai.
  *
  * Không đòi đăng nhập — người chưa có tài khoản phải xem được việc làm, nếu
  * không thì trang chủ chẳng có gì để xem và cũng không ai có lý do đăng ký.
  *
- * Bộ lọc giữ trên state chứ chưa đẩy lên URL. Đẩy lên URL (để chia sẻ được một
- * kết quả lọc) chỉ đáng làm khi bộ lọc đã đủ hình dạng cuối ở Sprint 3 — làm
- * bây giờ rồi đổi lại là viết hai lần.
+ * ---------------------------------------------------------------------------
+ * MỌI BỘ LỌC CHẠY Ở SERVER, KHÔNG LỌC LẠI Ở ĐÂY
+ * ---------------------------------------------------------------------------
+ * Kể cả bộ lọc theo lịch rảnh — thứ nhìn qua thì lọc ở trình duyệt được, vì mỗi
+ * tin đã mang sẵn `shifts`. Nhưng lọc ở đây thì `total` do server đếm sẽ kể một
+ * câu chuyện khác với số thẻ đang hiện, và tới lúc có phân trang thì mỗi trang
+ * trả về một số lượng khác nhau sau khi lọc.
+ *
+ * Trang này chỉ làm hai việc: gom trạng thái bộ lọc, và vẽ thứ server trả về.
  */
 export function JobList() {
-  const [district, setDistrict] = useState<string | undefined>()
-  const [scheduleType, setScheduleType] = useState<ScheduleType | undefined>()
-  const [showFilter, setShowFilter] = useState(false)
+  const [boLoc, setBoLoc] = useState<BoLoc>({})
+  const [sort, setSort] = useState<PublicJobSort>('newest')
+  const [hienLocDiDong, setHienLocDiDong] = useState(false)
 
-  const { data, isLoading, isError } = usePublicJobs({ district, scheduleType })
+  const { user } = useAuth()
+  const laSinhVien = user?.role === 'STUDENT'
+
+  const { data: kyNang } = useSkills()
+  // Chỉ hỏi lịch rảnh khi người xem là sinh viên: endpoint đòi vai STUDENT, gọi
+  // từ tài khoản khác chỉ nhận 403 cho một thứ không liên quan tới họ.
+  const { data: lichRanh } = useAvailability({ enabled: laSinhVien })
+
+  const daKhaiLich = Boolean(lichRanh?.slots.length)
+  const dungDuocLichRanh = laSinhVien && daKhaiLich
+
+  const { data, isLoading, isError, error } = usePublicJobs({ ...boLoc, sort })
 
   const jobs = data?.jobs ?? []
   const total = data?.total ?? 0
+
+  const coBoLoc = Object.values(boLoc).some((v) =>
+    Array.isArray(v) ? v.length > 0 : v !== undefined,
+  )
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -40,13 +69,41 @@ export function JobList() {
             `Tìm thấy ${total} tin${total > jobs.length ? ` · đang hiện ${jobs.length}` : ''}`}
       </p>
 
+      {/*
+        Lời mời khai lịch rảnh xuất hiện ĐÚNG MỘT LẦN ở đây, không lặp trên
+        từng thẻ tin. Trang này vẽ tới 100 thẻ — nhắc 100 lần thì thành tiếng ồn
+        và đẩy nội dung thật xuống dưới.
+
+        Chỉ hiện với sinh viên CHƯA khai lịch: khách chưa đăng nhập thì việc cần
+        làm là đăng ký (đã có nút ở header), còn nhà tuyển dụng thì không liên quan.
+      */}
+      {laSinhVien && !daKhaiLich && (
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-brand-200 bg-brand-50/60 px-4 py-3">
+          <CalendarPlus size={18} className="shrink-0 text-brand-600" />
+          <p className="min-w-0 flex-1 text-sm text-slate-700">
+            Khai lịch rảnh một lần để xem tin nào khớp giờ của bạn, và lọc theo nó.
+          </p>
+          <Link
+            to="/lich-ranh"
+            className={cn(
+              'shrink-0 rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white',
+              'transition-colors duration-150 ease-out hover:bg-brand-700',
+              'active:scale-[0.97] motion-reduce:active:scale-100',
+              'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500',
+            )}
+          >
+            Khai lịch rảnh
+          </Link>
+        </div>
+      )}
+
       <div className="mt-6 grid gap-6 lg:grid-cols-[280px_1fr]">
-        <div className={showFilter ? 'block' : 'hidden lg:block'}>
+        <div className={hienLocDiDong ? 'block' : 'hidden lg:block'}>
           <FilterSidebar
-            district={district}
-            scheduleType={scheduleType}
-            onDoiDistrict={setDistrict}
-            onDoiScheduleType={setScheduleType}
+            gaTri={boLoc}
+            onDoi={setBoLoc}
+            kyNang={kyNang ?? []}
+            dungDuocLichRanh={dungDuocLichRanh}
           />
         </div>
 
@@ -56,11 +113,50 @@ export function JobList() {
               variant="outline"
               size="sm"
               className="lg:hidden"
-              onClick={() => setShowFilter((v) => !v)}
+              onClick={() => setHienLocDiDong((v) => !v)}
             >
               <SlidersHorizontal size={16} />
               Bộ lọc
             </Button>
+
+            {/*
+              Sắp xếp nằm TRÊN danh sách chứ không nằm trong cột lọc: nó không
+              thu hẹp kết quả, nó chỉ đổi thứ tự — trộn vào bộ lọc là để người
+              dùng đi tìm nó ở sai chỗ.
+
+              "Phù hợp lịch nhất" chỉ bật được khi đã khai lịch rảnh; không có
+              lịch thì mọi tin đều chưa đo được điểm và thứ tự thành ngẫu nhiên.
+            */}
+            <div className="ml-auto flex items-center gap-1.5">
+              <span className="hidden text-xs text-slate-500 sm:inline">Sắp xếp</span>
+              {PUBLIC_JOB_SORTS.map((s) => {
+                const khoa = s === 'match' && !dungDuocLichRanh
+                return (
+                  <button
+                    key={s}
+                    type="button"
+                    onClick={() => setSort(s)}
+                    disabled={khoa}
+                    aria-pressed={sort === s}
+                    title={
+                      khoa ? 'Khai lịch rảnh để sắp xếp theo độ phù hợp' : undefined
+                    }
+                    className={cn(
+                      'rounded-lg px-2.5 py-1.5 text-xs font-medium',
+                      'transition-colors duration-150 ease-out',
+                      'active:scale-[0.97] motion-reduce:active:scale-100',
+                      'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500',
+                      'disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100',
+                      sort === s
+                        ? 'bg-slate-900 text-white'
+                        : 'text-slate-600 hover:bg-slate-100',
+                    )}
+                  >
+                    {PUBLIC_JOB_SORT_LABELS[s]}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           {isLoading && (
@@ -71,24 +167,26 @@ export function JobList() {
 
           {isError && (
             <p className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              Không tải được danh sách việc làm. Kiểm tra kết nối rồi thử lại.
+              {/* Hiện câu của server khi có: nó nói đúng chuyện gì sai (ví dụ
+                  "Bạn chưa khai lịch rảnh"), hữu ích hơn hẳn một câu chung. */}
+              {error instanceof Error && error.message
+                ? error.message
+                : 'Không tải được danh sách việc làm. Kiểm tra kết nối rồi thử lại.'}
             </p>
           )}
 
           {!isLoading && !isError && jobs.length === 0 && (
             <div className="rounded-xl border border-slate-200 bg-white px-6 py-16 text-center">
               <p className="text-sm text-slate-600">
-                {district || scheduleType
+                {coBoLoc
                   ? 'Không có tin nào khớp bộ lọc hiện tại.'
                   : 'Chưa có tin tuyển dụng nào được đăng.'}
               </p>
-              {(district || scheduleType) && (
+              {coBoLoc && (
                 <button
-                  onClick={() => {
-                    setDistrict(undefined)
-                    setScheduleType(undefined)
-                  }}
-                  className="mt-2 text-sm font-medium text-brand-600 transition-colors hover:text-brand-700"
+                  type="button"
+                  onClick={() => setBoLoc({})}
+                  className="mt-2 text-sm font-medium text-brand-600 transition-colors duration-150 hover:text-brand-700"
                 >
                   Xoá bộ lọc
                 </button>
