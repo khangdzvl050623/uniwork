@@ -230,7 +230,12 @@ describe('NutLuuTin — thao tác', () => {
 
     render(
       <QueryClientProvider client={client}>
-        {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */}
+        {/*
+          Đứng thay cho thẻ tin bọc ngoài, vốn là một `<article>` có liên kết
+          phủ kín. Ở đây chỉ cần MỘT phần tử tổ tiên bắt được sự kiện click để
+          xem nó có lan tới không — không lồng `<button>` vào vì `NutLuuTin`
+          bản thân đã là một `<button>`, mà nút lồng nút là HTML không hợp lệ.
+        */}
         <div onClick={bamNgoai}>
           <NutLuuTin job={TIN} />
         </div>
