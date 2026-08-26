@@ -734,3 +734,49 @@ export interface PublicJobQuery {
   district?: string
   scheduleType?: ScheduleType
 }
+
+/* ------------------------------------------------- Tin đã lưu (Sprint 3) -- */
+
+/**
+ * Một mục trong danh sách tin đã lưu.
+ *
+ * Bọc `PublicJobSummary` trong một object thay vì thêm trường thẳng vào nó:
+ * `savedAt` là thuộc tính của HÀNH ĐỘNG LƯU, không phải của tin. Cùng một tin
+ * được hai sinh viên lưu ở hai thời điểm khác nhau — nhét mốc đó vào tin thì
+ * tin mang một giá trị chỉ đúng với đúng một người xem.
+ */
+export interface SavedJobItem {
+  job: PublicJobSummary
+  /** Mốc sinh viên bấm lưu. */
+  savedAt: string
+  /**
+   * Tin còn nhận hồ sơ hay không.
+   *
+   * Cố ý là MỘT BIT chứ không phải `status`. Tin đã lưu có thể rời trạng thái
+   * `OPEN` theo ba đường khác nhau: nhà tuyển dụng đóng tin, hoặc họ sửa một
+   * trường nhạy cảm khiến tin quay về `PENDING`, hoặc admin từ chối lần duyệt
+   * lại và nó về `DRAFT`. Sinh viên chỉ cần biết "giờ nộp được không"; ba
+   * đường kia là quy trình nội bộ của nhà tuyển dụng, trả ra là lộ thừa.
+   *
+   * Tính lúc đọc, nên tin được duyệt lại thì cờ này tự bật lại — không có mốc
+   * nào phải đi cập nhật.
+   */
+  stillOpen: boolean
+}
+
+/** GET /api/toi/tin-da-luu */
+export interface SavedJobListResponse {
+  savedJobs: SavedJobItem[]
+  total: number
+}
+
+/**
+ * POST/DELETE /api/toi/tin-da-luu/:jobId
+ *
+ * Trả về trạng thái SAU thao tác chứ không phải object rỗng, để phía web vá
+ * cache bằng đúng thứ server vừa xác nhận thay vì tự suy ra.
+ */
+export interface SavedJobToggleResponse {
+  jobId: string
+  saved: boolean
+}

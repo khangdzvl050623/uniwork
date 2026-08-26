@@ -100,3 +100,25 @@ export const getPublicJobController: RequestHandler = async (req, res) => {
   const { id } = parse(thamSoId, req.params)
   ok(res, await jobsService.getPublicJob(id))
 }
+
+/* ------------------------------------------------- Sprint 3: tin đã lưu -- */
+
+/* Tham số ở đây tên `jobId` chứ không `id` — đường dẫn là /tin-da-luu/:jobId,
+   và giữ đúng tên giúp đọc route ra ngay là đang trỏ tới tin nào. */
+const thamSoJobId = z.object({ jobId: z.string().min(1) })
+
+export const saveJobController: RequestHandler = async (req, res) => {
+  const userId = requireUserId(req)
+  const { jobId } = parse(thamSoJobId, req.params)
+  ok(res, await jobsService.saveJob(userId, jobId))
+}
+
+export const unsaveJobController: RequestHandler = async (req, res) => {
+  const userId = requireUserId(req)
+  const { jobId } = parse(thamSoJobId, req.params)
+  ok(res, await jobsService.unsaveJob(userId, jobId))
+}
+
+export const listSavedJobsController: RequestHandler = async (req, res) => {
+  ok(res, await jobsService.listSavedJobs(requireUserId(req)))
+}

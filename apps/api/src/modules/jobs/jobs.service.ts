@@ -11,6 +11,8 @@ import type {
   PublicJobQuery,
   PublicJobSummary,
   ReviewJobData,
+  SavedJobListResponse,
+  SavedJobToggleResponse,
   UpdateJobData,
 } from '@uniwork/shared'
 import { prisma } from '../../lib/prisma.js'
@@ -873,4 +875,134 @@ export async function getPublicJob(jobId: string): Promise<PublicJobDetail> {
   // Cộng thêm 1 vào bản đang cầm thay vì đọc lại từ database: tiết kiệm một
   // vòng truy vấn, và con số hiện ra đúng bằng thứ vừa ghi xuống.
   return toPublicJobDetail({ ...job, viewCount: job.viewCount + 1 })
+}
+
+/* ============================================================================
+ * TIN ĐÃ LƯU (Sprint 3)
+ *
+ * Bảng `SavedJob` có từ migration Sprint 0 nhưng tới giờ chưa endpoint nào chạm
+ * tới. Ba hàm dưới đây là toàn bộ phần nghiệp vụ của nó.
+ *
+ * Vì sao nằm trong `modules/jobs/` dù đường dẫn là `/toi/tin-da-luu`: danh sách
+ * tin đã lưu trả về chính `PublicJobSummary`, dựng từ `CHON_JOB_PUBLIC` và
+ * `toPublicJobSummary` ngay trên file này. Tách sang `modules/profile/` sẽ phải
+ * export hai thứ đó ra ngoài — đúng thứ đã tránh khi gộp ba nhánh tin vào một
+ * module. Đường dẫn thuộc về người dùng, mã nguồn thuộc về bảng dữ liệu.
+ * ==========================================================================*/
+
+/**
+ * Hồ sơ sinh viên của người đang đăng nhập.
+ *
+ * `requireRole('STUDENT')` ở tầng route đã đảm bảo vai đúng, nên hồ sơ ở đây
+ * PHẢI tồn tại — nó được tạo cùng transaction với user lúc đăng ký. Không tìm
+ * thấy nghĩa là dữ liệu đã hỏng, không phải một ca người dùng thường gặp.
+ */
+async function layHoSoSinhVien(userId: string): Promise<string> {
+  const profile = await prisma.studentProfile.findUnique({
+    where: { userId },
+    select: { id: true },
+  })
+  if (!profile) throw notFound('Không tìm thấy hồ sơ sinh viên')
+  return profile.id
+}
+
+/**
+ * Lưu một tin.
+ *
+ * ---------------------------------------------------------------------------
+ * IDEMPOTENT: LƯU LẠI TIN ĐÃ LƯU KHÔNG PHẢI LÀ LỖI
+ * ---------------------------------------------------------------------------
+ * Dùng `upsert` với `update: {}` — gọi lần hai không đổi gì, kể cả `createdAt`.
+ * Giữ nguyên mốc lưu đầu tiên là đúng: sinh viên không "lưu lại" tin, họ chỉ
+ * đang ở trạng thái đã lưu.
+ *
+ * Vì sao không kiểm "đã lưu chưa" rồi mới ghi: giữa câu đọc và câu ghi có một
+ * khe cho request thứ hai chen vào (bấm hai lần, hoặc một vòng retry), và khi
+ * đó `create` ném P2002. `upsert` để database tự xử lý bằng một câu lệnh, không
+ * còn khe nào.
+ *
+ * ---------------------------------------------------------------------------
+ * CHỈ LƯU ĐƯỢC TIN ĐANG `OPEN`
+ * ---------------------------------------------------------------------------
+ * Nút lưu chỉ xuất hiện trên trang công khai, nơi mọi tin đều `OPEN`. Kiểm lại
+ * ở đây vì endpoint nhận `jobId` từ người gọi: không kiểm thì ai đó đoán được
+ * id một tin nháp là lưu được nó, và danh sách tin đã lưu trở thành đường vòng
+ * để đọc tin chưa duyệt của người khác.
+ *
+ * Trả `NOT_FOUND` chứ không `FORBIDDEN`, cùng lý do như `getPublicJob`: với
+ * người ngoài, tin chưa công khai thì đúng nghĩa là không tồn tại.
+ */
+export async function saveJob(userId: string, jobId: string): Promise<SavedJobToggleResponse> {
+  const studentProfileId = await layHoSoSinhVien(userId)
+
+  const job = await prisma.job.findFirst({
+    where: { id: jobId, status: 'OPEN' },
+    select: { id: true },
+  })
+  if (!job) throw notFound('Không tìm thấy tin tuyển dụng')
+
+  await prisma.savedJob.upsert({
+    where: { studentProfileId_jobId: { studentProfileId, jobId } },
+    create: { studentProfileId, jobId },
+    update: {},
+  })
+
+  return { jobId, saved: true }
+}
+
+/**
+ * Bỏ lưu một tin.
+ *
+ * `deleteMany` chứ không `delete`: `delete` ném P2025 khi không có hàng nào
+ * khớp, tức là bỏ lưu một tin chưa lưu sẽ thành lỗi 404. Nhưng kết quả người
+ * dùng muốn — "tin này không còn trong danh sách của tôi" — đã đúng sẵn rồi.
+ * `deleteMany` trả về số hàng đã xoá và không ném gì khi số đó là 0.
+ *
+ * KHÔNG kiểm tin còn `OPEN` hay không, khác hẳn `saveJob`. Tin đã lưu rồi bị
+ * đóng thì sinh viên vẫn phải bỏ được nó ra khỏi danh sách — chặn ở đây là
+ * nhốt họ với một mục không gỡ được.
+ *
+ * Không cần kiểm chủ sở hữu: `studentProfileId` lấy từ token của chính người
+ * gọi, nên câu lệnh này về mặt cấu trúc không chạm được hàng của ai khác.
+ */
+export async function unsaveJob(userId: string, jobId: string): Promise<SavedJobToggleResponse> {
+  const studentProfileId = await layHoSoSinhVien(userId)
+
+  await prisma.savedJob.deleteMany({ where: { studentProfileId, jobId } })
+
+  return { jobId, saved: false }
+}
+
+/**
+ * Danh sách tin đã lưu của chính mình.
+ *
+ * Trả cả tin KHÔNG còn `OPEN`, kèm cờ `stillOpen: false`. Lọc chúng đi thì tin
+ * lặng lẽ biến mất khỏi danh sách sinh viên tự tay lưu — họ sẽ tưởng mình bấm
+ * nhầm hoặc hệ thống mất dữ liệu, thay vì hiểu là tin đã đóng. Hiện kèm nhãn
+ * mới là thứ trả lời được câu hỏi "tin tôi lưu hôm qua đâu rồi".
+ *
+ * Sắp theo mốc lưu giảm dần — thứ vừa lưu nằm trên cùng, đúng cái người dùng
+ * đang tìm khi họ mở trang này ngay sau khi lưu.
+ */
+export async function listSavedJobs(userId: string): Promise<SavedJobListResponse> {
+  const studentProfileId = await layHoSoSinhVien(userId)
+
+  const rows = await prisma.savedJob.findMany({
+    where: { studentProfileId },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      createdAt: true,
+      // `status` lấy về để tính cờ `stillOpen`, KHÔNG bao giờ trả thẳng ra
+      // ngoài — xem giải thích ở `SavedJobItem.stillOpen`.
+      job: { select: { ...CHON_JOB_PUBLIC, status: true } },
+    },
+  })
+
+  const savedJobs = rows.map((row) => ({
+    job: toPublicJobSummary(row.job),
+    savedAt: row.createdAt.toISOString(),
+    stillOpen: row.job.status === 'OPEN',
+  }))
+
+  return { savedJobs, total: savedJobs.length }
 }

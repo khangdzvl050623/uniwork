@@ -10,8 +10,11 @@ import {
   listJobsForAdminController,
   listPublicJobsController,
   listMyJobsController,
+  listSavedJobsController,
   reviewJobController,
+  saveJobController,
   submitJobController,
+  unsaveJobController,
   updateJobController,
 } from './jobs.controller.js'
 
@@ -94,3 +97,24 @@ export const publicJobRoutes = Router()
 
 publicJobRoutes.get('/', listPublicJobsController)
 publicJobRoutes.get('/:id', getPublicJobController)
+
+/**
+ * Tin đã lưu — dấu trang của SINH VIÊN.
+ *
+ * Router thứ tư trên cùng bảng `Job`, và cũng có luật truy cập riêng: đòi vai
+ * `STUDENT` (nhà tuyển dụng không có "tin đã lưu"), và mọi thao tác đều ngầm
+ * giới hạn trong hồ sơ của chính người gọi — `studentProfileId` lấy từ token,
+ * không bao giờ nhận từ body.
+ *
+ * KHÔNG bọc `rateLimit`: khác `POST /` tạo tin, thao tác ở đây là idempotent.
+ * Bấm mười lần vẫn ra đúng một hàng, nên không có rác nào để chặn.
+ *
+ * Mount ở `/toi/tin-da-luu` trong `routes.ts`.
+ */
+export const savedJobRoutes = Router()
+
+savedJobRoutes.use(requireAuth, requireRole('STUDENT'))
+
+savedJobRoutes.get('/', listSavedJobsController)
+savedJobRoutes.post('/:jobId', saveJobController)
+savedJobRoutes.delete('/:jobId', unsaveJobController)

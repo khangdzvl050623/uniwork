@@ -9,6 +9,12 @@ import { resetRateLimits } from '../../middlewares/rate-limit.js'
 vi.mock('../../lib/prisma.js', () => ({
   prisma: {
     employerProfile: { findUnique: vi.fn() },
+    studentProfile: { findUnique: vi.fn() },
+    savedJob: {
+      upsert: vi.fn(),
+      deleteMany: vi.fn(),
+      findMany: vi.fn(),
+    },
     skill: { count: vi.fn() },
     job: {
       create: vi.fn(),
@@ -24,6 +30,10 @@ vi.mock('../../lib/prisma.js', () => ({
 }))
 
 const ntdFindUnique = prisma.employerProfile.findUnique as unknown as Mock
+const svFindUnique = prisma.studentProfile.findUnique as unknown as Mock
+const savedUpsert = prisma.savedJob.upsert as unknown as Mock
+const savedDeleteMany = prisma.savedJob.deleteMany as unknown as Mock
+const savedFindMany = prisma.savedJob.findMany as unknown as Mock
 const skillCount = prisma.skill.count as unknown as Mock
 const jobCreate = prisma.job.create as unknown as Mock
 const jobFindMany = prisma.job.findMany as unknown as Mock
@@ -1607,5 +1617,231 @@ describe('GET /api/viec-lam/:id — chi tiết công khai', () => {
     expect(res.body.data).not.toHaveProperty('status')
     expect(res.body.data).not.toHaveProperty('rejectionReason')
     expect(res.body.data).not.toHaveProperty('closedAt')
+  })
+})
+
+/* ==========================================================================
+ * TIN ĐÃ LƯU (Sprint 3)
+ * ======================================================================== */
+
+describe('Tin đã lưu — POST/DELETE/GET /api/toi/tin-da-luu', () => {
+  beforeEach(() => {
+    svFindUnique.mockResolvedValue({ id: 'sv-1' })
+  })
+
+  /* ------------------------------------------------------------- quyền -- */
+
+  it('đòi đăng nhập', async () => {
+    const res = await request(createApp()).get('/api/toi/tin-da-luu')
+
+    expect(res.status).toBe(401)
+    expect(savedFindMany).not.toHaveBeenCalled()
+  })
+
+  it('nhà tuyển dụng không có tin đã lưu — 403', async () => {
+    // "Tin đã lưu" là dấu trang của người ĐI TÌM việc. NTD gọi vào đây không
+    // phải lỗi dữ liệu, mà là gọi nhầm cửa.
+    const res = await request(createApp())
+      .get('/api/toi/tin-da-luu')
+      .set('Authorization', `Bearer ${ntdToken}`)
+
+    expect(res.status).toBe(403)
+  })
+
+  /* ---------------------------------------------------------------- lưu -- */
+
+  it('lưu một tin đang mở', async () => {
+    jobFindFirst.mockResolvedValue({ id: 'job-1' })
+    savedUpsert.mockResolvedValue({})
+
+    const res = await request(createApp())
+      .post('/api/toi/tin-da-luu/job-1')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data).toEqual({ jobId: 'job-1', saved: true })
+  })
+
+  it('lưu hai lần KHÔNG lỗi, và không đổi mốc lưu cũ', async () => {
+    // Idempotent: sinh viên không "lưu lại" tin, họ chỉ đang ở trạng thái đã
+    // lưu. `update: {}` giữ nguyên createdAt của lần lưu đầu.
+    jobFindFirst.mockResolvedValue({ id: 'job-1' })
+    savedUpsert.mockResolvedValue({})
+
+    const goi = () =>
+      request(createApp())
+        .post('/api/toi/tin-da-luu/job-1')
+        .set('Authorization', `Bearer ${svToken}`)
+
+    expect((await goi()).status).toBe(200)
+    expect((await goi()).status).toBe(200)
+
+    expect(savedUpsert).toHaveBeenCalledTimes(2)
+    expect(savedUpsert).toHaveBeenLastCalledWith(expect.objectContaining({ update: {} }))
+  })
+
+  it('luôn khoá theo hồ sơ LẤY TỪ TOKEN, không nhận từ body', async () => {
+    // Chỗ này là toàn bộ lớp bảo vệ giữa hai sinh viên: SavedJob không có id
+    // riêng để đoán, nên chỉ cần `studentProfileId` không bao giờ đến từ người
+    // gọi thì A không có đường nào chạm tới hàng của B.
+    jobFindFirst.mockResolvedValue({ id: 'job-1' })
+    savedUpsert.mockResolvedValue({})
+
+    await request(createApp())
+      .post('/api/toi/tin-da-luu/job-1')
+      .set('Authorization', `Bearer ${svToken}`)
+      .send({ studentProfileId: 'sv-cua-nguoi-khac' })
+
+    expect(savedUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { studentProfileId_jobId: { studentProfileId: 'sv-1', jobId: 'job-1' } },
+        create: { studentProfileId: 'sv-1', jobId: 'job-1' },
+      }),
+    )
+  })
+
+  it('KHÔNG lưu được tin chưa duyệt — trả NOT_FOUND', async () => {
+    // Không kiểm thì ai đoán được id một tin nháp là lưu được nó, và danh sách
+    // tin đã lưu thành đường vòng để đọc tin chưa duyệt của người khác.
+    jobFindFirst.mockResolvedValue(null)
+
+    const res = await request(createApp())
+      .post('/api/toi/tin-da-luu/tin-nhap-cua-nguoi-khac')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.status).toBe(404)
+    expect(res.body.error.code).toBe('NOT_FOUND')
+    expect(savedUpsert).not.toHaveBeenCalled()
+  })
+
+  it('chỉ chấp nhận tin status OPEN', async () => {
+    jobFindFirst.mockResolvedValue({ id: 'job-1' })
+    savedUpsert.mockResolvedValue({})
+
+    await request(createApp())
+      .post('/api/toi/tin-da-luu/job-1')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(jobFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'job-1', status: 'OPEN' } }),
+    )
+  })
+
+  /* ------------------------------------------------------------ bỏ lưu -- */
+
+  it('bỏ lưu một tin đã lưu', async () => {
+    savedDeleteMany.mockResolvedValue({ count: 1 })
+
+    const res = await request(createApp())
+      .delete('/api/toi/tin-da-luu/job-1')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data).toEqual({ jobId: 'job-1', saved: false })
+  })
+
+  it('bỏ lưu tin CHƯA từng lưu cũng trả 200, không phải 404', async () => {
+    // Kết quả người dùng muốn — "tin này không còn trong danh sách của tôi" —
+    // đã đúng sẵn. `delete` sẽ ném P2025 ở đây; `deleteMany` thì không.
+    savedDeleteMany.mockResolvedValue({ count: 0 })
+
+    const res = await request(createApp())
+      .delete('/api/toi/tin-da-luu/chua-bao-gio-luu')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data).toEqual({ jobId: 'chua-bao-gio-luu', saved: false })
+  })
+
+  it('bỏ lưu KHÔNG kiểm tin còn mở hay không', async () => {
+    // Tin đã lưu rồi bị đóng thì sinh viên vẫn phải gỡ được nó ra khỏi danh
+    // sách — chặn ở đây là nhốt họ với một mục không xoá được.
+    savedDeleteMany.mockResolvedValue({ count: 1 })
+
+    const res = await request(createApp())
+      .delete('/api/toi/tin-da-luu/tin-da-dong')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.status).toBe(200)
+    expect(jobFindFirst).not.toHaveBeenCalled()
+  })
+
+  /* ---------------------------------------------------------- danh sách -- */
+
+  it('trả danh sách tin đã lưu của chính mình, mới nhất trước', async () => {
+    savedFindMany.mockResolvedValue([
+      { createdAt: new Date('2026-08-20'), job: { ...HANG_JOB_PUBLIC, status: 'OPEN' } },
+    ])
+
+    const res = await request(createApp())
+      .get('/api/toi/tin-da-luu')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.total).toBe(1)
+    expect(res.body.data.savedJobs[0].job.id).toBe('job-1')
+    expect(res.body.data.savedJobs[0].savedAt).toBe(new Date('2026-08-20').toISOString())
+
+    expect(savedFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { studentProfileId: 'sv-1' },
+        orderBy: { createdAt: 'desc' },
+      }),
+    )
+  })
+
+  it('tin đã ĐÓNG vẫn nằm trong danh sách, kèm cờ stillOpen = false', async () => {
+    // Lọc nó đi thì tin lặng lẽ biến mất khỏi danh sách sinh viên tự tay lưu —
+    // họ tưởng bấm nhầm, thay vì hiểu là tin đã đóng.
+    savedFindMany.mockResolvedValue([
+      { createdAt: new Date('2026-08-20'), job: { ...HANG_JOB_PUBLIC, status: 'CLOSED' } },
+    ])
+
+    const res = await request(createApp())
+      .get('/api/toi/tin-da-luu')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.body.data.savedJobs).toHaveLength(1)
+    expect(res.body.data.savedJobs[0].stillOpen).toBe(false)
+  })
+
+  it('tin bị kéo về PENDING cũng là stillOpen = false', async () => {
+    // NTD sửa một trường nhạy cảm thì tin quay về PENDING — với sinh viên,
+    // chuyện đó và "đã đóng" giống nhau: chưa nộp được.
+    savedFindMany.mockResolvedValue([
+      { createdAt: new Date('2026-08-20'), job: { ...HANG_JOB_PUBLIC, status: 'PENDING' } },
+    ])
+
+    const res = await request(createApp())
+      .get('/api/toi/tin-da-luu')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.body.data.savedJobs[0].stillOpen).toBe(false)
+  })
+
+  it('KHÔNG lộ status của tin ra ngoài, chỉ trả cờ stillOpen', async () => {
+    // `status` lấy về chỉ để tính cờ. Trả thẳng ra là lộ quy trình nội bộ của
+    // nhà tuyển dụng cho người ngoài.
+    savedFindMany.mockResolvedValue([
+      { createdAt: new Date('2026-08-20'), job: { ...HANG_JOB_PUBLIC, status: 'CLOSED' } },
+    ])
+
+    const res = await request(createApp())
+      .get('/api/toi/tin-da-luu')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.body.data.savedJobs[0].job).not.toHaveProperty('status')
+    expect(res.body.data.savedJobs[0].job).not.toHaveProperty('rejectionReason')
+  })
+
+  it('chưa lưu tin nào thì trả mảng rỗng, không phải lỗi', async () => {
+    savedFindMany.mockResolvedValue([])
+
+    const res = await request(createApp())
+      .get('/api/toi/tin-da-luu')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data).toEqual({ savedJobs: [], total: 0 })
   })
 })

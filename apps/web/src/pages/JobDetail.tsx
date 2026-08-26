@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { LuoiKhungGio } from '@/components/LuoiKhungGio'
+import { NutLuuTin } from '@/components/NutLuuTin'
 import { useAvailability } from '@/hooks/useProfile'
 import { useAuth } from '@/hooks/useAuth'
 import { usePublicJob } from '@/hooks/usePublicJobs'
@@ -42,6 +43,9 @@ function mauTheoTen(ten: string) {
  * không giải thích gì.
  */
 export function JobDetail() {
+  // `:id` luôn là đoạn cuối của đường dẫn, ở cả hai route khai trong `App.tsx`
+  // — có slug hay không. Không phải cắt chuỗi gì cả; phần slug (nếu có) nằm ở
+  // `params.slug` và trang này không cần tới nó.
   const { id } = useParams()
   const { data: job, isLoading, isError } = usePublicJob(id)
 
@@ -276,6 +280,12 @@ export function JobDetail() {
               Ứng tuyển ngay
             </Button>
             <p className="mt-1.5 text-center text-xs text-slate-400">Có ở Sprint 4</p>
+
+            {/* Đặt ngay dưới nút ứng tuyển: khi chưa nộp được (Sprint 4), lưu
+                lại là hành động duy nhất người dùng thật sự làm được ở đây. */}
+            <div className="mt-2">
+              <NutLuuTin job={job} coChu />
+            </div>
 
             <ul className="mt-5 space-y-2.5 border-t border-slate-100 pt-4 text-sm">
               <li className="flex items-center justify-between">
