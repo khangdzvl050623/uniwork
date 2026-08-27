@@ -6,6 +6,7 @@ import {
   adminJobRoutes,
   employerJobRoutes,
   publicJobRoutes,
+  savedJobRoutes,
 } from './modules/jobs/jobs.routes.js'
 import { profileRoutes } from './modules/profile/profile.routes.js'
 import { adminSkillsRoutes, skillsRoutes } from './modules/skills/skills.routes.js'
@@ -24,6 +25,17 @@ apiRouter.use('/skills', skillsRoutes)
 
 /* Việc làm công khai — endpoint DUY NHẤT trong dự án không cần đăng nhập ngoài /health. */
 apiRouter.use('/viec-lam', publicJobRoutes)
+
+/*
+ * Tin đã lưu — nằm dưới /toi vì đây là dữ liệu của chính người đang đăng nhập,
+ * nhưng mã nguồn ở `modules/jobs/` vì nó trả về `PublicJobSummary`.
+ *
+ * Phải khai TRƯỚC `/toi` bên dưới: Express so khớp theo thứ tự đăng ký, mà
+ * `profileRoutes` gắn `requireAuth` cho toàn bộ nhánh `/toi`. Khai sau thì mỗi
+ * request tới đây đi qua `requireAuth` của profile, không khớp route nào, rồi
+ * mới rơi xuống đây và xác thực lại lần nữa — chạy đúng nhưng thừa một lượt.
+ */
+apiRouter.use('/toi/tin-da-luu', savedJobRoutes)
 apiRouter.use('/toi', profileRoutes)
 apiRouter.use('/ntd/tin-tuyen-dung', employerJobRoutes)
 apiRouter.use('/admin', adminRoutes)

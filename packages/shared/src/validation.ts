@@ -3,7 +3,9 @@ import { SIGNUP_ROLES } from './api.js'
 import {
   DAY_FULL_LABELS,
   JOB_STATUSES,
+  PUBLIC_JOB_SORTS,
   SALARY_UNITS,
+  SO_O_MOI_TUAN,
   SCHEDULE_TYPES,
   TIME_SLOTS,
   USER_STATUSES,
@@ -160,8 +162,11 @@ export const availabilitySlotSchema = z.object({
 })
 
 export const updateAvailabilitySchema = z.object({
-  // 21 = 7 ngày × 3 khung giờ. Không thể vượt quá dù không trùng ô nào.
-  slots: z.array(availabilitySlotSchema).max(21, 'Tối đa 21 ô (7 ngày × 3 buổi)'),
+  // Trần suy ra từ `TIME_SLOTS`, không ghi cứng 21 — thêm một khung giờ thứ tư
+  // thì trần này tự đúng theo. Xem `SO_O_MOI_TUAN`.
+  slots: z
+    .array(availabilitySlotSchema)
+    .max(SO_O_MOI_TUAN, `Tối đa ${SO_O_MOI_TUAN} ô (7 ngày × ${TIME_SLOTS.length} khung giờ)`),
 })
 
 export const updateSkillsSchema = z.object({
@@ -321,7 +326,12 @@ const baseJobSchema = z.object({
 
   scheduleType: z.enum(SCHEDULE_TYPES),
   commitmentMonths: z.number().int().min(1).max(60, 'Cam kết tối đa 60 tháng').nullish(),
-  minShiftsPerWeek: z.number().int().min(1).max(21, 'Một tuần chỉ có 21 ca').nullish(),
+  minShiftsPerWeek: z
+    .number()
+    .int()
+    .min(1)
+    .max(SO_O_MOI_TUAN, `Một tuần chỉ có ${SO_O_MOI_TUAN} khung giờ`)
+    .nullish(),
   startDate: ngayTuyChon,
   endDate: ngayTuyChon,
   workDate: ngayTuyChon,
@@ -415,6 +425,32 @@ function kiemLuatCheo(val: z.infer<typeof baseJobSchema>, ctx: z.RefinementCtx) 
         })
       }
     }
+  }
+
+  /*
+   * Không được đòi nhiều ca hơn số ca đã mở.
+   *
+   * -------------------------------------------------------------------------
+   * VÌ SAO ĐÂY LÀ LUẬT THẬT, KHÔNG PHẢI PHÒNG XA
+   * -------------------------------------------------------------------------
+   * `job_shifts` là các ca nhà tuyển dụng MỞ, `minShiftsPerWeek` là số ca người
+   * làm phải nhận trong đó (chốt 2026-08-27). Mở 3 ca mà đòi nhận 5 là tin
+   * KHÔNG AI thoả được — không phải một yêu cầu khắt khe, mà là lỗi nhập liệu.
+   *
+   * Hậu quả nếu để lọt: tin đó không bao giờ `eligible` với bất kỳ ai, nên nó
+   * biến mất khỏi mọi kết quả lọc theo lịch rảnh — trong khi nhà tuyển dụng
+   * thấy tin mình đã `OPEN` bình thường và không hiểu vì sao không ai ứng tuyển.
+   *
+   * Cũng như mọi luật khác ở đây, đây chỉ là tầng cho ra thông báo dễ đọc.
+   * `ghepLich` vẫn chặn trần ngưỡng ở phía tính toán, để dữ liệu cũ tạo trước
+   * khi có luật này không làm hỏng bộ lọc.
+   */
+  if (val.minShiftsPerWeek != null && val.minShiftsPerWeek > val.shifts.length) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['minShiftsPerWeek'],
+      message: `Đang mở ${val.shifts.length} ca nên không thể yêu cầu tối thiểu ${val.minShiftsPerWeek} ca — mở thêm ca hoặc hạ con số này xuống`,
+    })
   }
 
   /* ---- lương: khớp jobs_salary_check ---- */
@@ -530,8 +566,87 @@ const locTuyChon = z
   .optional()
   .transform((v) => (v === '' ? undefined : v))
 
-export const publicJobQuerySchema = z.object({
-  city: locTuyChon,
-  district: locTuyChon,
-  scheduleType: z.enum(SCHEDULE_TYPES).optional(),
-})
+/**
+ * Cờ bật/tắt đến từ query string.
+ *
+ * KHÔNG dùng `z.coerce.boolean()`: nó chạy `Boolean(v)`, mà `Boolean('false')`
+ * là `true`. Tức là `?matchAvailability=false` sẽ BẬT bộ lọc — đúng ngược ý
+ * người gọi, và không có lỗi nào bắn ra để ai đó nhận ra.
+ */
+const coTuyChon = z
+  .enum(['true', 'false'])
+  .optional()
+  .transform((v) => (v === undefined ? undefined : v === 'true'))
+
+/**
+ * Số nguyên dương đến từ query string.
+ *
+ * Cũng không dùng `z.coerce.number()` được, vì `Number('')` là `0`: ô lọc để
+ * trống sẽ thành điều kiện "đúng bằng 0" và trả về danh sách rỗng không ai giải
+ * thích được — cùng loại bẫy với `locTuyChon` ở trên.
+ *
+ * `Number('abc')` cho `NaN`, và `z.number()` từ chối `NaN`, nên chuỗi rác vẫn
+ * bị chặn thành 422 rõ ràng.
+ */
+const soDuongTuyChon = (toiDa: number) =>
+  z.preprocess(
+    (v) => (v === '' || v === undefined || v === null ? undefined : Number(v)),
+    z.number().int().positive().max(toiDa).optional(),
+  )
+
+/**
+ * Danh sách id ngăn nhau bằng dấu phẩy: `?skillIds=a,b,c`.
+ *
+ * Chọn dạng này thay vì lặp tham số (`?skillIds=a&skillIds=b`) để chỉ có MỘT
+ * hình dạng phải xử lý. Lặp tham số thì Express trả về chuỗi khi có một giá trị
+ * và mảng khi có nhiều — mỗi chỗ dùng lại phải tự chuẩn hoá, và chỗ nào quên
+ * thì lỗi chỉ lộ ra đúng lúc người dùng chọn một kỹ năng.
+ */
+const danhSachIdTuyChon = z
+  .string()
+  .trim()
+  .optional()
+  .transform((v) => {
+    if (!v) return undefined
+    const ids = v.split(',').map((s) => s.trim()).filter(Boolean)
+    return ids.length > 0 ? ids : undefined
+  })
+
+export const publicJobQuerySchema = z
+  .object({
+    city: locTuyChon,
+    district: locTuyChon,
+    scheduleType: z.enum(SCHEDULE_TYPES).optional(),
+
+    matchAvailability: coTuyChon,
+
+    salaryUnit: z.enum(SALARY_UNITS).optional(),
+    // Trần 100 triệu: đủ rộng cho mọi đơn vị (kể cả lương tháng) mà vẫn chặn
+    // được giá trị vô lý gõ tay vào URL.
+    salaryFrom: soDuongTuyChon(100_000_000),
+    includeNegotiable: coTuyChon,
+
+    skillIds: danhSachIdTuyChon,
+
+    // Trần là số ô tối đa một tuần chứa được, suy ra từ `TIME_SLOTS`.
+    maxShiftsPerWeek: soDuongTuyChon(SO_O_MOI_TUAN),
+    maxCommitmentMonths: soDuongTuyChon(60),
+
+    sort: z.enum(PUBLIC_JOB_SORTS).optional(),
+  })
+  .superRefine((val, ctx) => {
+    /*
+     * `salaryFrom` không có nghĩa nếu thiếu `salaryUnit`.
+     *
+     * "Từ 25.000đ" là 25 nghìn một GIỜ, một CA hay một THÁNG? Ba câu trả lời
+     * khác nhau hoàn toàn. Không chặn ở đây thì phải chọn bừa một đơn vị mặc
+     * định, và người lọc nhận về kết quả của một câu hỏi họ không hề đặt.
+     */
+    if (val.salaryFrom !== undefined && !val.salaryUnit) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['salaryUnit'],
+        message: 'Chọn đơn vị lương (giờ, ca hay tháng) trước khi lọc theo mức lương',
+      })
+    }
+  })

@@ -9,6 +9,13 @@ import { resetRateLimits } from '../../middlewares/rate-limit.js'
 vi.mock('../../lib/prisma.js', () => ({
   prisma: {
     employerProfile: { findUnique: vi.fn() },
+    studentProfile: { findUnique: vi.fn() },
+    availability: { findMany: vi.fn() },
+    savedJob: {
+      upsert: vi.fn(),
+      deleteMany: vi.fn(),
+      findMany: vi.fn(),
+    },
     skill: { count: vi.fn() },
     job: {
       create: vi.fn(),
@@ -20,10 +27,16 @@ vi.mock('../../lib/prisma.js', () => ({
       count: vi.fn(),
     },
     $transaction: vi.fn(),
+    $queryRaw: vi.fn(),
   },
 }))
 
 const ntdFindUnique = prisma.employerProfile.findUnique as unknown as Mock
+const svFindUnique = prisma.studentProfile.findUnique as unknown as Mock
+const lichRanhFindMany = prisma.availability.findMany as unknown as Mock
+const savedUpsert = prisma.savedJob.upsert as unknown as Mock
+const savedDeleteMany = prisma.savedJob.deleteMany as unknown as Mock
+const savedFindMany = prisma.savedJob.findMany as unknown as Mock
 const skillCount = prisma.skill.count as unknown as Mock
 const jobCreate = prisma.job.create as unknown as Mock
 const jobFindMany = prisma.job.findMany as unknown as Mock
@@ -33,6 +46,7 @@ const jobDelete = prisma.job.delete as unknown as Mock
 const jobFindFirst = prisma.job.findFirst as unknown as Mock
 const jobCount = prisma.job.count as unknown as Mock
 const transaction = prisma.$transaction as unknown as Mock
+const queryRaw = prisma.$queryRaw as unknown as Mock
 
 const ntdToken = signAccessToken({ sub: 'u-ntd', role: 'EMPLOYER' })
 const svToken = signAccessToken({ sub: 'u-sv', role: 'STUDENT' })
@@ -64,11 +78,20 @@ function tinHopLe(ghiDe: Record<string, unknown> = {}) {
     salaryUnit: 'HOUR',
     scheduleType: 'RECURRING',
     commitmentMonths: 3,
-    minShiftsPerWeek: 3,
+    /*
+     * MỞ 3 ca, chỉ đòi nhận 2 — đúng cách hiểu đã chốt 2026-08-27:
+     * `job_shifts` là ca nhà tuyển dụng mở, `minShiftsPerWeek` là số ca người
+     * làm phải nhận trong đó.
+     *
+     * Bản trước để `minShiftsPerWeek: 3` với đúng 2 ca, tức là fixture này
+     * CHÍNH LÀ ví dụ về dữ liệu sai mà luật chéo mới sinh ra để chặn.
+     */
+    minShiftsPerWeek: 2,
     deadline: saoNgay(30),
     shifts: [
       { dayOfWeek: 2, slot: 'EVENING' },
       { dayOfWeek: 4, slot: 'EVENING' },
+      { dayOfWeek: 6, slot: 'EVENING' },
     ],
     skillIds: ['sk-1'],
     ...ghiDe,
@@ -103,7 +126,7 @@ const HANG_JOB = {
 
   scheduleType: 'RECURRING' as const,
   commitmentMonths: 3,
-  minShiftsPerWeek: 3,
+  minShiftsPerWeek: 2,
   startDate: null,
   endDate: null,
   workDate: null,
@@ -163,6 +186,7 @@ describe('POST /api/ntd/tin-tuyen-dung — tạo tin', () => {
     expect(dataGhi.shifts.create).toEqual([
       { dayOfWeek: 2, slot: 'EVENING' },
       { dayOfWeek: 4, slot: 'EVENING' },
+      { dayOfWeek: 6, slot: 'EVENING' },
     ])
     expect(dataGhi.skills.create).toEqual([{ skillId: 'sk-1' }])
   })
@@ -724,7 +748,7 @@ describe('PUT /api/ntd/tin-tuyen-dung/:id — sửa tin', () => {
   })
 
   it('thay TOÀN BỘ ca làm và kỹ năng, không tính phần thêm/bớt', async () => {
-    await guiSuaTin(tinHopLe({ shifts: [{ dayOfWeek: 6, slot: 'MORNING' }] }))
+    await guiSuaTin(tinHopLe({ shifts: [{ dayOfWeek: 6, slot: 'MORNING' }], minShiftsPerWeek: 1 }))
 
     const data = jobUpdate.mock.calls[0][0].data as {
       shifts: { deleteMany: unknown; create: unknown[] }
@@ -796,7 +820,7 @@ describe('T70 — sửa gì thì tin quay về PENDING', () => {
   })
 
   it('đổi ca làm thì về PENDING', async () => {
-    await guiSuaTin(tinHopLe({ shifts: [{ dayOfWeek: 0, slot: 'MORNING' }] }))
+    await guiSuaTin(tinHopLe({ shifts: [{ dayOfWeek: 0, slot: 'MORNING' }], minShiftsPerWeek: 1 }))
     expect(statusDaGhi()).toBe('PENDING')
   })
 
@@ -824,6 +848,7 @@ describe('T70 — sửa gì thì tin quay về PENDING', () => {
     await guiSuaTin(
       tinHopLe({
         shifts: [
+          { dayOfWeek: 6, slot: 'EVENING' },
           { dayOfWeek: 4, slot: 'EVENING' },
           { dayOfWeek: 2, slot: 'EVENING' },
         ],
@@ -831,6 +856,7 @@ describe('T70 — sửa gì thì tin quay về PENDING', () => {
       { shifts: [
         { dayOfWeek: 2, slot: 'EVENING' },
         { dayOfWeek: 4, slot: 'EVENING' },
+        { dayOfWeek: 6, slot: 'EVENING' },
       ] },
     )
     expect(statusDaGhi()).toBeUndefined()
@@ -1413,7 +1439,7 @@ const HANG_JOB_PUBLIC = {
   salaryUnit: 'HOUR' as const,
   scheduleType: 'RECURRING' as const,
   commitmentMonths: 3,
-  minShiftsPerWeek: 3,
+  minShiftsPerWeek: 1,
   startDate: null,
   endDate: null,
   workDate: null,
@@ -1607,5 +1633,829 @@ describe('GET /api/viec-lam/:id — chi tiết công khai', () => {
     expect(res.body.data).not.toHaveProperty('status')
     expect(res.body.data).not.toHaveProperty('rejectionReason')
     expect(res.body.data).not.toHaveProperty('closedAt')
+  })
+})
+
+/* ==========================================================================
+ * TIN ĐÃ LƯU (Sprint 3)
+ * ======================================================================== */
+
+describe('Tin đã lưu — POST/DELETE/GET /api/toi/tin-da-luu', () => {
+  beforeEach(() => {
+    svFindUnique.mockResolvedValue({ id: 'sv-1' })
+    // Mặc định chưa khai lịch rảnh — điểm phù hợp là `null`. Ca test nào cần
+    // điểm thật thì tự đặt lại.
+    lichRanhFindMany.mockResolvedValue([])
+  })
+
+  /* ------------------------------------------------------------- quyền -- */
+
+  it('đòi đăng nhập', async () => {
+    const res = await request(createApp()).get('/api/toi/tin-da-luu')
+
+    expect(res.status).toBe(401)
+    expect(savedFindMany).not.toHaveBeenCalled()
+  })
+
+  it('nhà tuyển dụng không có tin đã lưu — 403', async () => {
+    // "Tin đã lưu" là dấu trang của người ĐI TÌM việc. NTD gọi vào đây không
+    // phải lỗi dữ liệu, mà là gọi nhầm cửa.
+    const res = await request(createApp())
+      .get('/api/toi/tin-da-luu')
+      .set('Authorization', `Bearer ${ntdToken}`)
+
+    expect(res.status).toBe(403)
+  })
+
+  /* ---------------------------------------------------------------- lưu -- */
+
+  it('lưu một tin đang mở', async () => {
+    jobFindFirst.mockResolvedValue({ id: 'job-1' })
+    savedUpsert.mockResolvedValue({})
+
+    const res = await request(createApp())
+      .post('/api/toi/tin-da-luu/job-1')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data).toEqual({ jobId: 'job-1', saved: true })
+  })
+
+  it('lưu hai lần KHÔNG lỗi, và không đổi mốc lưu cũ', async () => {
+    // Idempotent: sinh viên không "lưu lại" tin, họ chỉ đang ở trạng thái đã
+    // lưu. `update: {}` giữ nguyên createdAt của lần lưu đầu.
+    jobFindFirst.mockResolvedValue({ id: 'job-1' })
+    savedUpsert.mockResolvedValue({})
+
+    const goi = () =>
+      request(createApp())
+        .post('/api/toi/tin-da-luu/job-1')
+        .set('Authorization', `Bearer ${svToken}`)
+
+    expect((await goi()).status).toBe(200)
+    expect((await goi()).status).toBe(200)
+
+    expect(savedUpsert).toHaveBeenCalledTimes(2)
+    expect(savedUpsert).toHaveBeenLastCalledWith(expect.objectContaining({ update: {} }))
+  })
+
+  it('luôn khoá theo hồ sơ LẤY TỪ TOKEN, không nhận từ body', async () => {
+    // Chỗ này là toàn bộ lớp bảo vệ giữa hai sinh viên: SavedJob không có id
+    // riêng để đoán, nên chỉ cần `studentProfileId` không bao giờ đến từ người
+    // gọi thì A không có đường nào chạm tới hàng của B.
+    jobFindFirst.mockResolvedValue({ id: 'job-1' })
+    savedUpsert.mockResolvedValue({})
+
+    await request(createApp())
+      .post('/api/toi/tin-da-luu/job-1')
+      .set('Authorization', `Bearer ${svToken}`)
+      .send({ studentProfileId: 'sv-cua-nguoi-khac' })
+
+    expect(savedUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { studentProfileId_jobId: { studentProfileId: 'sv-1', jobId: 'job-1' } },
+        create: { studentProfileId: 'sv-1', jobId: 'job-1' },
+      }),
+    )
+  })
+
+  it('KHÔNG lưu được tin chưa duyệt — trả NOT_FOUND', async () => {
+    // Không kiểm thì ai đoán được id một tin nháp là lưu được nó, và danh sách
+    // tin đã lưu thành đường vòng để đọc tin chưa duyệt của người khác.
+    jobFindFirst.mockResolvedValue(null)
+
+    const res = await request(createApp())
+      .post('/api/toi/tin-da-luu/tin-nhap-cua-nguoi-khac')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.status).toBe(404)
+    expect(res.body.error.code).toBe('NOT_FOUND')
+    expect(savedUpsert).not.toHaveBeenCalled()
+  })
+
+  it('chỉ chấp nhận tin status OPEN', async () => {
+    jobFindFirst.mockResolvedValue({ id: 'job-1' })
+    savedUpsert.mockResolvedValue({})
+
+    await request(createApp())
+      .post('/api/toi/tin-da-luu/job-1')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(jobFindFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'job-1', status: 'OPEN' } }),
+    )
+  })
+
+  /* ------------------------------------------------------------ bỏ lưu -- */
+
+  it('bỏ lưu một tin đã lưu', async () => {
+    savedDeleteMany.mockResolvedValue({ count: 1 })
+
+    const res = await request(createApp())
+      .delete('/api/toi/tin-da-luu/job-1')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data).toEqual({ jobId: 'job-1', saved: false })
+  })
+
+  it('bỏ lưu tin CHƯA từng lưu cũng trả 200, không phải 404', async () => {
+    // Kết quả người dùng muốn — "tin này không còn trong danh sách của tôi" —
+    // đã đúng sẵn. `delete` sẽ ném P2025 ở đây; `deleteMany` thì không.
+    savedDeleteMany.mockResolvedValue({ count: 0 })
+
+    const res = await request(createApp())
+      .delete('/api/toi/tin-da-luu/chua-bao-gio-luu')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data).toEqual({ jobId: 'chua-bao-gio-luu', saved: false })
+  })
+
+  it('bỏ lưu KHÔNG kiểm tin còn mở hay không', async () => {
+    // Tin đã lưu rồi bị đóng thì sinh viên vẫn phải gỡ được nó ra khỏi danh
+    // sách — chặn ở đây là nhốt họ với một mục không xoá được.
+    savedDeleteMany.mockResolvedValue({ count: 1 })
+
+    const res = await request(createApp())
+      .delete('/api/toi/tin-da-luu/tin-da-dong')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.status).toBe(200)
+    expect(jobFindFirst).not.toHaveBeenCalled()
+  })
+
+  /* ---------------------------------------------------------- danh sách -- */
+
+  it('trả danh sách tin đã lưu của chính mình, mới nhất trước', async () => {
+    savedFindMany.mockResolvedValue([
+      { createdAt: new Date('2026-08-20'), job: { ...HANG_JOB_PUBLIC, status: 'OPEN' } },
+    ])
+
+    const res = await request(createApp())
+      .get('/api/toi/tin-da-luu')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.total).toBe(1)
+    expect(res.body.data.savedJobs[0].job.id).toBe('job-1')
+    expect(res.body.data.savedJobs[0].savedAt).toBe(new Date('2026-08-20').toISOString())
+
+    expect(savedFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { studentProfileId: 'sv-1' },
+        orderBy: { createdAt: 'desc' },
+      }),
+    )
+  })
+
+  it('tin đã ĐÓNG vẫn nằm trong danh sách, kèm cờ stillOpen = false', async () => {
+    // Lọc nó đi thì tin lặng lẽ biến mất khỏi danh sách sinh viên tự tay lưu —
+    // họ tưởng bấm nhầm, thay vì hiểu là tin đã đóng.
+    savedFindMany.mockResolvedValue([
+      { createdAt: new Date('2026-08-20'), job: { ...HANG_JOB_PUBLIC, status: 'CLOSED' } },
+    ])
+
+    const res = await request(createApp())
+      .get('/api/toi/tin-da-luu')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.body.data.savedJobs).toHaveLength(1)
+    expect(res.body.data.savedJobs[0].stillOpen).toBe(false)
+  })
+
+  it('tin bị kéo về PENDING cũng là stillOpen = false', async () => {
+    // NTD sửa một trường nhạy cảm thì tin quay về PENDING — với sinh viên,
+    // chuyện đó và "đã đóng" giống nhau: chưa nộp được.
+    savedFindMany.mockResolvedValue([
+      { createdAt: new Date('2026-08-20'), job: { ...HANG_JOB_PUBLIC, status: 'PENDING' } },
+    ])
+
+    const res = await request(createApp())
+      .get('/api/toi/tin-da-luu')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.body.data.savedJobs[0].stillOpen).toBe(false)
+  })
+
+  it('KHÔNG lộ status của tin ra ngoài, chỉ trả cờ stillOpen', async () => {
+    // `status` lấy về chỉ để tính cờ. Trả thẳng ra là lộ quy trình nội bộ của
+    // nhà tuyển dụng cho người ngoài.
+    savedFindMany.mockResolvedValue([
+      { createdAt: new Date('2026-08-20'), job: { ...HANG_JOB_PUBLIC, status: 'CLOSED' } },
+    ])
+
+    const res = await request(createApp())
+      .get('/api/toi/tin-da-luu')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.body.data.savedJobs[0].job).not.toHaveProperty('status')
+    expect(res.body.data.savedJobs[0].job).not.toHaveProperty('rejectionReason')
+  })
+
+  it('chưa lưu tin nào thì trả mảng rỗng, không phải lỗi', async () => {
+    savedFindMany.mockResolvedValue([])
+
+    const res = await request(createApp())
+      .get('/api/toi/tin-da-luu')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data).toEqual({ savedJobs: [], total: 0 })
+  })
+})
+
+/* ==========================================================================
+ * LỌC LỊCH RẢNH + ĐIỂM PHÙ HỢP + LỌC ĐA TIÊU CHÍ (Sprint 3)
+ *
+ * Nhóm test này bảo vệ hai thứ dễ hỏng âm thầm nhất của bộ lọc:
+ *
+ * 1. MỆNH ĐỀ `AND` GOM ĐÚNG. Ba bộ lọc dùng dạng "hoặc null, hoặc trong ngưỡng"
+ *    nên mỗi cái là một `OR`. Rải thẳng vào object thì cái sau ghi đè cái trước
+ *    và bộ lọc đầu lặng lẽ biến mất — không lỗi, không cảnh báo.
+ * 2. PHÂN BIỆT `null` VỚI `0` Ở ĐIỂM PHÙ HỢP. Gộp hai thứ đó làm một là nói với
+ *    sinh viên chưa khai lịch rằng mọi tin đều không hợp với họ.
+ * ======================================================================== */
+
+/** Lấy mảng `AND` mà service vừa dựng, để soi từng mệnh đề một. */
+function menhDeAND() {
+  const arg = jobFindMany.mock.calls[0]?.[0] as { where?: { AND?: unknown[] } } | undefined
+  return arg?.where?.AND ?? []
+}
+
+/** Lấy nguyên mệnh đề `where`. */
+function menhDeWhere() {
+  const arg = jobFindMany.mock.calls[0]?.[0] as { where?: Record<string, unknown> } | undefined
+  return arg?.where ?? {}
+}
+
+describe('GET /api/viec-lam — điểm phù hợp', () => {
+  beforeEach(() => {
+    transaction.mockImplementation(async (ops: unknown[]) => Promise.all(ops))
+    jobFindMany.mockResolvedValue([HANG_JOB_PUBLIC])
+    jobCount.mockResolvedValue(1)
+    lichRanhFindMany.mockResolvedValue([])
+  })
+
+  it('khách chưa đăng nhập: matchScore là null, KHÔNG truy vấn lịch rảnh', async () => {
+    const res = await request(createApp()).get('/api/viec-lam')
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.jobs[0].matchScore).toBeNull()
+    // Không có ai để tra lịch — đừng đánh thêm một câu truy vấn vô nghĩa.
+    expect(lichRanhFindMany).not.toHaveBeenCalled()
+  })
+
+  it('sinh viên CHƯA khai lịch rảnh: null chứ không phải 0', async () => {
+    // `0` đọc thành "đã đo, không hợp". Sinh viên chưa khai lịch sẽ thấy mọi
+    // tin đều 0% rồi kết luận trang này không có việc nào hợp với mình.
+    lichRanhFindMany.mockResolvedValue([])
+
+    const res = await request(createApp())
+      .get('/api/viec-lam')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.body.data.jobs[0].matchScore).toBeNull()
+  })
+
+  it('trùng toàn bộ ca của tin: 100', async () => {
+    // HANG_JOB_PUBLIC có đúng một ca: thứ 3 buổi tối.
+    lichRanhFindMany.mockResolvedValue([{ dayOfWeek: 2, slot: 'EVENING' }])
+
+    const res = await request(createApp())
+      .get('/api/viec-lam')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.body.data.jobs[0].matchScore).toBe(100)
+  })
+
+  it('đã khai lịch nhưng không trùng ca nào: 0 THẬT, hiện bình thường', async () => {
+    lichRanhFindMany.mockResolvedValue([{ dayOfWeek: 6, slot: 'MORNING' }])
+
+    const res = await request(createApp())
+      .get('/api/viec-lam')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.body.data.jobs[0].matchScore).toBe(0)
+  })
+
+  it('trùng một nửa số ca: 50', async () => {
+    jobFindMany.mockResolvedValue([
+      {
+        ...HANG_JOB_PUBLIC,
+        shifts: [
+          { dayOfWeek: 2, slot: 'EVENING' },
+          { dayOfWeek: 4, slot: 'EVENING' },
+        ],
+      },
+    ])
+    lichRanhFindMany.mockResolvedValue([{ dayOfWeek: 2, slot: 'EVENING' }])
+
+    const res = await request(createApp())
+      .get('/api/viec-lam')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.body.data.jobs[0].matchScore).toBe(50)
+  })
+
+  it('token hỏng thì coi như khách, KHÔNG trả 401', async () => {
+    // Phiên vừa hết hạn mà mở trang việc làm phải thấy danh sách bình thường,
+    // chỉ mất điểm phù hợp — không phải một trang lỗi.
+    const res = await request(createApp())
+      .get('/api/viec-lam')
+      .set('Authorization', 'Bearer khong-phai-token-that')
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.jobs[0].matchScore).toBeNull()
+  })
+
+  it('nhà tuyển dụng xem trang công khai: 200, điểm null', async () => {
+    // NTD không có `studentProfile` nên không có lịch rảnh. Đó không phải lỗi.
+    lichRanhFindMany.mockResolvedValue([])
+
+    const res = await request(createApp())
+      .get('/api/viec-lam')
+      .set('Authorization', `Bearer ${ntdToken}`)
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.jobs[0].matchScore).toBeNull()
+  })
+})
+
+describe('GET /api/viec-lam — lọc theo lịch rảnh', () => {
+  beforeEach(() => {
+    transaction.mockImplementation(async (ops: unknown[]) => Promise.all(ops))
+    jobFindMany.mockResolvedValue([HANG_JOB_PUBLIC])
+    jobCount.mockResolvedValue(1)
+  })
+
+  it('phép ĐẾM ca trùng chạy ở DATABASE, không phải ở trình duyệt', async () => {
+    /*
+     * Điều kiện thật là `COUNT(ca trùng) >= minShiftsPerWeek`, mà Prisma không
+     * diễn đạt được "đếm quan hệ rồi so với một cột của bảng cha". Nên phần đó
+     * chạy bằng một câu SQL riêng trả về danh sách id, còn `where` chỉ lọc theo
+     * id đó.
+     *
+     * Làm ở trình duyệt thì `total` đếm cả tin đã bị loại — đúng cái lỗi mà việc
+     * chuyển bộ lọc lên server sinh ra để sửa.
+     */
+    lichRanhFindMany.mockResolvedValue([
+      { dayOfWeek: 2, slot: 'EVENING' },
+      { dayOfWeek: 4, slot: 'EVENING' },
+    ])
+    queryRaw.mockResolvedValue([{ id: 'job-1' }, { id: 'job-9' }])
+
+    await request(createApp())
+      .get('/api/viec-lam?matchAvailability=true')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(queryRaw).toHaveBeenCalled()
+    expect(menhDeAND()).toContainEqual({ id: { in: ['job-1', 'job-9'] } })
+  })
+
+  it('KHÔNG chạy câu SQL đếm ca khi không bật bộ lọc', async () => {
+    // Câu đó chỉ phục vụ việc lọc; chấm điểm làm bằng JS trên dữ liệu đã lấy về.
+    lichRanhFindMany.mockResolvedValue([{ dayOfWeek: 2, slot: 'EVENING' }])
+
+    await request(createApp())
+      .get('/api/viec-lam')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(queryRaw).not.toHaveBeenCalled()
+  })
+
+  it('khách bật lọc lịch rảnh: 401 kèm lời nhắc đăng nhập', async () => {
+    const res = await request(createApp()).get('/api/viec-lam?matchAvailability=true')
+
+    expect(res.status).toBe(401)
+    expect(jobFindMany).not.toHaveBeenCalled()
+  })
+
+  it('sinh viên chưa khai lịch mà bật lọc: 400, KHÔNG lặng lẽ bỏ qua', async () => {
+    // Bỏ qua thì họ nhận về danh sách không hề lọc trong khi giao diện hiện
+    // "đã bật" — tin rằng mọi tin trên màn hình đều hợp lịch mình.
+    lichRanhFindMany.mockResolvedValue([])
+
+    const res = await request(createApp())
+      .get('/api/viec-lam?matchAvailability=true')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('VALIDATION_ERROR')
+    expect(res.body.error.details).toHaveProperty('matchAvailability')
+    expect(jobFindMany).not.toHaveBeenCalled()
+  })
+
+  it('matchAvailability=false KHÔNG bật bộ lọc', async () => {
+    // `Boolean('false')` là `true` — dùng `z.coerce.boolean()` thì tham số này
+    // sẽ BẬT bộ lọc, đúng ngược ý người gọi và không lỗi nào bắn ra.
+    lichRanhFindMany.mockResolvedValue([{ dayOfWeek: 2, slot: 'EVENING' }])
+
+    await request(createApp())
+      .get('/api/viec-lam?matchAvailability=false')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(JSON.stringify(menhDeWhere())).not.toContain('shifts')
+  })
+})
+
+describe('GET /api/viec-lam — sắp xếp theo điểm', () => {
+  beforeEach(() => {
+    transaction.mockImplementation(async (ops: unknown[]) => Promise.all(ops))
+    lichRanhFindMany.mockResolvedValue([{ dayOfWeek: 2, slot: 'EVENING' }])
+    jobCount.mockResolvedValue(3)
+
+    jobFindMany.mockResolvedValue([
+      // Không trùng ca nào → 0
+      { ...HANG_JOB_PUBLIC, id: 'job-0', shifts: [{ dayOfWeek: 6, slot: 'MORNING' }] },
+      // Trùng 1/2 → 50
+      {
+        ...HANG_JOB_PUBLIC,
+        id: 'job-50',
+        shifts: [
+          { dayOfWeek: 2, slot: 'EVENING' },
+          { dayOfWeek: 5, slot: 'MORNING' },
+        ],
+      },
+      // Trùng toàn bộ → 100
+      { ...HANG_JOB_PUBLIC, id: 'job-100', shifts: [{ dayOfWeek: 2, slot: 'EVENING' }] },
+    ])
+  })
+
+  it('sort=match xếp điểm cao lên đầu', async () => {
+    const res = await request(createApp())
+      .get('/api/viec-lam?sort=match')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.body.data.jobs.map((j: { id: string }) => j.id)).toEqual([
+      'job-100',
+      'job-50',
+      'job-0',
+    ])
+  })
+
+  it('không truyền sort thì GIỮ NGUYÊN thứ tự publishedAt của database', async () => {
+    const res = await request(createApp())
+      .get('/api/viec-lam')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.body.data.jobs.map((j: { id: string }) => j.id)).toEqual([
+      'job-0',
+      'job-50',
+      'job-100',
+    ])
+  })
+
+  it('tin chưa đo được điểm xuống CUỐI, không lẫn vào nhóm 0%', async () => {
+    // `null` nghĩa là chưa biết, khác hẳn "đã đo và không hợp". Xếp chúng lẫn
+    // vào nhau là trộn hai loại thông tin khác nhau.
+    lichRanhFindMany.mockResolvedValue([])
+
+    const res = await request(createApp())
+      .get('/api/viec-lam?sort=match')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.body.data.jobs.every((j: { matchScore: null }) => j.matchScore === null)).toBe(true)
+  })
+})
+
+describe('GET /api/viec-lam — lọc lương', () => {
+  beforeEach(() => {
+    transaction.mockImplementation(async (ops: unknown[]) => Promise.all(ops))
+    jobFindMany.mockResolvedValue([])
+    jobCount.mockResolvedValue(0)
+  })
+
+  it('so theo salaryMax, KHÔNG phải salaryMin', async () => {
+    // Tin ghi 20–30k khi lọc "từ 25k" phải GIỮ LẠI: nó thật sự có thể trả 25k.
+    // So theo salaryMin sẽ loại nó — giấu mất một cơ hội có thật.
+    await request(createApp()).get('/api/viec-lam?salaryUnit=HOUR&salaryFrom=25000')
+
+    expect(menhDeAND()).toContainEqual({
+      salaryUnit: 'HOUR',
+      OR: [
+        { salaryNegotiable: false, salaryMax: { gte: 25000 } },
+        { salaryNegotiable: true },
+      ],
+    })
+  })
+
+  it('MẶC ĐỊNH GIỮ tin "Thoả thuận" khi lọc lương', async () => {
+    /*
+     * Tin thoả thuận không có `salaryMin`/`Max` nên không so số được. Nhưng
+     * "không so được" KHÁC "trả thấp hơn mức bạn muốn" — đúng cùng sự phân biệt
+     * `null` với `0` đã dùng ở điểm phù hợp.
+     *
+     * Tin part-time Việt Nam ghi "thoả thuận" rất nhiều, nên loại theo mặc định
+     * là giấu mất phần lớn bảng tin.
+     */
+    await request(createApp()).get('/api/viec-lam?salaryUnit=MONTH&salaryFrom=3000000')
+
+    expect(JSON.stringify(menhDeAND())).toContain('"salaryNegotiable":true')
+  })
+
+  it('tắt includeNegotiable thì mới loại tin "Thoả thuận"', async () => {
+    await request(createApp()).get(
+      '/api/viec-lam?salaryUnit=HOUR&salaryFrom=25000&includeNegotiable=false',
+    )
+
+    expect(menhDeAND()).toContainEqual({
+      salaryUnit: 'HOUR',
+      salaryNegotiable: false,
+      salaryMax: { gte: 25000 },
+    })
+  })
+
+  it('chỉ chọn đơn vị mà không nhập số: lọc theo đơn vị thôi', async () => {
+    await request(createApp()).get('/api/viec-lam?salaryUnit=SHIFT')
+
+    expect(menhDeAND()).toContainEqual({ salaryUnit: 'SHIFT' })
+  })
+
+  it('nhập số mà thiếu đơn vị: 400, không đoán bừa đơn vị', async () => {
+    // "Từ 25.000đ" là 25 nghìn một GIỜ, một CA hay một THÁNG? Ba câu trả lời
+    // khác nhau hoàn toàn.
+    const res = await request(createApp()).get('/api/viec-lam?salaryFrom=25000')
+
+    expect(res.status).toBe(400)
+    expect(res.body.error.code).toBe('VALIDATION_ERROR')
+    expect(res.body.error.details).toHaveProperty('salaryUnit')
+  })
+
+  it('ô lương để TRỐNG không thành điều kiện "bằng 0"', async () => {
+    // `Number('')` là 0 — dùng `z.coerce.number()` thì ô trống sẽ lọc ra danh
+    // sách rỗng mà không ai giải thích được.
+    const res = await request(createApp()).get('/api/viec-lam?salaryFrom=&salaryUnit=HOUR')
+
+    expect(res.status).toBe(200)
+    expect(menhDeAND()).toContainEqual({ salaryUnit: 'HOUR' })
+  })
+})
+
+describe('GET /api/viec-lam — lọc kỹ năng, ca/tuần, tháng cam kết', () => {
+  beforeEach(() => {
+    transaction.mockImplementation(async (ops: unknown[]) => Promise.all(ops))
+    jobFindMany.mockResolvedValue([])
+    jobCount.mockResolvedValue(0)
+  })
+
+  it('kỹ năng khớp BẤT KỲ cái nào đã chọn (OR trong nhóm)', async () => {
+    // Bắt khớp hết thì sinh viên chọn 3 kỹ năng gần như luôn nhận danh sách rỗng.
+    await request(createApp()).get('/api/viec-lam?skillIds=sk-1,sk-2')
+
+    expect(menhDeAND()).toContainEqual({
+      skills: { some: { skillId: { in: ['sk-1', 'sk-2'] } } },
+    })
+  })
+
+  it('tin KHÔNG quy định số ca/tuần vẫn lọt qua bộ lọc ca/tuần', async () => {
+    // Tin ONE_TIME làm đúng một buổi — "số ca mỗi tuần" vô nghĩa với nó, nên
+    // không có gì để vi phạm ngưỡng.
+    await request(createApp()).get('/api/viec-lam?maxShiftsPerWeek=3')
+
+    expect(menhDeAND()).toContainEqual({
+      OR: [{ minShiftsPerWeek: null }, { minShiftsPerWeek: { lte: 3 } }],
+    })
+  })
+
+  it('tin KHÔNG quy định tháng cam kết vẫn lọt qua bộ lọc cam kết', async () => {
+    await request(createApp()).get('/api/viec-lam?maxCommitmentMonths=3')
+
+    expect(menhDeAND()).toContainEqual({
+      OR: [{ commitmentMonths: null }, { commitmentMonths: { lte: 3 } }],
+    })
+  })
+
+  it('ca/tuần và tháng cam kết là HAI bộ lọc riêng, không cái nào ghi đè cái nào', async () => {
+    // Đây là ca test quan trọng nhất nhóm này. Cả hai đều dựng mệnh đề `OR`, mà
+    // một object chỉ có ĐÚNG MỘT khoá `OR` — rải thẳng vào `where` thì cái sau
+    // ghi đè cái trước, TypeScript không kêu và Prisma cũng không kêu.
+    await request(createApp()).get('/api/viec-lam?maxShiftsPerWeek=5&maxCommitmentMonths=3')
+
+    const and = menhDeAND()
+    expect(and).toContainEqual({
+      OR: [{ minShiftsPerWeek: null }, { minShiftsPerWeek: { lte: 5 } }],
+    })
+    expect(and).toContainEqual({
+      OR: [{ commitmentMonths: null }, { commitmentMonths: { lte: 3 } }],
+    })
+    expect(and).toHaveLength(2)
+  })
+
+  it('nhiều nhóm bộ lọc cùng lúc là AND, cộng dồn chứ không thay thế', async () => {
+    lichRanhFindMany.mockResolvedValue([{ dayOfWeek: 2, slot: 'EVENING' }])
+
+    await request(createApp())
+      .get(
+        '/api/viec-lam?district=Quận 1&salaryUnit=HOUR&salaryFrom=25000' +
+          '&skillIds=sk-1&maxShiftsPerWeek=5&maxCommitmentMonths=3&matchAvailability=true',
+      )
+      .set('Authorization', `Bearer ${svToken}`)
+
+    // Lịch rảnh (id IN), lương, kỹ năng, ca/tuần, cam kết — năm mệnh đề, không
+    // cái nào mất.
+    expect(menhDeAND()).toHaveLength(5)
+    // `district` là so sánh bằng nên nằm thẳng trong `where`, không vào `AND`.
+    expect(menhDeWhere()).toMatchObject({ status: 'OPEN', district: 'Quận 1' })
+  })
+
+  it('KHÔNG có bộ lọc nào thì không sinh mệnh đề AND rỗng', async () => {
+    await request(createApp()).get('/api/viec-lam')
+
+    expect(menhDeWhere()).not.toHaveProperty('AND')
+  })
+
+  it('vẫn luôn chặn cứng status OPEN dù lọc kiểu gì', async () => {
+    await request(createApp()).get('/api/viec-lam?skillIds=sk-1&maxShiftsPerWeek=5')
+
+    expect(menhDeWhere()).toMatchObject({ status: 'OPEN' })
+  })
+})
+
+/* ==========================================================================
+ * ELIGIBLE TÁCH KHỎI MATCH SCORE (Sprint 3, chốt 2026-08-27)
+ *
+ * `job_shifts` là ca nhà tuyển dụng MỞ, `minShiftsPerWeek` là số ca người làm
+ * phải nhận trong đó. Hai câu hỏi khác nhau:
+ *
+ *   eligible   — "Tôi CÓ nhận nổi việc này không?"
+ *   matchScore — "Việc này hợp lịch tôi tới đâu?"
+ * ======================================================================== */
+
+describe('GET /api/viec-lam — eligible và matchScore là hai thứ khác nhau', () => {
+  /** Tin MỞ 4 ca, chỉ đòi nhận 2. */
+  const TIN_4_CA_CAN_2 = {
+    ...HANG_JOB_PUBLIC,
+    minShiftsPerWeek: 2,
+    shifts: [
+      { dayOfWeek: 1, slot: 'MORNING' as const },
+      { dayOfWeek: 2, slot: 'EVENING' as const },
+      { dayOfWeek: 4, slot: 'EVENING' as const },
+      { dayOfWeek: 6, slot: 'MORNING' as const },
+    ],
+  }
+
+  beforeEach(() => {
+    transaction.mockImplementation(async (ops: unknown[]) => Promise.all(ops))
+    jobFindMany.mockResolvedValue([TIN_4_CA_CAN_2])
+    jobCount.mockResolvedValue(1)
+  })
+
+  const goi = () =>
+    request(createApp()).get('/api/viec-lam').set('Authorization', `Bearer ${svToken}`)
+
+  it('ĐỦ điều kiện dù điểm thấp — lý do hai khái niệm phải tách nhau', async () => {
+    // Trùng 2/4 ca = 50%, nghe như "tạm được". Nhưng tin chỉ cần 2 ca nên sinh
+    // viên này NHẬN ĐƯỢC việc. Lấy điểm làm cổng vào sẽ loại oan họ.
+    lichRanhFindMany.mockResolvedValue([
+      { dayOfWeek: 1, slot: 'MORNING' },
+      { dayOfWeek: 2, slot: 'EVENING' },
+    ])
+
+    const j = (await goi()).body.data.jobs[0]
+
+    expect(j.matchScore).toBe(50)
+    expect(j.eligible).toBe(true)
+    expect(j.matchedShifts).toBe(2)
+    expect(j.totalJobShifts).toBe(4)
+  })
+
+  it('KHÔNG đủ điều kiện dù vẫn trùng một ca', async () => {
+    // Trùng 1/4 = 25% và tin cần 2 ca → không nhận nổi. Bộ lọc cũ ("có ít nhất
+    // một ca trùng") sẽ cho tin này lọt, làm người tìm việc mất công mở ra.
+    lichRanhFindMany.mockResolvedValue([{ dayOfWeek: 1, slot: 'MORNING' }])
+
+    const j = (await goi()).body.data.jobs[0]
+
+    expect(j.matchScore).toBe(25)
+    expect(j.eligible).toBe(false)
+  })
+
+  it('điểm KHÔNG bị chặn ở 100 khi trùng thừa ngưỡng', async () => {
+    // Nếu lấy matched/minShifts làm điểm thì mọi người đủ điều kiện đều hiện
+    // 100% và điểm số mất sạch khả năng phân biệt.
+    lichRanhFindMany.mockResolvedValue(TIN_4_CA_CAN_2.shifts)
+
+    const j = (await goi()).body.data.jobs[0]
+
+    expect(j.matchScore).toBe(100)
+    expect(j.eligible).toBe(true)
+  })
+
+  it('totalJobShifts luôn có, kể cả với khách chưa đăng nhập', async () => {
+    // Đây là thuộc tính của TIN, không phụ thuộc người xem.
+    const res = await request(createApp()).get('/api/viec-lam')
+    const j = res.body.data.jobs[0]
+
+    expect(j.totalJobShifts).toBe(4)
+    expect(j.matchedShifts).toBe(0)
+    expect(j.eligible).toBeNull()
+    expect(j.matchScore).toBeNull()
+  })
+
+  it('chưa khai lịch rảnh: eligible là null, KHÔNG phải false', async () => {
+    // `false` nghĩa là "đã đo, bạn không nhận nổi". Ở đây chưa đo được gì cả.
+    lichRanhFindMany.mockResolvedValue([])
+
+    const j = (await goi()).body.data.jobs[0]
+
+    expect(j.eligible).toBeNull()
+    expect(j.matchScore).toBeNull()
+  })
+
+  it('tin yêu cầu NHIỀU ca hơn số ca mở vẫn tìm được người', async () => {
+    /*
+     * Mở 4 ca mà đòi nhận 9 là lỗi nhập liệu, không phải yêu cầu khắt khe.
+     * Không chặn trần ngưỡng thì tin đó không bao giờ `eligible` với BẤT KỲ ai
+     * — nó biến mất khỏi mọi kết quả lọc, còn nhà tuyển dụng thấy tin mình vẫn
+     * OPEN và không hiểu vì sao không ai ứng tuyển.
+     *
+     * `createJobSchema` chặn không cho tạo mới như vậy; nhánh này lo cho dữ
+     * liệu cũ tạo trước khi có luật đó.
+     */
+    jobFindMany.mockResolvedValue([{ ...TIN_4_CA_CAN_2, minShiftsPerWeek: 9 }])
+    lichRanhFindMany.mockResolvedValue(TIN_4_CA_CAN_2.shifts)
+
+    const j = (await goi()).body.data.jobs[0]
+
+    expect(j.eligible).toBe(true)
+    expect(j.matchScore).toBe(100)
+  })
+
+  it('minShiftsPerWeek null: chỉ cần trùng một ca là đủ', async () => {
+    jobFindMany.mockResolvedValue([{ ...TIN_4_CA_CAN_2, minShiftsPerWeek: null }])
+    lichRanhFindMany.mockResolvedValue([{ dayOfWeek: 1, slot: 'MORNING' }])
+
+    const j = (await goi()).body.data.jobs[0]
+
+    expect(j.eligible).toBe(true)
+    expect(j.matchScore).toBe(25)
+  })
+
+  it('minShiftsPerWeek null mà không trùng ca nào: KHÔNG đủ điều kiện', async () => {
+    // Ngưỡng tối thiểu là 1, không phải 0 — người không rảnh ca nào thì không
+    // làm được việc nào.
+    jobFindMany.mockResolvedValue([{ ...TIN_4_CA_CAN_2, minShiftsPerWeek: null }])
+    lichRanhFindMany.mockResolvedValue([{ dayOfWeek: 3, slot: 'AFTERNOON' }])
+
+    const j = (await goi()).body.data.jobs[0]
+
+    expect(j.eligible).toBe(false)
+    expect(j.matchScore).toBe(0)
+  })
+})
+
+describe('GET /api/viec-lam — sort=match xếp ĐỦ ĐIỀU KIỆN trước', () => {
+  beforeEach(() => {
+    transaction.mockImplementation(async (ops: unknown[]) => Promise.all(ops))
+    jobCount.mockResolvedValue(2)
+    lichRanhFindMany.mockResolvedValue([
+      { dayOfWeek: 1, slot: 'MORNING' },
+      { dayOfWeek: 2, slot: 'EVENING' },
+    ])
+
+    jobFindMany.mockResolvedValue([
+      // Mở 2 ca, cần cả 2, sinh viên chỉ trùng 1 → 50% nhưng KHÔNG nhận nổi.
+      {
+        ...HANG_JOB_PUBLIC,
+        id: 'diem-cao-nhung-khong-nhan-noi',
+        minShiftsPerWeek: 2,
+        shifts: [
+          { dayOfWeek: 1, slot: 'MORNING' as const },
+          { dayOfWeek: 5, slot: 'EVENING' as const },
+        ],
+      },
+      // Mở 4 ca, cần 2, sinh viên trùng 2 → 50% và NHẬN ĐƯỢC.
+      {
+        ...HANG_JOB_PUBLIC,
+        id: 'diem-bang-nhung-nhan-duoc',
+        minShiftsPerWeek: 2,
+        shifts: [
+          { dayOfWeek: 1, slot: 'MORNING' as const },
+          { dayOfWeek: 2, slot: 'EVENING' as const },
+          { dayOfWeek: 4, slot: 'EVENING' as const },
+          { dayOfWeek: 6, slot: 'MORNING' as const },
+        ],
+      },
+    ])
+  })
+
+  it('tin nhận được xếp TRÊN tin không nhận được, dù điểm ngang nhau', async () => {
+    /*
+     * Sắp thuần theo điểm là đẩy tin người ta KHÔNG nhận nổi lên trên tin họ
+     * nhận được — làm hỏng đúng mục đích của việc sắp xếp.
+     */
+    const res = await request(createApp())
+      .get('/api/viec-lam?sort=match')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    const jobs = res.body.data.jobs
+    expect(jobs.map((j: { id: string }) => j.id)).toEqual([
+      'diem-bang-nhung-nhan-duoc',
+      'diem-cao-nhung-khong-nhan-noi',
+    ])
+    // Xác nhận hai tin thật sự cùng điểm — nếu không thì ca test này chỉ đang
+    // kiểm phép sắp theo điểm như cũ.
+    expect(jobs[0].matchScore).toBe(jobs[1].matchScore)
   })
 })

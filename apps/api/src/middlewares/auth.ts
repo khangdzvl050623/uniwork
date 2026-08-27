@@ -62,6 +62,35 @@ export const requireAuth: RequestHandler = (req, _res, next) => {
 }
 
 /**
+ * Đọc token NẾU có, không có cũng cho qua.
+ *
+ * ---------------------------------------------------------------------------
+ * DÙNG CHO ENDPOINT CÔNG KHAI CẦN BIẾT AI ĐANG XEM
+ * ---------------------------------------------------------------------------
+ * `/api/viec-lam` phải mở cho khách — không ai đăng ký một trang việc làm mà
+ * chưa xem được việc nào. Nhưng từ Sprint 3 nó còn phải chấm điểm phù hợp giữa
+ * ca làm của tin và lịch rảnh của NGƯỜI ĐANG XEM, nên nó cần danh tính khi có.
+ *
+ * Đây KHÔNG phải nới lỏng bảo mật: endpoint vẫn chỉ trả tin `status = 'OPEN'`,
+ * đúng như trước. Danh tính chỉ dùng để THÊM một trường (`matchScore`) và để
+ * bật một bộ lọc tuỳ chọn — không mở thêm dữ liệu nào.
+ *
+ * Token hỏng hoặc hết hạn thì coi như khách, KHÔNG ném 401. Người dùng có phiên
+ * vừa hết hạn mà mở trang việc làm phải thấy danh sách bình thường (chỉ mất
+ * điểm phù hợp), chứ không phải một trang lỗi. Phía web sẽ tự gọi refresh rồi
+ * tải lại, lúc đó điểm hiện ra.
+ */
+export const optionalAuth: RequestHandler = (req, _res, next) => {
+  const header = req.headers.authorization
+  if (!header?.startsWith('Bearer ')) return next()
+
+  const payload = verifyAccessToken(header.slice(7))
+  if (payload) req.user = { id: payload.sub, role: payload.role }
+
+  next()
+}
+
+/**
  * Chỉ cho phép một số vai trò.
  *
  * Luôn phải đặt SAU `requireAuth` trong danh sách middleware của route. Nếu

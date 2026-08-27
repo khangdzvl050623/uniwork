@@ -286,7 +286,7 @@ export function PostJob() {
       </h1>
       <p className="mt-1 text-sm text-slate-500">
         {dangSua && tinCu?.status === 'OPEN'
-          ? 'Tin đang hiển thị công khai. Sửa tiêu đề, mô tả, lương, địa điểm, ca làm hoặc số lượng sẽ đưa tin về chờ duyệt lại.'
+          ? 'Tin đang hiển thị công khai. Sửa tiêu đề, mô tả, lương, địa điểm, khung giờ hoặc số lượng sẽ đưa tin về chờ duyệt lại.'
           : 'Tin sẽ hiển thị sau khi được quản trị viên duyệt, thường trong vòng 24 giờ'}
       </p>
 
@@ -443,8 +443,8 @@ export function PostJob() {
                 label="Ngày làm việc"
                 hint={
                   thuLamViec === null
-                    ? 'Chọn ngày trước, rồi mới chọn được ca làm bên dưới'
-                    : `Ca làm chỉ chọn được trong ${DAY_FULL_LABELS[thuLamViec]}`
+                    ? 'Chọn ngày trước, rồi mới chọn được khung giờ bên dưới'
+                    : `Khung giờ chỉ chọn được trong ${DAY_FULL_LABELS[thuLamViec]}`
                 }
                 error={form.errors.workDate}
               >
@@ -457,19 +457,28 @@ export function PostJob() {
               </Row>
             )}
 
+            {/*
+              "Khung giờ cần người", KHÔNG phải "ca làm cụ thể".
+
+              Đây là khung khai báo chuẩn hoá để ghép với lịch rảnh sinh viên —
+              xem `TIME_SLOTS` phía shared. Quán cần người 10:00–16:00 thì chọn
+              cả Sáng lẫn Chiều, nghĩa là "ứng viên phải rảnh được trong hai
+              khung này", không phải một ca 12 tiếng. Gọi là "ca cụ thể" thì nhà
+              tuyển dụng tưởng phải khai đúng giờ vào ca và sẽ khai thiếu.
+            */}
             <Row
-              label="Ca làm cụ thể"
+              label="Khung giờ cần người"
               hint={
                 loaiHienTai === 'ONE_TIME'
                   ? thuLamViec === null
                     ? 'Chọn ngày làm việc ở trên trước.'
-                    : `Việc một buổi nên chỉ chọn được ca trong ${DAY_FULL_LABELS[thuLamViec]}. Chọn nhiều buổi trong ngày đó nếu công việc chạy cả ngày.`
-                  : 'Kéo chuột để chọn nhiều ô. Hệ thống dùng đúng dữ liệu này để tìm sinh viên rảnh.'
+                    : `Việc một buổi nên chỉ chọn được khung trong ${DAY_FULL_LABELS[thuLamViec]}. Chọn nhiều khung trong ngày đó nếu công việc chạy cả ngày.`
+                  : 'Chọn mọi khung bạn cần người — kéo chuột để chọn nhanh nhiều ô. Đây là khung để tìm sinh viên rảnh, giờ vào ca cụ thể hai bên trao đổi sau.'
               }
               error={form.errors.shifts}
             >
               <LuoiKhungGio
-                ariaLabel="Chọn ca làm của tin"
+                ariaLabel="Chọn khung giờ cần người"
                 value={form.values.shifts as AvailabilitySlot[]}
                 onChange={(moi) => setValue('shifts', moi)}
                 disabled={dangGui}

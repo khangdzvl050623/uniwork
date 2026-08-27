@@ -23,11 +23,42 @@ import { apiFetch } from '@/lib/api'
  */
 const TUOI_TOI_DA = 15_000
 
+/**
+ * Đổi bộ lọc thành query string.
+ *
+ * Mỗi tham số chỉ được đặt khi CÓ giá trị thật — không bao giờ gửi chuỗi rỗng.
+ * Server đã chặn `?salaryFrom=` thành "bằng 0" rồi, nhưng chặn luôn ở đây để
+ * URL sạch và cache key không sinh ra hai biến thể cho cùng một bộ lọc.
+ */
 function chuoiTruyVan(query: PublicJobQuery): string {
   const p = new URLSearchParams()
+
   if (query.city) p.set('city', query.city)
   if (query.district) p.set('district', query.district)
   if (query.scheduleType) p.set('scheduleType', query.scheduleType)
+
+  // Chỉ gửi khi BẬT. Gửi `false` cũng cho kết quả đúng (server phân biệt được),
+  // nhưng để URL ngắn và dễ đọc khi chia sẻ.
+  if (query.matchAvailability) p.set('matchAvailability', 'true')
+
+  if (query.salaryUnit) p.set('salaryUnit', query.salaryUnit)
+  if (query.salaryFrom !== undefined) p.set('salaryFrom', String(query.salaryFrom))
+  // Chỉ gửi khi TẮT: mặc định của server là giữ tin thoả thuận, nên gửi `true`
+  // là thông tin thừa trong URL.
+  if (query.includeNegotiable === false) p.set('includeNegotiable', 'false')
+
+  // Ngăn bằng dấu phẩy, khớp `danhSachIdTuyChon` phía shared.
+  if (query.skillIds?.length) p.set('skillIds', query.skillIds.join(','))
+
+  if (query.maxShiftsPerWeek !== undefined) {
+    p.set('maxShiftsPerWeek', String(query.maxShiftsPerWeek))
+  }
+  if (query.maxCommitmentMonths !== undefined) {
+    p.set('maxCommitmentMonths', String(query.maxCommitmentMonths))
+  }
+
+  // `newest` là mặc định của server — không gửi để URL không mang thông tin thừa.
+  if (query.sort && query.sort !== 'newest') p.set('sort', query.sort)
 
   const s = p.toString()
   return s ? `?${s}` : ''

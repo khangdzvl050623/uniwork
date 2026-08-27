@@ -13,7 +13,9 @@ import { SCHEDULE_TYPE_LABELS, type AvailabilitySlot } from '@uniwork/shared'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
+import { BadgePhuHop } from '@/components/BadgePhuHop'
 import { LuoiKhungGio } from '@/components/LuoiKhungGio'
+import { NutLuuTin } from '@/components/NutLuuTin'
 import { useAvailability } from '@/hooks/useProfile'
 import { useAuth } from '@/hooks/useAuth'
 import { usePublicJob } from '@/hooks/usePublicJobs'
@@ -42,6 +44,9 @@ function mauTheoTen(ten: string) {
  * không giải thích gì.
  */
 export function JobDetail() {
+  // `:id` luôn là đoạn cuối của đường dẫn, ở cả hai route khai trong `App.tsx`
+  // — có slug hay không. Không phải cắt chuỗi gì cả; phần slug (nếu có) nằm ở
+  // `params.slug` và trang này không cần tới nó.
   const { id } = useParams()
   const { data: job, isLoading, isError } = usePublicJob(id)
 
@@ -158,12 +163,24 @@ export function JobDetail() {
           </Card>
 
           <Card>
-            <CardHeader title="Ca làm việc" />
+            <CardHeader title="Khung giờ cần người" />
             <div className="px-5 py-4">
+              {/*
+                Cố ý KHÔNG gọi đây là "ca làm việc".
+
+                `TimeSlot` là khung khai báo chuẩn hoá để hai bên ghép lịch, chứ
+                không phải giờ vào ca của quán — xem `TIME_SLOTS` phía shared.
+                Quán cần người 10:00–16:00 sẽ khai cả Sáng lẫn Chiều; gọi đó là
+                "ca làm" thì sinh viên đọc thành một ca 12 tiếng.
+              */}
               <p className="mb-4 text-sm text-slate-500">
                 {daKhaiLich
-                  ? 'Ô xanh đậm là ca tin này cần. Ô viền đứt là giờ bạn đã khai rảnh.'
-                  : 'Ô xanh đậm là ca tin này cần.'}
+                  ? 'Ô xanh đậm là khung giờ tin này cần người làm được. Ô viền đứt là khung bạn đã khai rảnh.'
+                  : 'Ô xanh đậm là khung giờ tin này cần người làm được.'}
+              </p>
+              <p className="mb-4 text-xs text-slate-400">
+                Đây là khung để đối chiếu lịch, không phải giờ vào ca. Giờ làm cụ
+                thể do bạn và nhà tuyển dụng trao đổi khi phỏng vấn.
               </p>
 
               <LuoiKhungGio
@@ -238,34 +255,19 @@ export function JobDetail() {
         <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
           <Card className="p-5">
             {/*
-              Chỗ này trước đây là ô "92% phù hợp với hồ sơ của bạn" lấy từ dữ
-              liệu giả — một lời khẳng định về người xem mà hệ thống chưa hề tính.
-              Thay bằng con số ĐẾM ĐƯỢC: bao nhiêu ca của tin nằm trong lịch rảnh
-              đã khai. Điểm phù hợp thật (kỹ năng + ca + cam kết) thuộc Sprint 3.
+              Điểm phù hợp giờ do SERVER tính (`job.matchScore`), không còn đếm
+              tay ở đây nữa. Một công thức ở một chỗ: thẻ tin trong danh sách,
+              trang này, và trang tin đã lưu đều hiện đúng cùng con số.
+
+              Vẫn giữ dòng "x/y ca" bên dưới vì phần trăm không nói được quy mô:
+              50% của một tin 2 ca khác hẳn 50% của một tin 8 ca.
             */}
-            {daKhaiLich && (
-              <div
-                className={cn(
-                  'mb-4 rounded-lg p-3 text-center',
-                  soCaTrung > 0 ? 'bg-emerald-50' : 'bg-slate-50',
-                )}
-              >
-                <div
-                  className={cn(
-                    'text-2xl font-bold',
-                    soCaTrung > 0 ? 'text-emerald-600' : 'text-slate-500',
-                  )}
-                >
-                  {soCaTrung}/{job.shifts.length}
-                </div>
-                <div
-                  className={cn(
-                    'text-xs font-medium',
-                    soCaTrung > 0 ? 'text-emerald-700' : 'text-slate-500',
-                  )}
-                >
-                  ca của tin bạn đang rảnh
-                </div>
+            {job.matchScore !== null && (
+              <div className="mb-4 flex flex-col items-center gap-1.5 rounded-lg bg-slate-50 p-3">
+                <BadgePhuHop job={job} to />
+                <span className="text-xs text-slate-500">
+                  {soCaTrung}/{job.shifts.length} ca của tin bạn đang rảnh
+                </span>
               </div>
             )}
 
@@ -276,6 +278,12 @@ export function JobDetail() {
               Ứng tuyển ngay
             </Button>
             <p className="mt-1.5 text-center text-xs text-slate-400">Có ở Sprint 4</p>
+
+            {/* Đặt ngay dưới nút ứng tuyển: khi chưa nộp được (Sprint 4), lưu
+                lại là hành động duy nhất người dùng thật sự làm được ở đây. */}
+            <div className="mt-2">
+              <NutLuuTin job={job} coChu />
+            </div>
 
             <ul className="mt-5 space-y-2.5 border-t border-slate-100 pt-4 text-sm">
               <li className="flex items-center justify-between">

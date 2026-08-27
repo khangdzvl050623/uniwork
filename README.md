@@ -112,7 +112,13 @@ Prisma không phân biệt hai môi trường vì cả hai đều là Postgres �
 
 **Xử lý cold start của Render.** Instance free bị suspend sau 15 phút idle và mất **~50 giây** để dậy — người dùng đầu tiên sau giờ nghỉ sẽ thấy app "treo". Cách xử lý theo thứ tự ưu tiên:
 
-1. **cron-job.org hoặc UptimeRobot** ping `GET /api/health` mỗi 5 phút — đây là cách chính, vì là dịch vụ giám sát chuyên dụng, chạy đúng giờ.
+> ⚠ **Đừng ping 24/7 — hai hạn mức này loại trừ nhau.** Gói free cho **750 giờ chạy/tháng**, mà một tháng 31 ngày có **744 giờ**. Service thức suốt ngày đêm tiêu gần hết hạn mức chỉ bằng việc tồn tại, chừa đúng 6 giờ biên. Ngày 25/08/2026 tài khoản chạm **767,75/750 giờ** và Render **treo service** — API chết hoàn toàn tới đầu tháng sau.
+>
+> Hạn mức tính **theo tài khoản**, không theo service: bao nhiêu service free đang chạy thì chia nhau ngần ấy giờ.
+>
+> Nên ping **theo khung giờ có người dùng**, không phải mọi giờ. `keep-alive.yml` hiện đặt `*/10 0-16 * * *` (UTC) = 07:00–23:59 giờ VN → 527 giờ/tháng. Cần thức ngoài khung thì bấm "Run workflow" ở tab Actions.
+
+1. **cron-job.org hoặc UptimeRobot** ping `GET /api/health` mỗi 5 phút **trong khung giờ đã chọn** — đây là cách chính, vì là dịch vụ giám sát chuyên dụng, chạy đúng giờ.
 2. **GitHub Actions cron** (`.github/workflows/keep-alive.yml` trong repo này) làm lớp dự phòng. Lưu ý hai hạn chế thật của GitHub Actions: lịch cron **hay bị trễ 5–15 phút** khi runner bận, và workflow **tự bị vô hiệu hoá sau 60 ngày** repo không có commit. Không nên dùng làm phương án duy nhất.
 3. **Frontend gọi warm-up sớm**: ngay khi web app mount, bắn một request `/api/health` chạy nền để API kịp dậy trong lúc người dùng còn đang đọc trang chủ.
 4. Endpoint `/api/health` phải **cực nhẹ** — chỉ trả `{ status: 'ok' }`, không chạm database, để không tiêu tốn compute-hour của Neon.

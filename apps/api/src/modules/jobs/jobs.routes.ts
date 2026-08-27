@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { requireAuth, requireRole } from '../../middlewares/auth.js'
+import { optionalAuth, requireAuth, requireRole } from '../../middlewares/auth.js'
 import { rateLimit } from '../../middlewares/rate-limit.js'
 import {
   closeJobController,
@@ -10,8 +10,11 @@ import {
   listJobsForAdminController,
   listPublicJobsController,
   listMyJobsController,
+  listSavedJobsController,
   reviewJobController,
+  saveJobController,
   submitJobController,
+  unsaveJobController,
   updateJobController,
 } from './jobs.controller.js'
 
@@ -92,5 +95,38 @@ adminJobRoutes.put('/:id/duyet', reviewJobController)
  */
 export const publicJobRoutes = Router()
 
+/*
+ * `optionalAuth` chứ KHÔNG phải `requireAuth`.
+ *
+ * Từ Sprint 3, hai endpoint này chấm điểm phù hợp giữa ca làm của tin và lịch
+ * rảnh của người đang xem, nên chúng cần danh tính KHI CÓ. Nhưng khách vẫn phải
+ * xem được danh sách — đó là lý do endpoint này tồn tại.
+ *
+ * Đây không phải nới lỏng: phạm vi dữ liệu vẫn đúng bằng `status = 'OPEN'` như
+ * trước. Danh tính chỉ thêm một trường và bật một bộ lọc tuỳ chọn.
+ */
+publicJobRoutes.use(optionalAuth)
+
 publicJobRoutes.get('/', listPublicJobsController)
 publicJobRoutes.get('/:id', getPublicJobController)
+
+/**
+ * Tin đã lưu — dấu trang của SINH VIÊN.
+ *
+ * Router thứ tư trên cùng bảng `Job`, và cũng có luật truy cập riêng: đòi vai
+ * `STUDENT` (nhà tuyển dụng không có "tin đã lưu"), và mọi thao tác đều ngầm
+ * giới hạn trong hồ sơ của chính người gọi — `studentProfileId` lấy từ token,
+ * không bao giờ nhận từ body.
+ *
+ * KHÔNG bọc `rateLimit`: khác `POST /` tạo tin, thao tác ở đây là idempotent.
+ * Bấm mười lần vẫn ra đúng một hàng, nên không có rác nào để chặn.
+ *
+ * Mount ở `/toi/tin-da-luu` trong `routes.ts`.
+ */
+export const savedJobRoutes = Router()
+
+savedJobRoutes.use(requireAuth, requireRole('STUDENT'))
+
+savedJobRoutes.get('/', listSavedJobsController)
+savedJobRoutes.post('/:jobId', saveJobController)
+savedJobRoutes.delete('/:jobId', unsaveJobController)

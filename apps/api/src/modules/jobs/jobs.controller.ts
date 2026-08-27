@@ -91,12 +91,42 @@ export const reviewJobController: RequestHandler = async (req, res) => {
 
 /* ------------------------------------------------- T79–T80: công khai --- */
 
+/*
+ * Hai endpoint dưới đây chạy sau `optionalAuth`, nên `req.user` CÓ THỂ có hoặc
+ * không — dùng `req.user?.id` chứ không phải `requireUserId`. Gọi
+ * `requireUserId` ở đây sẽ ném 401 với khách, tức là đóng luôn cửa công khai.
+ *
+ * Danh tính chỉ dùng để chấm điểm phù hợp và bật bộ lọc theo lịch rảnh; phạm vi
+ * dữ liệu trả về vẫn y nguyên (`status = 'OPEN'`).
+ */
 export const listPublicJobsController: RequestHandler = async (req, res) => {
   const query = parse(publicJobQuerySchema, req.query)
-  ok(res, await jobsService.listPublicJobs(query))
+  ok(res, await jobsService.listPublicJobs(query, req.user?.id))
 }
 
 export const getPublicJobController: RequestHandler = async (req, res) => {
   const { id } = parse(thamSoId, req.params)
-  ok(res, await jobsService.getPublicJob(id))
+  ok(res, await jobsService.getPublicJob(id, req.user?.id))
+}
+
+/* ------------------------------------------------- Sprint 3: tin đã lưu -- */
+
+/* Tham số ở đây tên `jobId` chứ không `id` — đường dẫn là /tin-da-luu/:jobId,
+   và giữ đúng tên giúp đọc route ra ngay là đang trỏ tới tin nào. */
+const thamSoJobId = z.object({ jobId: z.string().min(1) })
+
+export const saveJobController: RequestHandler = async (req, res) => {
+  const userId = requireUserId(req)
+  const { jobId } = parse(thamSoJobId, req.params)
+  ok(res, await jobsService.saveJob(userId, jobId))
+}
+
+export const unsaveJobController: RequestHandler = async (req, res) => {
+  const userId = requireUserId(req)
+  const { jobId } = parse(thamSoJobId, req.params)
+  ok(res, await jobsService.unsaveJob(userId, jobId))
+}
+
+export const listSavedJobsController: RequestHandler = async (req, res) => {
+  ok(res, await jobsService.listSavedJobs(requireUserId(req)))
 }
