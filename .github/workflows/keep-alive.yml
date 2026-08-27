@@ -19,8 +19,33 @@ name: keep-alive
 on:
   schedule:
     # Mỗi 10 phút — ngắn hơn mốc 15 phút mà Render cho ngủ, chừa biên độ cho
-    # việc lịch bị trượt.
-    - cron: '*/10 * * * *'
+    # việc lịch bị trượt. NHƯNG chỉ trong khung giờ người ta thật sự dùng.
+    #
+    # -------------------------------------------------------------------------
+    # VÌ SAO KHÔNG PING 24/7 — BÀI HỌC TRẢ BẰNG MỘT LẦN BỊ TREO SERVICE
+    # -------------------------------------------------------------------------
+    # Bản đầu để `*/10 * * * *`, tức ping mọi giờ. Nó làm đúng việc được giao:
+    # service không bao giờ ngủ. Vấn đề là gói free Render chỉ cho 750
+    # GIỜ CHẠY mỗi tháng, mà một tháng 31 ngày có 744 giờ — service thức 24/7
+    # tiêu gần hết hạn mức chỉ bằng việc tồn tại, chừa lại đúng 6 giờ biên.
+    #
+    # Ngày 25/08/2026 tài khoản chạm 767,75/750 giờ và Render treo service. API
+    # chết hoàn toàn cho tới đầu tháng sau.
+    #
+    # Hai thứ đó loại trừ nhau: KHÔNG THỂ vừa giữ thức 24/7 vừa nằm trong 750
+    # giờ. Phải chọn, và lựa chọn đúng là giữ thức trong khung giờ có người
+    # dùng, chấp nhận cold start 50 giây lúc 3 giờ sáng.
+    #
+    # `0-16` là giờ UTC. Việt Nam là UTC+7 nên tương ứng 07:00–23:59 giờ VN:
+    # 17 giờ/ngày × 31 = 527 giờ/tháng, dư biên cho cả build và service khác.
+    #
+    # Cần thức ngoài khung (demo sớm, bảo vệ buổi sáng): bấm "Run workflow" ở
+    # tab Actions — `workflow_dispatch` bên dưới cho phép chạy tay bất cứ lúc nào.
+    #
+    # ⚠ Hạn mức 750 giờ tính THEO TÀI KHOẢN, không theo service. Có bao nhiêu
+    # service free đang chạy thì chúng chia nhau ngần ấy giờ — xoá service không
+    # dùng nữa cũng là một cách tiết kiệm.
+    - cron: '*/10 0-16 * * *'
   workflow_dispatch:
 
 # Chỉ đọc, không cần quyền ghi vào repo.
