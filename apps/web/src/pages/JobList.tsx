@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { CalendarPlus, Loader2, SlidersHorizontal } from 'lucide-react'
+import { CalendarPlus, Loader2, Search, SlidersHorizontal, X } from 'lucide-react'
 import {
   PUBLIC_JOB_SORTS,
   PUBLIC_JOB_SORT_LABELS,
@@ -32,6 +32,7 @@ import { cn } from '@/lib/utils'
  */
 export function JobList() {
   const [boLoc, setBoLoc] = useState<BoLoc>({})
+  const [q, setQ] = useState('')
   const [sort, setSort] = useState<PublicJobSort>('newest')
   const [hienLocDiDong, setHienLocDiDong] = useState(false)
 
@@ -46,14 +47,16 @@ export function JobList() {
   const daKhaiLich = Boolean(lichRanh?.slots.length)
   const dungDuocLichRanh = laSinhVien && daKhaiLich
 
-  const { data, isLoading, isError, error } = usePublicJobs({ ...boLoc, sort })
+  const { data, isLoading, isError, error } = usePublicJobs({ ...boLoc, q, sort })
 
   const jobs = data?.jobs ?? []
   const total = data?.total ?? 0
 
-  const coBoLoc = Object.values(boLoc).some((v) =>
-    Array.isArray(v) ? v.length > 0 : v !== undefined,
-  )
+  const coBoLoc =
+    Boolean(q.trim()) ||
+    Object.values(boLoc).some((v) =>
+      Array.isArray(v) ? v.length > 0 : v !== undefined,
+    )
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -108,17 +111,43 @@ export function JobList() {
         </div>
 
         <div>
-          <div className="mb-4 flex items-center gap-3">
-            <Button
-              variant="outline"
-              size="sm"
-              className="lg:hidden"
-              onClick={() => setHienLocDiDong((v) => !v)}
-            >
-              <SlidersHorizontal size={16} />
-              Bộ lọc
-            </Button>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="relative flex-1">
+              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="search"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Tìm tên công việc hoặc mô tả"
+                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-9 text-sm text-slate-700 placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                aria-label="Tìm việc làm"
+              />
+              {q && (
+                <button
+                  type="button"
+                  onClick={() => setQ('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                  aria-label="Xoá tìm kiếm"
+                >
+                  <X size={14} />
+                </button>
+              )}
+            </div>
 
+            <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="lg:hidden"
+                onClick={() => setHienLocDiDong((v) => !v)}
+              >
+                <SlidersHorizontal size={16} />
+                Bộ lọc
+              </Button>
+            </div>
+          </div>
+
+          <div className="mb-4 flex items-center gap-3">
             {/*
               Sắp xếp nằm TRÊN danh sách chứ không nằm trong cột lọc: nó không
               thu hẹp kết quả, nó chỉ đổi thứ tự — trộn vào bộ lọc là để người

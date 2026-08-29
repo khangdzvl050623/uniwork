@@ -905,6 +905,18 @@ function dungBoLoc(
 ): Prisma.JobWhereInput {
   const dieuKien: Prisma.JobWhereInput[] = []
 
+  if (query.q) {
+    const q = query.q.trim()
+    if (q) {
+      dieuKien.push({
+        OR: [
+          { title: { contains: q, mode: 'insensitive' } },
+          { description: { contains: q, mode: 'insensitive' } },
+        ],
+      })
+    }
+  }
+
   /*
    * Lọc theo lịch rảnh: giới hạn vào danh sách id ĐỦ ĐIỀU KIỆN đã tính sẵn.
    *

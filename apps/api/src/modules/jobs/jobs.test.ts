@@ -2192,6 +2192,31 @@ describe('GET /api/viec-lam — lọc lương', () => {
   })
 })
 
+describe('GET /api/viec-lam — full-text search', () => {
+  beforeEach(() => {
+    transaction.mockImplementation(async (ops: unknown[]) => Promise.all(ops))
+    jobFindMany.mockResolvedValue([])
+    jobCount.mockResolvedValue(0)
+  })
+
+  it('lọc theo q trên title hoặc description, không phân biệt hoa/thường', async () => {
+    await request(createApp()).get('/api/viec-lam?q=frontend developer')
+
+    expect(menhDeAND()).toContainEqual({
+      OR: [
+        { title: { contains: 'frontend developer', mode: 'insensitive' } },
+        { description: { contains: 'frontend developer', mode: 'insensitive' } },
+      ],
+    })
+  })
+
+  it('q rỗng không tạo điều kiện lọc', async () => {
+    await request(createApp()).get('/api/viec-lam?q=   ')
+
+    expect(menhDeWhere()).not.toHaveProperty('AND')
+  })
+})
+
 describe('GET /api/viec-lam — lọc kỹ năng, ca/tuần, tháng cam kết', () => {
   beforeEach(() => {
     transaction.mockImplementation(async (ops: unknown[]) => Promise.all(ops))
