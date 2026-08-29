@@ -614,6 +614,12 @@ const danhSachIdTuyChon = z
 
 export const publicJobQuerySchema = z
   .object({
+    q: z
+      .string()
+      .trim()
+      .optional()
+      .transform((v) => (v === '' ? undefined : v)),
+
     city: locTuyChon,
     district: locTuyChon,
     scheduleType: z.enum(SCHEDULE_TYPES).optional(),

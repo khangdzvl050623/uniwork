@@ -772,6 +772,7 @@ export interface PublicJobListResponse {
  * trang thương mại điện tử.
  */
 export interface PublicJobQuery {
+  q?: string
   city?: string
   district?: string
   scheduleType?: ScheduleType

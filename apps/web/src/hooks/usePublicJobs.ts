@@ -33,6 +33,7 @@ const TUOI_TOI_DA = 15_000
 function chuoiTruyVan(query: PublicJobQuery): string {
   const p = new URLSearchParams()
 
+  if (query.q) p.set('q', query.q.trim())
   if (query.city) p.set('city', query.city)
   if (query.district) p.set('district', query.district)
   if (query.scheduleType) p.set('scheduleType', query.scheduleType)
