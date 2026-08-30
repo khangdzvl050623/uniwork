@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { adminRoutes } from './modules/admin/admin.routes.js'
+import { studentApplicationRoutes } from './modules/applications/applications.routes.js'
 import { authRoutes } from './modules/auth/auth.routes.js'
 import { healthRoutes } from './modules/health/health.routes.js'
 import {
@@ -36,6 +37,16 @@ apiRouter.use('/viec-lam', publicJobRoutes)
  * mới rơi xuống đây và xác thực lại lần nữa — chạy đúng nhưng thừa một lượt.
  */
 apiRouter.use('/toi/tin-da-luu', savedJobRoutes)
+
+/*
+ * Đơn ứng tuyển của chính sinh viên — cùng lý do đặt dưới `/toi` và cùng lý do
+ * phải khai TRƯỚC `/toi` như dòng trên.
+ *
+ * `jobId` đi trong body chứ không trên đường dẫn: `/viec-lam` phải giữ được
+ * tính chất "nhánh duy nhất không cần đăng nhập" ghi ở dưới.
+ */
+apiRouter.use('/toi/don-ung-tuyen', studentApplicationRoutes)
+
 apiRouter.use('/toi', profileRoutes)
 apiRouter.use('/ntd/tin-tuyen-dung', employerJobRoutes)
 apiRouter.use('/admin', adminRoutes)

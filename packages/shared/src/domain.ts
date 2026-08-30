@@ -233,3 +233,152 @@ export const DAY_FULL_LABELS: Record<DayOfWeek, string> = {
   5: 'Thứ Sáu',
   6: 'Thứ Bảy',
 }
+
+/* ========================================================== SPRINT 4 ==== */
+
+/**
+ * Nhãn TRẠNG THÁI — đơn này ĐANG ở đâu.
+ *
+ * Chuyển từ `apps/web/src/data/mock.ts` sang đây — bản cũ thiếu `WITHDRAWN` vì
+ * dữ liệu giả không có ca sinh viên rút đơn. Nhãn phải phủ hết enum, nếu không
+ * thì `Record` tra ra `undefined` và giao diện hiện một ô trống.
+ *
+ * `SHORTLISTED` đọc là "Đã mời phỏng vấn", KHÔNG phải "Vào vòng trong" (chốt
+ * 2026-08-29). Đối chiếu TopCV và các ATS quốc tế: cả ba mô hình đều có bước
+ * PHỎNG VẤN giữa "thích hồ sơ" và "nhận người", còn "vào vòng trong" thì không
+ * nói được đang chờ chuyện gì xảy ra. Mà chính `SHORTLISTED` là mốc mở khoá số
+ * điện thoại, tức là mốc NTD gọi đi hẹn gặp — nên nó vốn ĐÃ là bước phỏng vấn,
+ * chỉ thiếu tên đúng. Xem thêm chú thích `enum ApplicationStatus` ở schema.
+ */
+export const APPLICATION_STATUS_LABELS: Record<ApplicationStatus, string> = {
+  PENDING: 'Chờ xem',
+  VIEWED: 'Đã xem',
+  SHORTLISTED: 'Đã mời phỏng vấn',
+  ACCEPTED: 'Đã nhận',
+  REJECTED: 'Đã từ chối',
+  WITHDRAWN: 'Đã rút',
+}
+
+/**
+ * Nhãn HÀNH ĐỘNG — việc NTD sắp làm, đọc trên nút bấm.
+ *
+ * Tách khỏi bảng trên vì hai thứ khác nghĩa: nút là mệnh lệnh ("Mời phỏng vấn"),
+ * huy hiệu là sự thật hiện tại ("Đã mời phỏng vấn"). Dùng chung một bảng thì
+ * hoặc nút đọc như một lời kể, hoặc huy hiệu đọc như một mệnh lệnh.
+ */
+export const APPLICATION_ACTION_LABELS: Record<ApplicationStatus, string> = {
+  PENDING: 'Chờ xem',
+  VIEWED: 'Đánh dấu đã xem',
+  SHORTLISTED: 'Mời phỏng vấn',
+  /* Không nút nào gọi tới — `ACCEPTED` không đi tới được. Giữ nhãn để những
+     hàng có sẵn từ trước vẫn tra được tên. */
+  ACCEPTED: 'Nhận vào làm',
+  REJECTED: 'Từ chối',
+  WITHDRAWN: 'Rút đơn',
+}
+
+/**
+ * Việc NTD phải làm NGOÀI ứng dụng sau khi chuyển sang trạng thái này.
+ *
+ * Đây là chỗ vá lỗ hổng lớn nhất của luồng cũ: bấm "vào vòng trong" xong thì
+ * màn hình im lặng, không ai nói cho nhà tuyển dụng biết bước tiếp theo là gọi
+ * điện. Với việc part-time thì buổi gặp diễn ra ngoài app — app không sắp lịch
+ * hộ được, nhưng ít nhất phải NÓI RA rằng tới lượt họ.
+ */
+export const VIEC_TIEP_THEO: Partial<Record<ApplicationStatus, string>> = {
+  SHORTLISTED:
+    'Đã mở số điện thoại và email — phần còn lại diễn ra giữa bạn và ứng viên. ' +
+    'Nếu sau buổi gặp bạn không chọn bạn ấy, hãy quay lại bấm Từ chối để họ biết kết quả.',
+}
+
+/**
+ * Chuyển trạng thái nào là hợp lệ.
+ *
+ * Một nguồn sự thật cho CẢ HAI phía: service chặn, và giao diện chỉ vẽ nút cho
+ * bước đi được. Hai nơi tự giữ bảng riêng là cách sinh ra nút bấm vào thì báo
+ * lỗi — người dùng không hiểu vì sao hệ thống mời họ làm việc nó từ chối.
+ *
+ * Ba nguyên tắc đằng sau bảng này:
+ *
+ * 1. KHÔNG LÙI. `REJECTED` về `PENDING` là viết lại lịch sử, mà sinh viên thì
+ *    đã nhận thông báo từ chối rồi.
+ * 2. Trạng thái kết thúc không đi đâu nữa. Đổi ý sau đó là chuyện phải nói với
+ *    nhau, không phải một nút.
+ * 3. `VIEWED` bỏ qua được — NTD đọc hồ sơ rồi mời phỏng vấn luôn là chuyện
+ *    thường, bắt đi từng bước chỉ tạo thao tác thừa.
+ *
+ * ---------------------------------------------------------------------------
+ * `ACCEPTED` KHÔNG ĐI TỚI ĐƯỢC — CÓ CHỦ ĐÍCH, KHÔNG PHẢI SÓT
+ * ---------------------------------------------------------------------------
+ * Chốt 2026-08-29. UniWork KHÔNG phải một ATS: nó dừng ở chỗ bàn giao liên hệ,
+ * việc tuyển thật diễn ra giữa hai con người bên ngoài.
+ *
+ *     Nộp → NTD đọc hồ sơ → mời phỏng vấn / từ chối → mở liên hệ → NTD gọi
+ *
+ * Vì sao không giữ `ACCEPTED` làm "ghi sổ tuỳ tâm": nó chỉ đúng khi nhà tuyển
+ * dụng nhớ quay lại bấm sau một sự kiện xảy ra ngoài ứng dụng. Phần lớn sẽ
+ * không. Một con số "đã nhận" đúng chừng một phần ba còn TỆ HƠN không có, vì
+ * người đọc coi nó là sự thật. Đây đúng nguyên tắc `null ≠ 0` đã dùng xuyên
+ * suốt dự án, chỉ ở tầng hệ thống: đừng khẳng định thứ mình không đo được.
+ *
+ * NHƯNG `SHORTLISTED → REJECTED` thì GIỮ, và bất đối xứng đó là cố ý:
+ *
+ *   - Phỏng vấn xong mà ĐƯỢC NHẬN thì sinh viên tự biết — họ đi làm buổi đầu.
+ *   - Phỏng vấn xong mà BỊ TỪ CHỐI thì rất nhiều nơi im lặng luôn, và sinh viên
+ *     chờ mãi một câu trả lời không bao giờ tới. Đó chính là vấn nạn dự án này
+ *     sinh ra để giải, nên đường ghi lại lời từ chối phải luôn mở.
+ *
+ * Giá trị `ACCEPTED` vẫn nằm trong enum: xoá một giá trị enum của Postgres là
+ * migration đụng mọi hàng, để đổi lấy đúng một cái tên không ai gọi tới. Những
+ * hàng `ACCEPTED` có sẵn từ trước vẫn hiển thị bình thường.
+ */
+export const CHUYEN_TRANG_THAI_HOP_LE: Record<ApplicationStatus, ApplicationStatus[]> = {
+  PENDING: ['VIEWED', 'SHORTLISTED', 'REJECTED'],
+  VIEWED: ['SHORTLISTED', 'REJECTED'],
+  /* Không có `ACCEPTED` — xem chú thích dài ở trên, đây không phải chỗ bị sót. */
+  SHORTLISTED: ['REJECTED'],
+  ACCEPTED: [],
+  REJECTED: [],
+  WITHDRAWN: [],
+}
+
+/**
+ * Trạng thái sinh viên tự đặt được, và là trạng thái DUY NHẤT họ đặt được.
+ *
+ * Tách khỏi bảng trên vì bảng đó nói "đi từ đâu tới đâu được", còn cái này nói
+ * "ai được đi". Hai câu hỏi khác nhau: nhà tuyển dụng KHÔNG đặt được `WITHDRAWN`
+ * (rút đơn là quyền của người nộp), sinh viên KHÔNG đặt được gì khác ngoài nó.
+ */
+export const TRANG_THAI_CUA_SINH_VIEN: ApplicationStatus = 'WITHDRAWN'
+
+/** Đơn đã kết thúc, không rút được nữa. */
+export const TRANG_THAI_KET_THUC: ApplicationStatus[] = ['ACCEPTED', 'REJECTED', 'WITHDRAWN']
+
+/**
+ * Từ trạng thái nào thì nhà tuyển dụng thấy được số điện thoại và email.
+ *
+ * > "Không có quy tắc này thì app thành chỗ thu thập số điện thoại sinh viên —
+ * > đúng cái vấn nạn mà dự án muốn giải quyết." — README mục 5
+ *
+ * `WITHDRAWN` KHÔNG nằm trong danh sách kể cả khi đơn từng ở `SHORTLISTED`. NTD
+ * đã nhìn thấy số rồi, đóng lại không lấy được ký ức đó về — nhưng hệ thống thì
+ * không có lý do gì tiếp tục phát nó ra sau khi sinh viên đã rút.
+ */
+export const TRANG_THAI_MO_LIEN_HE: ApplicationStatus[] = ['SHORTLISTED', 'ACCEPTED']
+
+/**
+ * Trạng thái mà công việc của ỨNG DỤNG đã xong, dù kết quả tốt hay xấu.
+ *
+ * `SHORTLISTED` nằm ở đây chứ không nằm ở "đang chờ xử lý": liên hệ đã bàn giao,
+ * UniWork không còn việc gì để làm với hồ sơ đó. Đường `→ REJECTED` vẫn mở nhưng
+ * là để ghi lại kết quả sau buổi gặp, không phải một bước bắt buộc.
+ */
+export const TRANG_THAI_XONG_VIEC: ApplicationStatus[] = [
+  'SHORTLISTED',
+  'ACCEPTED',
+  'REJECTED',
+  'WITHDRAWN',
+]
+
+/** Trạng thái NTD còn phải xử lý — dùng cho tab mặc định ở màn hình ứng viên. */
+export const TRANG_THAI_DANG_XU_LY: ApplicationStatus[] = ['PENDING', 'VIEWED']

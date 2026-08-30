@@ -1,4 +1,5 @@
-import { Link, useParams } from 'react-router-dom'
+import { useState } from 'react'
+import { Link, useLocation, useParams } from 'react-router-dom'
 import {
   BadgeCheck,
   CalendarClock,
@@ -16,6 +17,7 @@ import { Card, CardHeader } from '@/components/ui/Card'
 import { BadgePhuHop } from '@/components/BadgePhuHop'
 import { LuoiKhungGio } from '@/components/LuoiKhungGio'
 import { NutLuuTin } from '@/components/NutLuuTin'
+import { DialogUngTuyen } from '@/components/DialogUngTuyen'
 import { useAvailability } from '@/hooks/useProfile'
 import { useAuth } from '@/hooks/useAuth'
 import { usePublicJob } from '@/hooks/usePublicJobs'
@@ -50,6 +52,9 @@ export function JobDetail() {
   const { id } = useParams()
   const { data: job, isLoading, isError } = usePublicJob(id)
 
+  const [moUngTuyen, setMoUngTuyen] = useState(false)
+  // Đường dẫn hiện tại để quay lại đúng tin này sau khi đăng nhập.
+  const duongDan = useLocation().pathname
   const { user } = useAuth()
   const laSinhVien = user?.role === 'STUDENT'
 
@@ -271,17 +276,39 @@ export function JobDetail() {
               </div>
             )}
 
-            {/* Ứng tuyển thuộc Sprint 4 — giữ nút để thấy trước hình dạng trang,
-                nhưng vô hiệu hoá và nói rõ, không để bấm vào rồi không có gì. */}
-            <Button size="lg" className="w-full" disabled>
-              <Send size={16} />
-              Ứng tuyển ngay
-            </Button>
-            <p className="mt-1.5 text-center text-xs text-slate-400">Có ở Sprint 4</p>
+{/*
+              Nút ứng tuyển chỉ dành cho SINH VIÊN đã đăng nhập.
 
-            {/* Đặt ngay dưới nút ứng tuyển: khi chưa nộp được (Sprint 4), lưu
-                lại là hành động duy nhất người dùng thật sự làm được ở đây. */}
-            <div className="mt-2">
+              Khách và nhà tuyển dụng thấy hai thứ khác nhau, và khác nhau có lý
+              do: khách CÓ THỂ ứng tuyển sau khi đăng nhập nên mời họ đăng nhập;
+              nhà tuyển dụng thì KHÔNG BAO GIỜ ứng tuyển được nên không hiện gì
+              cả. Hiện nút mờ cho họ là mời làm một việc không tồn tại.
+
+              Đây cũng là lý do không dùng `disabled` như bản Sprint 3: `disabled`
+              nghĩa là "chưa xong", còn ở đây là "không áp dụng cho bạn".
+            */}
+            {laSinhVien ? (
+              <>
+                <Button size="lg" className="w-full" onClick={() => setMoUngTuyen(true)}>
+                  <Send size={16} />
+                  Ứng tuyển ngay
+                </Button>
+                <DialogUngTuyen job={job} open={moUngTuyen} onOpenChange={setMoUngTuyen} />
+              </>
+            ) : !user ? (
+              <Link
+                to={`/dang-nhap?tiep=${encodeURIComponent(duongDan)}`}
+                className="block"
+              >
+                <Button size="lg" className="w-full">
+                  <Send size={16} />
+                  Đăng nhập để ứng tuyển
+                </Button>
+              </Link>
+            ) : null}
+
+            {/* Lưu tin chỉ có nghĩa với sinh viên; `NutLuuTin` tự ẩn với vai khác. */}
+            <div className={laSinhVien || !user ? 'mt-2' : ''}>
               <NutLuuTin job={job} coChu />
             </div>
 
@@ -337,7 +364,7 @@ export function JobDetail() {
 
             <p className="mt-4 flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">
               <CalendarClock size={14} className="mt-0.5 shrink-0" />
-              Thông tin liên hệ của bạn chỉ được gửi cho nhà tuyển dụng khi hồ sơ vào vòng trong.
+              Số điện thoại và email của bạn chỉ được gửi cho nhà tuyển dụng khi họ mời bạn phỏng vấn.
             </p>
           </Card>
         </aside>

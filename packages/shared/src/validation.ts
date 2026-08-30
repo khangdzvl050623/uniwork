@@ -1,6 +1,7 @@
 import { z } from 'zod'
-import { SIGNUP_ROLES } from './api.js'
+import { APPLICANT_SORTS, SIGNUP_ROLES } from './api.js'
 import {
+  APPLICATION_STATUSES,
   DAY_FULL_LABELS,
   JOB_STATUSES,
   PUBLIC_JOB_SORTS,
@@ -110,9 +111,94 @@ const chuoiTuyChon = (max: number, thongDiep?: string) =>
     .optional()
     .transform((v) => (v === '' ? null : v))
 
+const ngay = z.coerce.date()
+
+/**
+ * Ngày KHÔNG bắt buộc — và chuỗi rỗng phải hiểu là "để trống", không phải rác.
+ *
+ * `<input type="date">` để trống trả về `''`. Nếu đưa thẳng vào `z.coerce.date()`
+ * thì `new Date('')` ra Invalid Date và form báo "ngày không hợp lệ" cho một ô
+ * người dùng CỐ Ý không điền — đúng ba ô `startDate`, `endDate`, `workDate` mà
+ * mỗi loại lịch chỉ dùng một.
+ *
+ * Cùng một lớp lỗi với `chuoiTuyChon` ở phần hồ sơ: form HTML không có khái
+ * niệm "null", nó chỉ có chuỗi rỗng.
+ */
+const ngayTuyChon = z.preprocess((v) => (v === '' ? null : v), ngay.nullish())
+
+/**
+ * Số điện thoại Việt Nam.
+ *
+ * Cố ý LỎNG: 9–11 chữ số, cho phép khoảng trắng/dấu chấm/gạch ngang và tiền tố
+ * `+84`. Không kiểm đầu số nhà mạng — danh sách đó đổi theo từng đợt cấp phép,
+ * và một bộ lọc lỗi thời sẽ chặn oan người có số thật. Thứ cần chặn ở đây là
+ * lỗi gõ nhầm (thiếu số, dán cả câu chữ), không phải giả mạo.
+ *
+ * Chuẩn hoá về chuỗi chỉ có chữ số trước khi lưu: `0901 234 567` và
+ * `0901.234.567` là cùng một số, lưu hai dạng thì tra cứu và so sánh đều lệch.
+ */
+const soDienThoai = z
+  .string()
+  .trim()
+  .nullable()
+  .optional()
+  // `v == null` giữ nguyên CẢ `undefined` lẫn `null`, và phân biệt hai thứ đó
+  // là điều bắt buộc: `undefined` nghĩa là "không gửi trường này" nên Prisma bỏ
+  // qua, còn `null` nghĩa là "xoá số đi". Ép `undefined` thành `null` như bản
+  // đầu tôi viết sẽ XOÁ TRẮNG số điện thoại mỗi lần client gửi thiếu trường —
+  // và `chuoiTuyChon` bên trên vốn đã đúng theo nghĩa này.
+  .transform((v) => (v == null ? v : v.replace(/[\s.\-()]/g, '')))
+  .refine((v) => v == null || v === '' || /^(\+84|0)\d{8,10}$/.test(v), {
+    message: 'Số điện thoại không hợp lệ — ví dụ 0901234567',
+  })
+  .transform((v) => (v === '' ? null : v))
+
 export const studentProfileSchema = z.object({
   university: chuoiTuyChon(200),
   major: chuoiTuyChon(200),
+
+  /**
+   * Số điện thoại — thứ nhà tuyển dụng dùng để gọi hẹn sau khi mời phỏng vấn.
+   *
+   * Cột `phone` có trong `StudentProfile` từ Sprint 0 nhưng KHÔNG endpoint nào
+   * ghi vào, và cũng không ô nhập nào tồn tại: cả 6 hồ sơ thật đều `NULL`. Nên
+   * cơ chế mở khoá liên hệ ở Sprint 4 thực chất chỉ mở ra một email.
+   *
+   * Đây là cột chết thứ ba tìm được (sau `availableFrom`/`availableUntil`) —
+   * cùng một dạng lỗi: schema khai sẵn cho tương lai, tới lúc dùng thì không ai
+   * nhớ là nó chưa có đường ghi.
+   */
+  phone: soDienThoai,
+
+  /**
+   * Sinh viên còn đi làm được tới ngày nào.
+   *
+   * Đây là ĐẦU VÀO của thành phần `commitment` trong công thức chấm điểm
+   * (`chamDiemPhuHop`). Cột có trong `StudentProfile` từ Sprint 0 nhưng chưa
+   * từng có đường ghi — chỉ `seed.ts` đặt sẵn cho 3 hồ sơ mẫu.
+   *
+   * Hệ quả nếu để nguyên: MỌI sinh viên đăng ký thật đều `commitment:
+   * THIEU_DU_LIEU` vĩnh viễn, tức một phần ba công thức không bao giờ chạy. Ba
+   * hồ sơ seed có dữ liệu khiến lỗi này KHÔNG lộ ra khi test bằng tài khoản mẫu.
+   */
+  availableUntil: ngayTuyChon,
+
+  /**
+   * Mức lương mong muốn theo giờ.
+   *
+   * Chưa dùng để tính gì, nhưng đang bị TRẢ RA trong `StudentProfileResponse`
+   * như thể có ý nghĩa — nối đường ghi để nó nói thật thay vì luôn `null`.
+   *
+   * Trần 1 triệu/giờ: cao gấp nhiều lần mọi mức part-time thật (seed: 24–32k),
+   * đủ rộng để không chặn oan ai, đủ hẹp để bắt lỗi gõ thừa số 0.
+   */
+  expectedHourlyRate: z
+    .number()
+    .int('Mức lương phải là số nguyên')
+    .min(0, 'Mức lương không âm')
+    .max(1_000_000, 'Mức lương mong muốn không hợp lý')
+    .nullable()
+    .optional(),
   /**
    * Năm học 1..10. Trên 6 gần như không có, nhưng vẫn nới tới 10 cho các
    * chương trình dài và trường hợp học lại — chặn chặt quá thì người thật bị
@@ -288,21 +374,6 @@ export const jobShiftSchema = availabilitySlotSchema
  * `z.coerce.date()` chạy `new Date(giá trị)` rồi mới kiểm — chuỗi rác cho ra
  * Invalid Date và bị chặn ngay, không lọt xuống Prisma thành một lỗi khó đoán.
  */
-const ngay = z.coerce.date()
-
-/**
- * Ngày KHÔNG bắt buộc — và chuỗi rỗng phải hiểu là "để trống", không phải rác.
- *
- * `<input type="date">` để trống trả về `''`. Nếu đưa thẳng vào `z.coerce.date()`
- * thì `new Date('')` ra Invalid Date và form báo "ngày không hợp lệ" cho một ô
- * người dùng CỐ Ý không điền — đúng ba ô `startDate`, `endDate`, `workDate` mà
- * mỗi loại lịch chỉ dùng một.
- *
- * Cùng một lớp lỗi với `chuoiTuyChon` ở phần hồ sơ: form HTML không có khái
- * niệm "null", nó chỉ có chuỗi rỗng.
- */
-const ngayTuyChon = z.preprocess((v) => (v === '' ? null : v), ngay.nullish())
-
 const baseJobSchema = z.object({
   title: z.string().trim().min(10, 'Tiêu đề cần ít nhất 10 ký tự').max(150, 'Tiêu đề tối đa 150 ký tự'),
   description: z
@@ -650,3 +721,65 @@ export const publicJobQuerySchema = z
       })
     }
   })
+
+/* ------------------------------------------------- Ứng tuyển (Sprint 4) -- */
+
+/**
+ * POST /api/toi/don-ung-tuyen
+ *
+ * `jobId` nằm trong BODY chứ không trên đường dẫn, và đó là chủ đích: đường dẫn
+ * `/viec-lam/:id/ung-tuyen` trông tự nhiên hơn nhưng `/viec-lam` là nhánh DUY
+ * NHẤT của dự án không cần đăng nhập. Nhét một route bắt token vào đó là phá
+ * đúng tính chất mà `routes.ts` đang giữ.
+ */
+export const createApplicationSchema = z.object({
+  jobId: z.string().min(1, 'Thiếu tin tuyển dụng'),
+
+  /**
+   * Thư ngỏ. 2000 ký tự đủ cho một lá thư part-time tử tế mà không thành nơi
+   * dán cả CV vào — cùng bậc với `bio` của hồ sơ sinh viên.
+   */
+  coverLetter: chuoiTuyChon(2000, 'Thư ngỏ tối đa 2000 ký tự'),
+
+  /**
+   * CV nộp kèm. Chép lại đường dẫn tại thời điểm nộp chứ không trỏ sang hồ sơ —
+   * sinh viên thay CV sau đó thì đơn cũ vẫn phải giữ đúng file NTD đã đọc.
+   * Service tự lấy từ hồ sơ nếu bỏ trống.
+   */
+  cvUrl: chuoiTuyChon(500),
+})
+
+/**
+ * PUT /api/ntd/tin-tuyen-dung/:id/ung-vien/:applicationId/trang-thai
+ *
+ * Luật "từ chối phải kèm lý do" nằm ở đây chứ không ở database: CHECK không
+ * diễn đạt được "cột này bắt buộc KHI cột kia mang một giá trị nhất định" một
+ * cách dễ đọc, mà thông báo lỗi của CHECK thì không dùng được cho người dùng.
+ * Zod là tầng dịch ra câu tiếng Việt — đúng vai đã dùng xuyên suốt dự án.
+ *
+ * Vì sao bắt buộc: sinh viên nhận thông báo từ chối. Không có lý do thì họ nhận
+ * một câu trống rỗng và không học được gì cho lần nộp sau.
+ *
+ * KHÔNG kiểm "chuyển từ đâu tới đâu" ở đây — Zod chỉ thấy dữ liệu gửi lên, mà
+ * trạng thái hiện tại của đơn nằm trong database. Luật đó ở service.
+ */
+export const updateApplicationStatusSchema = z
+  .object({
+    status: z.enum(APPLICATION_STATUSES),
+    note: chuoiTuyChon(1000, 'Ghi chú tối đa 1000 ký tự'),
+  })
+  .superRefine((v, ctx) => {
+    if (v.status === 'REJECTED' && !v.note) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['note'],
+        message: 'Từ chối phải kèm lý do — sinh viên sẽ nhận được câu này',
+      })
+    }
+  })
+
+/** Tham số của GET danh sách ứng viên. */
+export const applicantQuerySchema = z.object({
+  status: z.enum(APPLICATION_STATUSES).optional(),
+  sort: z.enum(APPLICANT_SORTS).default('match'),
+})
