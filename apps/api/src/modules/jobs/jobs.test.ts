@@ -1550,16 +1550,16 @@ describe('GET /api/viec-lam — danh sách công khai', () => {
     expect(jobFindMany.mock.calls[0][0].where).toEqual({ status: 'OPEN' })
   })
 
-  it('chặn cứng 100 hàng, nhưng total vẫn là số thật', async () => {
-    // Không phải phân trang — chỉ là chặn để endpoint không bao giờ dump cả
-    // bảng. `total` cho giao diện biết mình đang xem một phần hay toàn bộ.
+  it('trang 2 nhận đúng phần tử tiếp theo, và giới hạn page size không vượt quá 100', async () => {
     jobFindMany.mockResolvedValue([HANG_JOB_PUBLIC])
     jobCount.mockResolvedValue(357)
 
-    const res = await request(createApp()).get('/api/viec-lam')
+    await request(createApp()).get('/api/viec-lam?page=2&limit=250')
 
-    expect(jobFindMany.mock.calls[0][0].take).toBe(100)
-    expect(res.body.data.total).toBe(357)
+    expect(jobFindMany.mock.calls[0][0]).toMatchObject({
+      skip: 100,
+      take: 100,
+    })
   })
 
   it('sắp xếp tin mới đăng lên đầu', async () => {

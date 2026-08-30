@@ -638,6 +638,15 @@ export const publicJobQuerySchema = z
     maxShiftsPerWeek: soDuongTuyChon(SO_O_MOI_TUAN),
     maxCommitmentMonths: soDuongTuyChon(60),
 
+    page: z.preprocess(
+      (v) => (v === '' || v === undefined || v === null ? 1 : Number(v)),
+      z.number().int().min(1).default(1),
+    ),
+    limit: z.preprocess(
+      (v) => (v === '' || v === undefined || v === null ? 100 : Number(v)),
+      z.number().int().min(1).default(100),
+    ),
+
     sort: z.enum(PUBLIC_JOB_SORTS).optional(),
   })
   .superRefine((val, ctx) => {

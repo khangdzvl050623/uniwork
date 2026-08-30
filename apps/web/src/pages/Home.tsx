@@ -206,7 +206,7 @@ export function Home() {
   const [jobTab, setJobTab] = useState(0)
   // Trang chủ chỉ khoe vài tin đầu; ai muốn xem hết thì sang /viec-lam.
   const { data: duLieuTin } = usePublicJobs({ district: JOB_TABS[jobTab].district })
-  const jobs = (duLieuTin?.jobs ?? []).slice(0, 6)
+  const jobs = (duLieuTin?.pages.flatMap((page) => page.jobs) ?? []).slice(0, 6)
 
   // Mọi con số hiện trên trang này đến từ đây, không chỗ nào ghi cứng. Hôm nay
   // là số mô phỏng, ngày api có endpoint đếm thì chỉ hook đổi — trang chủ không

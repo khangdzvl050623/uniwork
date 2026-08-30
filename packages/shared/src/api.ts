@@ -752,14 +752,14 @@ export interface PublicJobDetail extends PublicJobSummary {
 /**
  * GET /api/viec-lam
  *
- * `total` là số tin khớp bộ lọc, có thể LỚN HƠN `jobs.length` vì server chặn
- * cứng số hàng trả về. Phân trang thật thuộc Sprint 3, khi bộ lọc được dựng
- * lại — thêm `total` ngay từ bây giờ để lúc đó chỉ việc thêm `page`/`limit`
- * vào cùng object này, không phải đổi hình dạng response.
+ * `total` là số tin khớp bộ lọc. `page`/`limit` cho phép client tải dần từng
+ * phần nhỏ và kết hợp với `useInfiniteQuery` trên web.
  */
 export interface PublicJobListResponse {
   jobs: PublicJobSummary[]
   total: number
+  page: number
+  limit: number
 }
 
 /**
@@ -822,6 +822,11 @@ export interface PublicJobQuery {
   maxShiftsPerWeek?: number
   /** Số tháng cam kết tối đa người tìm việc nhận. Tin không quy định luôn qua. */
   maxCommitmentMonths?: number
+
+  /** Trang hiện tại. Mặc định là 1. */
+  page?: number
+  /** Số tin tối đa trên một trang. Mặc định là 100 và bị chặn tối đa 100. */
+  limit?: number
 
   sort?: PublicJobSort
 }
