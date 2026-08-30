@@ -47,10 +47,11 @@ export function JobList() {
   const daKhaiLich = Boolean(lichRanh?.slots.length)
   const dungDuocLichRanh = laSinhVien && daKhaiLich
 
-  const { data, isLoading, isError, error } = usePublicJobs({ ...boLoc, q, sort })
+  const { data, isLoading, isError, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    usePublicJobs({ ...boLoc, q, sort })
 
-  const jobs = data?.jobs ?? []
-  const total = data?.total ?? 0
+  const jobs = data?.pages.flatMap((page) => page.jobs) ?? []
+  const total = data?.pages[0]?.total ?? 0
 
   const coBoLoc =
     Boolean(q.trim()) ||
@@ -64,12 +65,7 @@ export function JobList() {
       <p className="mt-1 text-sm text-slate-500">
         {isLoading
           ? 'Đang tải…'
-          : /*
-             * `total` là số tin THẬT khớp bộ lọc, có thể lớn hơn số thẻ đang
-             * hiện vì server chặn cứng 100 hàng mỗi lần gọi. Nói rõ ra thay vì
-             * để người dùng đếm thẻ rồi tưởng chỉ có bấy nhiêu.
-             */
-            `Tìm thấy ${total} tin${total > jobs.length ? ` · đang hiện ${jobs.length}` : ''}`}
+          : `Tìm thấy ${total} tin${total > jobs.length ? ` · đang hiện ${jobs.length}` : ''}`}
       </p>
 
       {/*
@@ -228,6 +224,20 @@ export function JobList() {
               <JobCard key={job.id} job={job} />
             ))}
           </div>
+
+          {hasNextPage && (
+            <div className="mt-6 flex justify-center">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="min-w-36"
+              >
+                {isFetchingNextPage ? 'Đang tải…' : 'Tải thêm'}
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>
