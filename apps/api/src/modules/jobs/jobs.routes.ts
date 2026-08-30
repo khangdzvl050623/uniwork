@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { optionalAuth, requireAuth, requireRole } from '../../middlewares/auth.js'
 import { rateLimit } from '../../middlewares/rate-limit.js'
+import { employerApplicantRoutes } from '../applications/applications.routes.js'
 import {
   closeJobController,
   createJobController,
@@ -63,6 +64,18 @@ employerJobRoutes.post('/:id/dong', closeJobController)
 
 // Gui duyet: DRAFT -> PENDING. Doi NTD da duoc xac minh, xem submitJob().
 employerJobRoutes.post('/:id/gui-duyet', submitJobController)
+
+/*
+ * Ứng viên của một tin (Sprint 4).
+ *
+ * Gắn vào đây thay vì mount riêng ở `routes.ts`: hai endpoint đó đều bắt đầu
+ * bằng "một tin của tôi", nên chúng dùng chung đúng `requireAuth` +
+ * `requireRole('EMPLOYER')` đã khai ở đầu router này. Mount riêng thì phải chép
+ * lại hai middleware đó, và chép là sớm muộn có nơi quên.
+ *
+ * `mergeParams` bên trong router con để nó đọc được `:id` khai ở đây.
+ */
+employerJobRoutes.use('/:id/ung-vien', employerApplicantRoutes)
 
 /**
  * Duyệt tin — phía ADMIN.

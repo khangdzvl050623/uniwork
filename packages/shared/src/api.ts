@@ -1,4 +1,6 @@
+import type { MatchBreakdown } from './phu-hop.js'
 import type {
+  ApplicationStatus,
   DayOfWeek,
   DocumentType,
   JobStatus,
@@ -266,6 +268,8 @@ export interface StudentProfileResponse {
   /** Đường dẫn Cloudinary tới CV đã tải lên. null nghĩa là chưa có (T56). */
   cvUrl: string | null
   expectedHourlyRate: number | null
+  /** Còn đi làm được tới ngày nào — ISO. Đầu vào của thành phần `commitment`. */
+  availableUntil: string | null
   skills: SkillResponse[]
 }
 
@@ -275,6 +279,10 @@ export interface UpdateStudentProfileInput {
   major?: string | null
   year?: number | null
   bio?: string | null
+  /** Bỏ trống trường này (`undefined`) thì giữ nguyên; gửi `null` mới là xoá. */
+  phone?: string | null
+  availableUntil?: string | Date | null
+  expectedHourlyRate?: number | null
 }
 
 /**
@@ -875,4 +883,126 @@ export interface SavedJobListResponse {
 export interface SavedJobToggleResponse {
   jobId: string
   saved: boolean
+}
+
+/* ------------------------------------------------- Ứng tuyển (Sprint 4) -- */
+
+/** Một mốc trong lịch sử đơn. Dựng timeline từ đây, KHÔNG suy từ `status` hiện tại. */
+export interface ApplicationEventItem {
+  status: ApplicationStatus
+  note: string | null
+  createdAt: string
+}
+
+/**
+ * Đơn ứng tuyển, phần chung cho cả hai phía nhìn vào.
+ *
+ * `matchScore`/`matchBreakdown` là bản ĐÓNG BĂNG lúc nộp, không tính lại. Sinh
+ * viên đổi lịch rảnh sau đó thì con số này vẫn giữ nguyên — đó là chủ đích, và
+ * giao diện phải nói rõ "tính theo lịch rảnh lúc bạn nộp đơn" để họ không tưởng
+ * hệ thống tính sai.
+ */
+export interface ApplicationBase {
+  id: string
+  status: ApplicationStatus
+  coverLetter: string | null
+  cvUrl: string | null
+  matchScore: number | null
+  matchBreakdown: MatchBreakdown | null
+  /** Đời công thức đã dùng, ví dụ "v1". `null` với đơn có từ trước Sprint 4. */
+  matchAlgoVersion: string | null
+  createdAt: string
+  statusChangedAt: string | null
+}
+
+/**
+ * POST /api/toi/don-ung-tuyen — kết quả nộp đơn.
+ *
+ * Trả kèm `jobTitle` để giao diện hiện được câu xác nhận mà không phải gọi thêm
+ * một lượt lấy tin.
+ */
+export interface CreateApplicationResponse extends ApplicationBase {
+  jobId: string
+  jobTitle: string
+}
+
+/* --- Phía NHÀ TUYỂN DỤNG ------------------------------------------------ */
+
+/**
+ * Thông tin liên hệ của ứng viên.
+ *
+ * `null` nghĩa là CHƯA MỞ, và đó là lý do nó là một object riêng chứ không phải
+ * hai trường `phone?`/`email?` nằm phẳng trong `ApplicantItem`. Trường vắng mặt
+ * dễ bị đọc nhầm thành "sinh viên chưa điền"; một object `null` thì không đọc
+ * nhầm được, và kiểu TypeScript bắt phía web phải xử lý nhánh khoá.
+ *
+ * Lọc ở tầng `select` của Prisma chứ KHÔNG phải ẩn bằng CSS — trả về rồi ẩn thì
+ * mở DevTools là thấy.
+ */
+export interface ThongTinLienHe {
+  phone: string | null
+  email: string
+}
+
+/** Một ứng viên trong danh sách của nhà tuyển dụng. */
+export interface ApplicantItem extends ApplicationBase {
+  studentProfileId: string
+  fullName: string
+  university: string | null
+  major: string | null
+  year: number | null
+  /** Tên kỹ năng sinh viên khai. Rỗng = chưa khai. */
+  skills: string[]
+  /**
+   * `null` khi đơn chưa tới `SHORTLISTED` — xem `TRANG_THAI_MO_LIEN_HE`.
+   * Giao diện hiện ô khoá kèm câu chỉ đường, không giấu hẳn ô.
+   */
+  contact: ThongTinLienHe | null
+  /**
+   * Bước chuyển trạng thái NTD đi được từ đây.
+   *
+   * Server tính rồi trả sẵn thay vì để web tra `CHUYEN_TRANG_THAI_HOP_LE`: hai
+   * bên cùng đọc một bảng thì vẫn có thể lệch khi web dùng bản cũ đang cache.
+   * Trả từ server thì nút trên màn hình luôn là nút server sẽ nhận.
+   */
+  buocTiepTheo: ApplicationStatus[]
+}
+
+/** GET /api/ntd/tin-tuyen-dung/:id/ung-vien */
+export interface ApplicantListResponse {
+  jobId: string
+  jobTitle: string
+  applicants: ApplicantItem[]
+  total: number
+  /** Đếm theo từng trạng thái, để vẽ số trên tab mà không phải tải hết về đếm. */
+  demTheoTrangThai: Record<ApplicationStatus, number>
+}
+
+/** PUT /api/ntd/tin-tuyen-dung/:id/ung-vien/:applicationId/trang-thai */
+export interface UpdateApplicationStatusResponse {
+  applicant: ApplicantItem
+  /** Mốc vừa ghi, để web nối vào timeline mà không phải tải lại. */
+  event: ApplicationEventItem
+}
+
+/** Tham số lọc/sắp xếp danh sách ứng viên. */
+export const APPLICANT_SORTS = ['match', 'newest'] as const
+export type ApplicantSort = (typeof APPLICANT_SORTS)[number]
+
+export interface ApplicantQuery {
+  status?: ApplicationStatus
+  sort?: ApplicantSort
+}
+
+/* --- Dữ liệu vào ------------------------------------------------------- */
+
+export interface CreateApplicationInput {
+  jobId: string
+  coverLetter?: string | null
+  cvUrl?: string | null
+}
+
+export interface UpdateApplicationStatusInput {
+  status: ApplicationStatus
+  note?: string | null
 }

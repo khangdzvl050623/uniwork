@@ -49,6 +49,11 @@ export function Button({
     <button
       className={cn(
         'inline-flex items-center justify-center gap-2 rounded-lg font-medium',
+        // Nhãn nút KHÔNG BAO GIỜ được xuống dòng. Ô hẹp thì "Mời phỏng vấn" vỡ
+        // thành "Mời phỏng / vấn" — nút cao gấp đôi hàng xóm, cả hàng lệch nhau,
+        // và mắt phải ghép lại hai mảnh chữ mới đọc được một mệnh lệnh. Chữ dài
+        // quá thì rút ngắn chữ, không để trình duyệt tự bẻ.
+        'whitespace-nowrap',
         // Nút phải phản hồi ngay lúc ngón tay còn đang ấn xuống, chứ không phải
         // sau khi thả ra. Thu 3% kèm 150ms ease-out là đủ để cảm nhận được mà
         // không ai kịp gọi tên là "animation". Liệt kê thuộc tính tường minh

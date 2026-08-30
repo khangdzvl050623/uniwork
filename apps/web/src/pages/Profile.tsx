@@ -64,6 +64,9 @@ export function Profile() {
     // hai thứ đó, nên kiểu phải mang được cả ba.
     year: '' as string | number | null,
     bio: '',
+    phone: '',
+    availableUntil: '' as string | Date | null,
+    expectedHourlyRate: '' as string | number | null,
   })
 
   /*
@@ -81,6 +84,10 @@ export function Profile() {
     form.setValue('major', p.major ?? '')
     form.setValue('year', p.year ?? '')
     form.setValue('bio', p.bio ?? '')
+    form.setValue('phone', p.phone ?? '')
+    // `<input type="date">` chỉ nhận YYYY-MM-DD, không nhận ISO đầy đủ.
+    form.setValue('availableUntil', p.availableUntil ? p.availableUntil.slice(0, 10) : '')
+    form.setValue('expectedHourlyRate', p.expectedHourlyRate ?? '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me?.studentProfile, dat])
 
@@ -159,22 +166,85 @@ export function Profile() {
               />
             </div>
 
-            <Field
-              label="Năm học"
-              type="number"
-              min={1}
-              max={10}
-              placeholder="3"
-              className="sm:max-w-[9rem]"
-              value={String(form.values.year ?? '')}
-              onChange={(e) =>
-                // Ô số trống trả chuỗi rỗng, không phải 0. Ép sang `null` để
-                // schema hiểu là "chưa khai" thay vì "năm học số 0".
-                form.setValue('year', e.target.value === '' ? null : Number(e.target.value))
-              }
-              error={form.errors.year}
-              disabled={luuHoSo.isPending}
-            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              {/*
+                Ô số điện thoại — MỚI ở Sprint 4.
+
+                Cột `phone` có trong `StudentProfile` từ Sprint 0 và được đọc ở
+                nhiều nơi, nhưng chưa từng có đường ghi: không nằm trong Zod,
+                không nằm trong `update`, không có ô nhập. Cả 6 hồ sơ thật đều
+                rỗng — nên cơ chế mở khoá liên hệ của Sprint 4 thực chất chỉ mở
+                ra một địa chỉ email.
+
+                `hint` nói thẳng ai thấy và thấy khi nào: xin số điện thoại mà
+                không nói dùng làm gì là đúng thứ dự án này muốn thay thế.
+              */}
+              <Field
+                label="Số điện thoại"
+                type="tel"
+                autoComplete="tel"
+                inputMode="tel"
+                placeholder="0901234567"
+                hint="Chỉ hiện với nhà tuyển dụng sau khi họ mời bạn phỏng vấn"
+                value={String(form.values.phone ?? '')}
+                onChange={(e) => form.setValue('phone', e.target.value)}
+                error={form.errors.phone}
+                disabled={luuHoSo.isPending}
+              />
+              <Field
+                label="Năm học"
+                type="number"
+                min={1}
+                max={10}
+                placeholder="3"
+                value={String(form.values.year ?? '')}
+                onChange={(e) =>
+                  // Ô số trống trả chuỗi rỗng, không phải 0. Ép sang `null` để
+                  // schema hiểu là "chưa khai" thay vì "năm học số 0".
+                  form.setValue('year', e.target.value === '' ? null : Number(e.target.value))
+                }
+                error={form.errors.year}
+                disabled={luuHoSo.isPending}
+              />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              {/*
+                Hai ô MỚI ở Sprint 4, và `availableUntil` là ô quan trọng nhất
+                trang này.
+
+                Nó là đầu vào của thành phần `commitment` khi chấm điểm phù hợp.
+                Trước đây cột này chỉ `seed.ts` ghi, nên mọi sinh viên đăng ký
+                thật đều thiếu — một phần ba công thức không bao giờ chạy, mà
+                không có biểu hiện gì vì ba hồ sơ mẫu có sẵn dữ liệu.
+              */}
+              <Field
+                label="Đi làm được tới ngày"
+                type="date"
+                hint="Dùng để chấm mức phù hợp với tin yêu cầu cam kết dài"
+                value={String(form.values.availableUntil ?? '')}
+                onChange={(e) => form.setValue('availableUntil', e.target.value)}
+                error={form.errors.availableUntil}
+                disabled={luuHoSo.isPending}
+              />
+              <Field
+                label="Lương mong muốn (đ/giờ)"
+                type="number"
+                min={0}
+                step={1000}
+                placeholder="30000"
+                hint="Chưa dùng để lọc — chỉ để nhà tuyển dụng tham khảo"
+                value={String(form.values.expectedHourlyRate ?? '')}
+                onChange={(e) =>
+                  form.setValue(
+                    'expectedHourlyRate',
+                    e.target.value === '' ? null : Number(e.target.value),
+                  )
+                }
+                error={form.errors.expectedHourlyRate}
+                disabled={luuHoSo.isPending}
+              />
+            </div>
 
             <div>
               <label
