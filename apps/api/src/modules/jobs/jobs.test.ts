@@ -2118,9 +2118,11 @@ describe('GET /api/viec-lam — sắp xếp theo điểm', () => {
       .get('/api/viec-lam?sort=match&page=2&limit=2')
       .set('Authorization', `Bearer ${svToken}`)
 
-    // Có `skip` là database đã sắp theo `publishedAt` rồi cắt trước khi ta kịp
-    // chấm điểm — tin hợp lịch nhất nằm ngoài trang đó sẽ không bao giờ lên đầu.
-    expect(jobFindMany.mock.calls[0][0].skip).toBeUndefined()
+    // `skip` khác 0 nghĩa là database đã sắp theo `publishedAt` rồi cắt trước
+    // khi ta kịp chấm điểm — tin hợp lịch nhất nằm ngoài trang đó sẽ không bao
+    // giờ lên đầu. Trang 2 mà vẫn `skip: 0` + lấy trọn tập mới là đúng: phép
+    // cắt của nhánh này nằm ở `slice` phía sau, sau khi đã sắp.
+    expect(jobFindMany.mock.calls[0][0].skip).toBe(0)
     expect(jobFindMany.mock.calls[0][0].take).toBe(100)
   })
 

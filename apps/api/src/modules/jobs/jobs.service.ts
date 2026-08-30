@@ -1090,7 +1090,19 @@ export async function listPublicJobs(
        * vào khe giữa chúng và biến mất khỏi danh sách.
        */
       orderBy: [{ publishedAt: 'desc' }, { id: 'asc' }],
-      ...(sapTheoDiem ? { take: GIOI_HAN_CONG_KHAI } : { skip, take: limit }),
+      /*
+       * Ternary trên TỪNG trường, không phải spread có điều kiện.
+       *
+       * `...(dk ? { take: GIOI_HAN_CONG_KHAI } : { skip, take: limit })` cho ra
+       * một union hai hình dạng object, và vì `GIOI_HAN_CONG_KHAI` là literal
+       * `100` nên nhánh kia (`take: number`) không gán vào được — `tsc --noEmit`
+       * báo TS2345. Giữ một hình dạng duy nhất thì `take` rộng ra thành
+       * `number` và Prisma nhận bình thường.
+       *
+       * `skip: 0` tương đương không truyền `skip`.
+       */
+      skip: sapTheoDiem ? 0 : skip,
+      take: sapTheoDiem ? GIOI_HAN_CONG_KHAI : limit,
     }),
     prisma.job.count({ where }),
   ])
