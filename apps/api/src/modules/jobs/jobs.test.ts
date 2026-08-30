@@ -1550,25 +1550,38 @@ describe('GET /api/viec-lam — danh sách công khai', () => {
     expect(jobFindMany.mock.calls[0][0].where).toEqual({ status: 'OPEN' })
   })
 
-  it('trang 2 nhận đúng phần tử tiếp theo, và giới hạn page size không vượt quá 100', async () => {
+  it('trang 2 cắt đúng chỗ, page size không vượt quá 100, và total vẫn là số thật', async () => {
     jobFindMany.mockResolvedValue([HANG_JOB_PUBLIC])
     jobCount.mockResolvedValue(357)
 
-    await request(createApp()).get('/api/viec-lam?page=2&limit=250')
+    const res = await request(createApp()).get('/api/viec-lam?page=2&limit=250')
 
     expect(jobFindMany.mock.calls[0][0]).toMatchObject({
       skip: 100,
       take: 100,
     })
+    // `total` là số tin THẬT khớp bộ lọc, không phải số hàng trang này trả về —
+    // giao diện dựa vào nó để biết còn trang nữa hay không.
+    expect(res.body.data.total).toBe(357)
+    expect(res.body.data).toMatchObject({ page: 2, limit: 100 })
   })
 
-  it('sắp xếp tin mới đăng lên đầu', async () => {
+  it('sắp xếp tin mới đăng lên đầu, kèm khoá phụ để thứ tự ổn định giữa các trang', async () => {
     jobFindMany.mockResolvedValue([])
     jobCount.mockResolvedValue(0)
 
     await request(createApp()).get('/api/viec-lam')
 
-    expect(jobFindMany.mock.calls[0][0].orderBy).toEqual({ publishedAt: 'desc' })
+    /*
+     * `publishedAt` một mình KHÔNG đủ: `reviewJob` đặt mốc đó lúc duyệt nên
+     * admin duyệt liên tiếp là trùng mốc. Mỗi trang của "tải thêm" là một câu
+     * truy vấn riêng, các hàng trùng mốc không có thứ tự đảm bảo giữa hai câu —
+     * một tin sẽ hiện ở cả hai trang, hoặc rơi vào khe giữa chúng và mất hẳn.
+     */
+    expect(jobFindMany.mock.calls[0][0].orderBy).toEqual([
+      { publishedAt: 'desc' },
+      { id: 'asc' },
+    ])
   })
 
   it('scheduleType không có thật thì 400', async () => {
@@ -2092,6 +2105,43 @@ describe('GET /api/viec-lam — sắp xếp theo điểm', () => {
       'job-50',
       'job-0',
     ])
+  })
+
+  /*
+   * Ba ca dưới đây giữ đúng ràng buộc của tính năng 3 khi tính năng 5 (phân
+   * trang) chồng lên: chấm điểm và sắp xếp phải diễn ra TRƯỚC khi cắt trang.
+   * Commit 845f3c6 đẩy `skip`/`take` xuống SQL và làm hỏng đúng chỗ này, nhưng
+   * mọi test lúc đó vẫn xanh vì không ca nào chạy `sort=match` KÈM phân trang.
+   */
+  it('sort=match không để database cắt trang — lấy trọn tập rồi mới sắp', async () => {
+    await request(createApp())
+      .get('/api/viec-lam?sort=match&page=2&limit=2')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    // `skip` khác 0 nghĩa là database đã sắp theo `publishedAt` rồi cắt trước
+    // khi ta kịp chấm điểm — tin hợp lịch nhất nằm ngoài trang đó sẽ không bao
+    // giờ lên đầu. Trang 2 mà vẫn `skip: 0` + lấy trọn tập mới là đúng: phép
+    // cắt của nhánh này nằm ở `slice` phía sau, sau khi đã sắp.
+    expect(jobFindMany.mock.calls[0][0].skip).toBe(0)
+    expect(jobFindMany.mock.calls[0][0].take).toBe(100)
+  })
+
+  it('sort=match cắt trang SAU khi sắp, nên trang 2 là phần đuôi của thứ tự điểm', async () => {
+    const res = await request(createApp())
+      .get('/api/viec-lam?sort=match&page=2&limit=2')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    // Thứ tự sau khi sắp: job-100, job-50, job-0. Trang 2 (limit 2) là phần còn lại.
+    expect(res.body.data.jobs.map((j: { id: string }) => j.id)).toEqual(['job-0'])
+    expect(res.body.data).toMatchObject({ page: 2, limit: 2, total: 3 })
+  })
+
+  it('sort=match trang 1 lấy đúng số hàng của limit, không trả cả tập', async () => {
+    const res = await request(createApp())
+      .get('/api/viec-lam?sort=match&page=1&limit=2')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.body.data.jobs.map((j: { id: string }) => j.id)).toEqual(['job-100', 'job-50'])
   })
 
   it('không truyền sort thì GIỮ NGUYÊN thứ tự publishedAt của database', async () => {

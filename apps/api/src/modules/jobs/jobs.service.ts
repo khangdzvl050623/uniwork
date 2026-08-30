@@ -1058,15 +1058,51 @@ export async function listPublicJobs(
   const limit = Math.min(query.limit ?? GIOI_HAN_CONG_KHAI, GIOI_HAN_CONG_KHAI)
   const skip = (page - 1) * limit
 
+  /*
+   * Sắp theo điểm phù hợp thì KHÔNG được để database cắt trang.
+   *
+   * Điểm phù hợp tính bằng JS sau khi đã lấy dữ liệu về (xem khối `sort` bên
+   * dưới). Nếu để `skip`/`take` chạy trong SQL, database sắp theo `publishedAt`
+   * rồi cắt trước, ta chỉ còn chấm điểm trên một trang đã cắt sai — tin hợp
+   * lịch 100% nằm ở vị trí 150 theo ngày đăng không bao giờ lên đầu, nó thậm
+   * chí không có mặt trong tập được sắp.
+   *
+   * Nên nhánh `match` lấy trọn tập kết quả (trần `GIOI_HAN_CONG_KHAI`) rồi cắt
+   * bằng JS sau khi sắp. Các sort khác giữ nguyên phân trang trong SQL vì thứ
+   * tự của chúng do chính database quyết định, cắt sớm không sai gì.
+   */
+  const sapTheoDiem = query.sort === 'match'
+
   // Đếm và lấy trong cùng một transaction để `total` không lệch với danh sách
   // khi có tin được duyệt xen vào giữa hai câu truy vấn.
   const [rows, total] = await prisma.$transaction([
     prisma.job.findMany({
       where,
       select: CHON_JOB_PUBLIC,
-      orderBy: { publishedAt: 'desc' },
-      skip,
-      take: limit,
+      /*
+       * Khoá phụ `id` là BẮT BUỘC, không phải cho đẹp.
+       *
+       * `publishedAt` một mình không phải khoá sắp xếp duy nhất: `reviewJob`
+       * đặt `publishedAt = new Date()` lúc duyệt, admin duyệt liên tiếp một
+       * loạt tin thì trùng mốc là chuyện thường. Với mô hình "tải thêm", mỗi
+       * trang là một câu truy vấn RIÊNG — các hàng trùng mốc không có thứ tự
+       * đảm bảo giữa hai câu, nên một tin có thể hiện ở cả hai trang, hoặc rơi
+       * vào khe giữa chúng và biến mất khỏi danh sách.
+       */
+      orderBy: [{ publishedAt: 'desc' }, { id: 'asc' }],
+      /*
+       * Ternary trên TỪNG trường, không phải spread có điều kiện.
+       *
+       * `...(dk ? { take: GIOI_HAN_CONG_KHAI } : { skip, take: limit })` cho ra
+       * một union hai hình dạng object, và vì `GIOI_HAN_CONG_KHAI` là literal
+       * `100` nên nhánh kia (`take: number`) không gán vào được — `tsc --noEmit`
+       * báo TS2345. Giữ một hình dạng duy nhất thì `take` rộng ra thành
+       * `number` và Prisma nhận bình thường.
+       *
+       * `skip: 0` tương đương không truyền `skip`.
+       */
+      skip: sapTheoDiem ? 0 : skip,
+      take: sapTheoDiem ? GIOI_HAN_CONG_KHAI : limit,
     }),
     prisma.job.count({ where }),
   ])
@@ -1080,19 +1116,19 @@ export async function listPublicJobs(
    * SẮP THEO ĐIỂM LÀM BẰNG JS, VÀ VÌ SAO ĐIỀU ĐÓ ĐÚNG Ở ĐÂY
    * ---------------------------------------------------------------------------
    * Nhìn qua thì sắp bằng JS là sai: sắp một trang thì chỉ đúng trong trang đó.
-   * Ở đây không sai, vì `take: GIOI_HAN_CONG_KHAI` lấy về TOÀN BỘ tập kết quả
-   * chứ không phải một trang — endpoint này chưa có phân trang. Sắp trên toàn
-   * tập cho thứ tự đúng.
+   * Ở đây không sai, vì khi `sort=match` thì `findMany` bên trên KHÔNG cắt
+   * trang — nó lấy trọn tập kết quả (trần `GIOI_HAN_CONG_KHAI`), sắp trên toàn
+   * tập, rồi mới cắt bằng `slice` ngay dưới đây.
    *
-   * ⚠ KHI LÀM PHÂN TRANG (tính năng 5): phép cắt trang phải diễn ra SAU bước
-   * chấm điểm và sắp xếp ở đây, không được đẩy thành `skip`/`take` trong SQL.
-   * Đẩy xuống SQL thì database sắp theo `publishedAt` rồi mới cắt, và ta chấm
-   * điểm trên một trang đã bị cắt sai — kết quả trông vẫn hợp lý nên sẽ không
-   * ai nhận ra.
+   * ⚠ ĐỪNG đẩy phép cắt của nhánh này thành `skip`/`take` trong SQL cho "gọn".
+   * Database sắp theo `publishedAt` rồi mới cắt, ta sẽ chấm điểm trên một trang
+   * đã bị cắt sai — kết quả trông vẫn hợp lý nên sẽ không ai nhận ra. Đó đúng
+   * là lỗi đã xảy ra một lần ở commit thêm phân trang (845f3c6).
    *
-   * Tính điểm trong SQL (`$queryRaw`) sẽ gỡ được ràng buộc đó, đổi lại phải chép
-   * toàn bộ mệnh đề lọc ở trên sang SQL viết tay và giữ hai bản khớp nhau mãi
-   * mãi. Không đáng ở quy mô này.
+   * Trần `GIOI_HAN_CONG_KHAI` là cái giá của cách làm này: quá 100 tin khớp bộ
+   * lọc thì nhánh `match` không với tới phần dư. Gỡ được bằng cách tính điểm
+   * trong SQL (`$queryRaw`), đổi lại phải chép toàn bộ mệnh đề lọc ở trên sang
+   * SQL viết tay và giữ hai bản khớp nhau mãi mãi. Không đáng ở quy mô này.
    */
   if (query.sort === 'match') {
     /*
@@ -1114,7 +1150,9 @@ export async function listPublicJobs(
     )
   }
 
-  return { jobs, total, page, limit }
+  // Cắt trang cho nhánh `match` diễn ra ở ĐÂY, sau khi đã sắp trên toàn tập.
+  // Các sort khác đã được SQL cắt sẵn nên `jobs` chính là trang cần trả.
+  return { jobs: sapTheoDiem ? jobs.slice(skip, skip + limit) : jobs, total, page, limit }
 }
 
 /**
