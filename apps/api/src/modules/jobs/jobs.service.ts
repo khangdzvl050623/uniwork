@@ -905,6 +905,18 @@ function dungBoLoc(
 ): Prisma.JobWhereInput {
   const dieuKien: Prisma.JobWhereInput[] = []
 
+  if (query.q) {
+    const q = query.q.trim()
+    if (q) {
+      dieuKien.push({
+        OR: [
+          { title: { contains: q, mode: 'insensitive' } },
+          { description: { contains: q, mode: 'insensitive' } },
+        ],
+      })
+    }
+  }
+
   /*
    * Lọc theo lịch rảnh: giới hạn vào danh sách id ĐỦ ĐIỀU KIỆN đã tính sẵn.
    *
@@ -989,14 +1001,10 @@ function dungBoLoc(
 }
 
 /**
- * Số hàng tối đa trả về trong một lần gọi.
+ * Kích thước một trang danh sách công khai.
  *
- * KHÔNG phải phân trang — chỉ là chặn cứng để endpoint này không bao giờ dump
- * cả bảng dù nó phình tới đâu. Phân trang thật thuộc Sprint 3, khi bộ lọc được
- * dựng lại và mới quyết được là "trang số" hay "tải thêm".
- *
- * `total` trong response vẫn là số tin THẬT khớp bộ lọc, nên giao diện biết
- * được mình đang xem một phần hay toàn bộ.
+ * Với mô hình "tải thêm", đây là số hàng tối đa mỗi request trả về, đồng thời
+ * là giới hạn tối đa cho `limit` query string do client truyền vào.
  */
 const GIOI_HAN_CONG_KHAI = 100
 
@@ -1046,6 +1054,10 @@ export async function listPublicJobs(
 
   const where = dungBoLoc(query, idDuDieuKien)
 
+  const page = query.page ?? 1
+  const limit = Math.min(query.limit ?? GIOI_HAN_CONG_KHAI, GIOI_HAN_CONG_KHAI)
+  const skip = (page - 1) * limit
+
   // Đếm và lấy trong cùng một transaction để `total` không lệch với danh sách
   // khi có tin được duyệt xen vào giữa hai câu truy vấn.
   const [rows, total] = await prisma.$transaction([
@@ -1053,7 +1065,8 @@ export async function listPublicJobs(
       where,
       select: CHON_JOB_PUBLIC,
       orderBy: { publishedAt: 'desc' },
-      take: GIOI_HAN_CONG_KHAI,
+      skip,
+      take: limit,
     }),
     prisma.job.count({ where }),
   ])
@@ -1101,7 +1114,7 @@ export async function listPublicJobs(
     )
   }
 
-  return { jobs, total }
+  return { jobs, total, page, limit }
 }
 
 /**

@@ -685,6 +685,12 @@ const danhSachIdTuyChon = z
 
 export const publicJobQuerySchema = z
   .object({
+    q: z
+      .string()
+      .trim()
+      .optional()
+      .transform((v) => (v === '' ? undefined : v)),
+
     city: locTuyChon,
     district: locTuyChon,
     scheduleType: z.enum(SCHEDULE_TYPES).optional(),
@@ -702,6 +708,15 @@ export const publicJobQuerySchema = z
     // Trần là số ô tối đa một tuần chứa được, suy ra từ `TIME_SLOTS`.
     maxShiftsPerWeek: soDuongTuyChon(SO_O_MOI_TUAN),
     maxCommitmentMonths: soDuongTuyChon(60),
+
+    page: z.preprocess(
+      (v) => (v === '' || v === undefined || v === null ? 1 : Number(v)),
+      z.number().int().min(1).default(1),
+    ),
+    limit: z.preprocess(
+      (v) => (v === '' || v === undefined || v === null ? 100 : Number(v)),
+      z.number().int().min(1).default(100),
+    ),
 
     sort: z.enum(PUBLIC_JOB_SORTS).optional(),
   })

@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import type { PublicJobDetail, PublicJobListResponse, PublicJobQuery } from '@uniwork/shared'
 import { apiFetch } from '@/lib/api'
 
@@ -22,6 +22,7 @@ import { apiFetch } from '@/lib/api'
  * cho thống nhất với mặc định — đó là hai loại dữ liệu khác nhau.
  */
 const TUOI_TOI_DA = 15_000
+const DEFAULT_PAGE_SIZE = 100
 
 /**
  * Đổi bộ lọc thành query string.
@@ -33,6 +34,7 @@ const TUOI_TOI_DA = 15_000
 function chuoiTruyVan(query: PublicJobQuery): string {
   const p = new URLSearchParams()
 
+  if (query.q) p.set('q', query.q.trim())
   if (query.city) p.set('city', query.city)
   if (query.district) p.set('district', query.district)
   if (query.scheduleType) p.set('scheduleType', query.scheduleType)
@@ -59,18 +61,34 @@ function chuoiTruyVan(query: PublicJobQuery): string {
 
   // `newest` là mặc định của server — không gửi để URL không mang thông tin thừa.
   if (query.sort && query.sort !== 'newest') p.set('sort', query.sort)
+  if (query.page !== undefined) p.set('page', String(query.page))
+  if (query.limit !== undefined) p.set('limit', String(query.limit))
 
   const s = p.toString()
   return s ? `?${s}` : ''
 }
 
 export function usePublicJobs(query: PublicJobQuery = {}) {
-  return useQuery({
+  return useInfiniteQuery({
     // Bộ lọc nằm trong khoá: đổi quận là một truy vấn khác, không phải cùng một
     // truy vấn với dữ liệu mới. Thiếu nó thì kết quả quận cũ nằm lại trên màn
     // hình cho tới khi request mới về.
     queryKey: ['viec-lam', query],
-    queryFn: () => apiFetch<PublicJobListResponse>(`/api/viec-lam${chuoiTruyVan(query)}`),
+    initialPageParam: 1,
+    queryFn: ({ pageParam }) =>
+      apiFetch<PublicJobListResponse>(
+        `/api/viec-lam${chuoiTruyVan({
+          ...query,
+          page: Number(pageParam),
+          limit: query.limit ?? DEFAULT_PAGE_SIZE,
+        })}`,
+      ),
+    getNextPageParam: (lastPage, allPages) => {
+      if (lastPage.jobs.length < lastPage.limit) return undefined
+      const loaded = allPages.reduce((sum, page) => sum + page.jobs.length, 0)
+      if (loaded >= lastPage.total) return undefined
+      return allPages.length + 1
+    },
     staleTime: TUOI_TOI_DA,
   })
 }
