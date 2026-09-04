@@ -1,0 +1,4 @@
+# Mọi PR vào nhánh main đều phải có approval của owner.
+# Rule "Require review from Code Owners" đang bật cho main,
+# nên approve chéo giữa các thành viên không thay thế được approval này.
+* @khangdzvl050623

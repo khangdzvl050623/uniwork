@@ -1,0 +1,10 @@
+{
+  "extends": "@uniwork/config/tsconfig/vite-app.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src"]
+}

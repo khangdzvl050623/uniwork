@@ -1,0 +1,10 @@
+{
+  "extends": "@uniwork/config/tsconfig/node-app.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./src/*"]
+    }
+  },
+  "include": ["src", "prisma", "scripts"]
+}

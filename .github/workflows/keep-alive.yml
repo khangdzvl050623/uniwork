@@ -1,0 +1,111 @@
+# Giữ cho API trên Render khỏi ngủ.
+#
+# Gói free của Render cho service ngủ sau khoảng 15 phút không có lưu lượng từ
+# bên ngoài. Đánh thức lại mất 30–50 giây — đủ lâu để người chấm đồ án tưởng
+# trang web hỏng và đóng tab.
+#
+# ĐÂY LÀ PHƯƠNG ÁN DỰ PHÒNG, không phải phương án chính. Lịch chạy của GitHub
+# Actions chỉ là "chạy sớm nhất có thể" chứ không đúng giờ: lúc hệ thống bận,
+# một lịch 10 phút có thể trượt thành 30 phút. Ngoài ra GitHub tự tắt lịch của
+# repo không có hoạt động nào suốt 60 ngày — đúng lúc nghỉ hè thì nó im lặng
+# dừng. Phương án chính là cron-job.org, xem README.
+#
+# Repo đang để public nên số phút chạy Actions là miễn phí không giới hạn. Nếu
+# sau này chuyển sang private, hãy tắt phần `schedule` bên dưới: 144 lượt chạy
+# mỗi ngày sẽ ăn hết hạn mức 2000 phút/tháng của gói free.
+
+name: keep-alive
+
+on:
+  schedule:
+    # Mỗi 10 phút — ngắn hơn mốc 15 phút mà Render cho ngủ, chừa biên độ cho
+    # việc lịch bị trượt. NHƯNG chỉ trong khung giờ người ta thật sự dùng.
+    #
+    # -------------------------------------------------------------------------
+    # VÌ SAO KHÔNG PING 24/7 — BÀI HỌC TRẢ BẰNG MỘT LẦN BỊ TREO SERVICE
+    # -------------------------------------------------------------------------
+    # Bản đầu để `*/10 * * * *`, tức ping mọi giờ. Nó làm đúng việc được giao:
+    # service không bao giờ ngủ. Vấn đề là gói free Render chỉ cho 750
+    # GIỜ CHẠY mỗi tháng, mà một tháng 31 ngày có 744 giờ — service thức 24/7
+    # tiêu gần hết hạn mức chỉ bằng việc tồn tại, chừa lại đúng 6 giờ biên.
+    #
+    # Ngày 25/08/2026 tài khoản chạm 767,75/750 giờ và Render treo service. API
+    # chết hoàn toàn cho tới đầu tháng sau.
+    #
+    # Hai thứ đó loại trừ nhau: KHÔNG THỂ vừa giữ thức 24/7 vừa nằm trong 750
+    # giờ. Phải chọn, và lựa chọn đúng là giữ thức trong khung giờ có người
+    # dùng, chấp nhận cold start 50 giây lúc 3 giờ sáng.
+    #
+    # `0-16` là giờ UTC. Việt Nam là UTC+7 nên tương ứng 07:00–23:59 giờ VN:
+    # 17 giờ/ngày × 31 = 527 giờ/tháng, dư biên cho cả build và service khác.
+    #
+    # Cần thức ngoài khung (demo sớm, bảo vệ buổi sáng): bấm "Run workflow" ở
+    # tab Actions — `workflow_dispatch` bên dưới cho phép chạy tay bất cứ lúc nào.
+    #
+    # ⚠ Hạn mức 750 giờ tính THEO TÀI KHOẢN, không theo service. Có bao nhiêu
+    # service free đang chạy thì chúng chia nhau ngần ấy giờ — xoá service không
+    # dùng nữa cũng là một cách tiết kiệm.
+    - cron: '*/10 0-16 * * *'
+  workflow_dispatch:
+
+# Chỉ đọc, không cần quyền ghi vào repo.
+permissions:
+  contents: read
+
+# Nếu lượt trước còn đang chạy thì bỏ lượt này, tránh xếp hàng chồng chất khi
+# API đang chậm.
+concurrency:
+  group: keep-alive
+  cancel-in-progress: false
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Gọi /api/health
+        env:
+          API_URL: ${{ vars.API_URL }}
+        run: |
+          if [ -z "$API_URL" ]; then
+            echo "Chưa đặt repository variable API_URL."
+            echo "Settings → Secrets and variables → Actions → Variables → New."
+            echo "Bỏ qua lượt này, không tính là lỗi."
+            exit 0
+          fi
+
+          echo "Đang gọi ${API_URL}/api/health"
+
+          # --max-time 90: instance đang ngủ cần 30-50 giây mới trả lời, đặt
+          # ngắn hơn là tự tạo ra lỗi giả.
+          # --retry 2 --retry-all-errors: mạng chập chờn một nhịp không đáng
+          # làm đỏ cả workflow.
+          # -w: in mã HTTP và thời gian phản hồi — con số này chính là dữ liệu
+          # cho T26 đo cold start, khỏi phải bấm giờ tay.
+          response=$(curl -sS \
+            --max-time 90 \
+            --retry 2 \
+            --retry-all-errors \
+            -o /tmp/body.json \
+            -w '%{http_code} %{time_total}' \
+            "${API_URL}/api/health")
+
+          code=$(echo "$response" | cut -d' ' -f1)
+          seconds=$(echo "$response" | cut -d' ' -f2)
+
+          echo "Mã HTTP: $code"
+          echo "Thời gian phản hồi: ${seconds}s"
+          echo "Nội dung: $(cat /tmp/body.json)"
+
+          # Ghi vào phần tóm tắt của lần chạy để xem lịch sử mà không phải mở log.
+          {
+            echo "| Thời điểm | Mã HTTP | Thời gian |"
+            echo "|---|---|---|"
+            echo "| $(date -u '+%H:%M UTC') | $code | ${seconds}s |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$code" != "200" ]; then
+            echo "::error::API không trả về 200 — có thể deploy đã hỏng."
+            exit 1
+          fi
