@@ -3,8 +3,11 @@ import { requireAuth, requireRole } from '../../middlewares/auth.js'
 import { rateLimit } from '../../middlewares/rate-limit.js'
 import {
   createApplicationController,
+  getStudentApplicationController,
+  listStudentApplicationsController,
   listApplicantsController,
   updateApplicationStatusController,
+  withdrawApplicationController,
 } from './applications.controller.js'
 
 /**
@@ -44,6 +47,9 @@ const nopDonLimit = rateLimit({
 })
 
 studentApplicationRoutes.post('/', nopDonLimit, createApplicationController)
+studentApplicationRoutes.get('/', listStudentApplicationsController)
+studentApplicationRoutes.get('/:applicationId', getStudentApplicationController)
+studentApplicationRoutes.delete('/:applicationId', withdrawApplicationController)
 
 /**
  * Ứng viên của một tin, phía NHÀ TUYỂN DỤNG.

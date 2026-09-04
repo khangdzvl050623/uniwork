@@ -35,6 +35,23 @@ export const createApplicationController: RequestHandler = async (req, res) => {
   ok(res, await applicationsService.createApplication(userId, input), 201)
 }
 
+export const listStudentApplicationsController: RequestHandler = async (req, res) => {
+  const userId = requireUserId(req)
+  ok(res, await applicationsService.listStudentApplications(userId))
+}
+
+export const getStudentApplicationController: RequestHandler = async (req, res) => {
+  const userId = requireUserId(req)
+  const { applicationId } = parse(z.object({ applicationId: z.string().min(1) }), req.params)
+  ok(res, await applicationsService.getStudentApplication(userId, applicationId))
+}
+
+export const withdrawApplicationController: RequestHandler = async (req, res) => {
+  const userId = requireUserId(req)
+  const { applicationId } = parse(z.object({ applicationId: z.string().min(1) }), req.params)
+  ok(res, await applicationsService.withdrawApplication(userId, applicationId))
+}
+
 /* ------------------------------------------------- NTD xem ứng viên ----- */
 
 /*

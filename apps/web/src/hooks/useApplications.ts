@@ -5,12 +5,36 @@ import type {
   ApplicationStatus,
   CreateApplicationInput,
   CreateApplicationResponse,
+  StudentApplicationListResponse,
+  WithdrawApplicationResponse,
   UpdateApplicationStatusResponse,
 } from '@uniwork/shared'
 import { apiFetch } from '@/lib/api'
 
 const KHOA_DON = ['toi', 'don-ung-tuyen'] as const
 const KHOA_UNG_VIEN = ['ntd', 'ung-vien'] as const
+
+export function useMyApplications() {
+  return useQuery({
+    queryKey: KHOA_DON,
+    queryFn: () =>
+      apiFetch<StudentApplicationListResponse>('/api/toi/don-ung-tuyen'),
+    staleTime: 0,
+  })
+}
+
+export function useWithdrawApplication() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (applicationId: string) =>
+      apiFetch<WithdrawApplicationResponse>(`/api/toi/don-ung-tuyen/${applicationId}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: KHOA_DON })
+    },
+  })
+}
 
 /**
  * Nộp đơn ứng tuyển.

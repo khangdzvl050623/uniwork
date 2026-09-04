@@ -926,6 +926,62 @@ export interface CreateApplicationResponse extends ApplicationBase {
   jobTitle: string
 }
 
+/** Một đơn của sinh viên, kèm tin tuyển dụng và toàn bộ timeline. */
+export interface StudentApplicationItem extends ApplicationBase {
+  jobId: string
+  jobTitle: string
+  companyName: string
+  /** Tóm tắt tin theo cùng hình dạng các thẻ việc làm. */
+  job: {
+    id: string
+    title: string
+    employer: { companyName: string; verified: boolean }
+  }
+  events: ApplicationEventItem[]
+}
+
+/** GET /api/toi/don-ung-tuyen */
+export interface StudentApplicationListResponse {
+  applications: StudentApplicationItem[]
+  total: number
+}
+
+/** DELETE /api/toi/don-ung-tuyen/:applicationId */
+export interface WithdrawApplicationResponse {
+  application: StudentApplicationItem
+  event: ApplicationEventItem
+}
+
+/* --------------------------------------------------- Thông báo ----------- */
+
+export type NotificationType = 'APPLICATION_SUBMITTED' | 'APPLICATION_STATUS_CHANGED'
+
+export interface NotificationItem {
+  id: string
+  type: NotificationType
+  title: string
+  body: string
+  link: string | null
+  readAt: string | null
+  createdAt: string
+}
+
+/** GET /api/thong-bao */
+export interface NotificationListResponse {
+  notifications: NotificationItem[]
+  unreadCount: number
+}
+
+/** PATCH /api/thong-bao/:id/da-doc */
+export interface MarkNotificationReadResponse {
+  notification: NotificationItem
+}
+
+/** PATCH /api/thong-bao/doc-tat-ca */
+export interface MarkAllNotificationsReadResponse {
+  updated: number
+}
+
 /* --- Phía NHÀ TUYỂN DỤNG ------------------------------------------------ */
 
 /**

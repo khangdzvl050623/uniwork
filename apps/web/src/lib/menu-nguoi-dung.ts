@@ -1,4 +1,4 @@
-import { Bookmark, CalendarDays, LayoutDashboard, ShieldCheck, UserRound } from 'lucide-react'
+import { Bookmark, BriefcaseBusiness, CalendarDays, LayoutDashboard, ShieldCheck, UserRound } from 'lucide-react'
 import type { Role } from '@uniwork/shared'
 
 /**
@@ -17,6 +17,7 @@ export const MENU_THEO_VAI: Record<
     { to: '/ho-so', label: 'Hồ sơ của tôi', icon: UserRound },
     { to: '/lich-ranh', label: 'Lịch rảnh', icon: CalendarDays },
     { to: '/tin-da-luu', label: 'Tin đã lưu', icon: Bookmark },
+    { to: '/don-ung-tuyen', label: 'Đơn của tôi', icon: BriefcaseBusiness },
   ],
   EMPLOYER: [
     { to: '/ntd/ho-so', label: 'Hồ sơ doanh nghiệp', icon: UserRound },
@@ -52,6 +53,7 @@ export const NAV_THEO_VAI: Record<Role, MucNav[]> = {
     // mục này về /dang-ky là có chủ đích (mời đăng ký), nhưng giữ nguyên cho
     // người đã có tài khoản thì thành gửi họ về lại trang đăng ký.
     { to: '/ho-so', label: 'Hồ sơ & CV' },
+    { to: '/don-ung-tuyen', label: 'Đơn của tôi' },
   ],
   EMPLOYER: [
     { to: '/viec-lam', label: 'Việc làm' },

@@ -15,11 +15,18 @@ import type {
   CreateApplicationResponse,
   DayOfWeek,
   MatchBreakdown,
+  StudentApplicationItem,
+  StudentApplicationListResponse,
   UpdateApplicationStatusInput,
   UpdateApplicationStatusResponse,
+  WithdrawApplicationResponse,
 } from '@uniwork/shared'
 import { prisma } from '../../lib/prisma.js'
 import { conflict, forbidden, notFound } from '../../lib/errors.js'
+import { applicationNotificationEmail, sendMail } from '../../lib/mailer.js'
+import { logger } from '../../lib/logger.js'
+import { createNotification } from '../notifications/notifications.service.js'
+import { APPLICATION_STATUS_LABELS } from '@uniwork/shared'
 
 /**
  * Nghiệp vụ đơn ứng tuyển.
@@ -35,6 +42,18 @@ import { conflict, forbidden, notFound } from '../../lib/errors.js'
 /* ==================================================================== */
 /* Dùng chung                                                            */
 /* ==================================================================== */
+
+async function guiEmailAnToan(
+  to: string,
+  mail: Pick<Parameters<typeof sendMail>[0], 'subject' | 'html'>,
+): Promise<void> {
+  try {
+    await sendMail({ to, ...mail })
+  } catch (error) {
+    // Email là kênh phụ; notification trong DB mới là nguồn sự thật.
+    logger.warn('Không gửi được email thông báo ứng tuyển', { error, to })
+  }
+}
 
 /**
  * Ghi một mốc vào lịch sử đơn.
@@ -113,7 +132,7 @@ const CHON_TIN_DE_NOP = {
   commitmentMonths: true,
   shifts: { select: { dayOfWeek: true, slot: true } },
   skills: { select: { skillId: true } },
-  employerProfile: { select: { userId: true } },
+  employerProfile: { select: { userId: true, user: { select: { email: true } } } },
 } satisfies Prisma.JobSelect
 
 export async function createApplication(
@@ -218,8 +237,25 @@ export async function createApplication(
         actorUserId: userId,
       })
 
+      await createNotification(tx, {
+        userId: job.employerProfile.userId,
+        type: 'APPLICATION_SUBMITTED',
+        title: 'Có ứng viên mới',
+        body: `Bạn vừa nhận được đơn ứng tuyển cho tin “${job.title}”.`,
+        link: `/ntd/ung-vien?job=${job.id}`,
+      })
+
       return created
     })
+
+    const employerEmail = job.employerProfile.user?.email
+    if (employerEmail) {
+      const email = applicationNotificationEmail(
+        'Có ứng viên mới',
+        `Bạn vừa nhận được đơn ứng tuyển cho tin “${job.title}”.`,
+      )
+      await guiEmailAnToan(employerEmail, email)
+    }
 
     return { ...toApplicationBase(don), jobId: job.id, jobTitle: job.title }
   } catch (e) {
@@ -277,11 +313,144 @@ function toApplicationBase(don: HangDon) {
   }
 }
 
+const CHON_DON_SINH_VIEN = {
+  ...CHON_DON,
+  job: {
+    select: {
+      id: true,
+      title: true,
+      employerProfile: { select: { companyName: true, verifiedAt: true } },
+    },
+  },
+  events: {
+    orderBy: { createdAt: 'asc' as const },
+    select: { status: true, note: true, createdAt: true },
+  },
+} satisfies Prisma.ApplicationSelect
+
+type HangDonSinhVien = Prisma.ApplicationGetPayload<{ select: typeof CHON_DON_SINH_VIEN }>
+
+function toStudentApplicationItem(don: HangDonSinhVien): StudentApplicationItem {
+  return {
+    ...toApplicationBase(don),
+    jobId: don.job.id,
+    jobTitle: don.job.title,
+    companyName: don.job.employerProfile.companyName,
+    job: {
+      id: don.job.id,
+      title: don.job.title,
+      employer: {
+        companyName: don.job.employerProfile.companyName,
+        verified: don.job.employerProfile.verifiedAt !== null,
+      },
+    },
+    events: don.events.map((event) => ({
+      status: event.status,
+      note: event.note,
+      createdAt: event.createdAt.toISOString(),
+    })),
+  }
+}
+
+export async function listStudentApplications(
+  userId: string,
+): Promise<StudentApplicationListResponse> {
+  const rows = await prisma.application.findMany({
+    where: { studentProfile: { userId } },
+    orderBy: { createdAt: 'desc' },
+    select: CHON_DON_SINH_VIEN,
+  })
+  const applications = rows.map(toStudentApplicationItem)
+  return { applications, total: applications.length }
+}
+
+export async function getStudentApplication(
+  userId: string,
+  applicationId: string,
+): Promise<StudentApplicationItem> {
+  const ownership = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: { studentProfile: { select: { userId: true } } },
+  })
+  if (!ownership) throw notFound('Không tìm thấy đơn ứng tuyển')
+  if (ownership.studentProfile.userId !== userId) {
+    throw forbidden('Bạn không có quyền xem đơn ứng tuyển này')
+  }
+
+  const application = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: CHON_DON_SINH_VIEN,
+  })
+  if (!application) throw notFound('Không tìm thấy đơn ứng tuyển')
+  return toStudentApplicationItem(application)
+}
+
+export async function withdrawApplication(
+  userId: string,
+  applicationId: string,
+): Promise<WithdrawApplicationResponse> {
+  const current = await prisma.application.findFirst({
+    where: { id: applicationId },
+    select: {
+      id: true,
+      status: true,
+      studentProfile: { select: { userId: true } },
+      job: {
+        select: {
+          title: true,
+          id: true,
+          employerProfile: { select: { userId: true, user: { select: { email: true } } } },
+        },
+      },
+    },
+  })
+  if (!current) throw notFound('Không tìm thấy đơn ứng tuyển')
+  if (current.studentProfile.userId !== userId) {
+    throw forbidden('Bạn không có quyền rút đơn ứng tuyển này')
+  }
+  if (['ACCEPTED', 'REJECTED', 'WITHDRAWN'].includes(current.status)) {
+    throw conflict('Đơn này đã kết thúc và không thể rút')
+  }
+
+  const { application, event } = await prisma.$transaction(async (tx) => {
+    const updated = await tx.application.update({
+      where: { id: applicationId },
+      data: { status: 'WITHDRAWN', statusChangedAt: new Date() },
+      select: CHON_DON_SINH_VIEN,
+    })
+    const ev = await ghiSuKien(tx, {
+      applicationId,
+      status: 'WITHDRAWN',
+      actorUserId: userId,
+    })
+    await createNotification(tx, {
+      userId: current.job.employerProfile.userId,
+      type: 'APPLICATION_STATUS_CHANGED',
+      title: 'Ứng viên đã rút đơn',
+      body: `Ứng viên đã rút đơn ứng tuyển cho tin “${current.job.title}”.`,
+      link: `/ntd/ung-vien?job=${current.job.id}`,
+    })
+    return { application: updated, event: ev }
+  })
+
+  const employerEmail = current.job.employerProfile.user?.email
+  if (employerEmail) {
+    const title = 'Ứng viên đã rút đơn'
+    const message = `Ứng viên đã rút đơn ứng tuyển cho tin “${current.job.title}”.`
+    if (current.status === 'SHORTLISTED') {
+      await guiEmailAnToan(employerEmail, applicationNotificationEmail(title, message))
+    }
+  }
+
+  return { application: toStudentApplicationItem(application), event }
+}
+
 /**
  * Hồ sơ ứng viên KHÔNG kèm liên hệ. Dùng cho đơn chưa tới `SHORTLISTED`.
  */
 const CHON_UNG_VIEN_KIN = {
   id: true,
+  userId: true,
   fullName: true,
   university: true,
   major: true,
@@ -519,8 +688,41 @@ export async function updateApplicationStatus(
       note: input.note,
     })
 
+    if (input.status === 'SHORTLISTED' || input.status === 'ACCEPTED' || input.status === 'REJECTED') {
+      await createNotification(tx, {
+        userId: capNhat.studentProfile.userId,
+        type: 'APPLICATION_STATUS_CHANGED',
+        title: `Đơn ứng tuyển: ${APPLICATION_STATUS_LABELS[input.status]}`,
+        body:
+          input.status === 'REJECTED' && input.note
+            ? `Nhà tuyển dụng đã từ chối đơn của bạn: ${input.note}`
+            : `Đơn ứng tuyển của bạn đã chuyển sang “${APPLICATION_STATUS_LABELS[input.status]}”.`,
+        link: '/don-ung-tuyen',
+      })
+    }
+
     return { don: capNhat, event: ev }
   })
+
+  const userDelegate = (prisma as unknown as {
+    user?: { findUnique: (args: unknown) => Promise<{ email: string } | null> }
+  }).user
+  const studentEmail = userDelegate
+    ? await userDelegate.findUnique({
+        where: { id: don.studentProfile.userId },
+        select: { email: true },
+      })
+    : null
+  if (studentEmail) {
+    const title = `Đơn ứng tuyển: ${APPLICATION_STATUS_LABELS[input.status]}`
+    const message =
+      input.status === 'REJECTED' && input.note
+        ? `Nhà tuyển dụng đã từ chối đơn của bạn: ${input.note}`
+        : `Đơn ứng tuyển của bạn đã chuyển sang “${APPLICATION_STATUS_LABELS[input.status]}”.`
+    if (input.status !== 'VIEWED') {
+      await guiEmailAnToan(studentEmail.email, applicationNotificationEmail(title, message))
+    }
+  }
 
   return { applicant: toApplicantItem(don), event }
 }

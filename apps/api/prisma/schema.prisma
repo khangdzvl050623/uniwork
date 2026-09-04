@@ -4,9 +4,7 @@
 // trong docs/brd-uoc-luong.md, nơi có cả danh sách điểm cần BA xác nhận. Đọc
 // tài liệu đó trước khi sửa file này.
 //
-// Ba bảng CỐ Ý chưa có: notifications, job_reports và bảng thống kê admin. Chúng
-// thuộc Sprint 5–6, chưa có luồng nghiệp vụ nào ghi vào. Bảng rỗng nằm trong
-// schema nhiều tháng thì tới lúc dùng gần như chắc chắn sai hình dạng.
+// Hai bảng job_reports và bảng thống kê admin vẫn để dành cho Sprint 5–6.
 
 generator client {
   provider = "prisma-client-js"
@@ -169,8 +167,34 @@ model User {
   refreshTokens  RefreshToken[]
   oneTimeTokens  OneTimeToken[]
   linkedAccounts UserAccount[]
+  notifications Notification[]
 
   @@map("users")
+}
+
+enum NotificationType {
+  APPLICATION_SUBMITTED
+  APPLICATION_STATUS_CHANGED
+}
+
+/// Thông báo trong ứng dụng, dành riêng cho một tài khoản.
+model Notification {
+  id String @id @default(cuid())
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    NotificationType
+  title   String
+  body    String
+  link    String?
+  readAt  DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, readAt, createdAt])
+  @@index([userId, createdAt])
+  @@map("notifications")
 }
 
 /// Danh tính từ nhà cung cấp ngoài, hiện chỉ có Google.

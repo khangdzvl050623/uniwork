@@ -11,6 +11,7 @@ import {
 } from './modules/jobs/jobs.routes.js'
 import { profileRoutes } from './modules/profile/profile.routes.js'
 import { adminSkillsRoutes, skillsRoutes } from './modules/skills/skills.routes.js'
+import { notificationRoutes } from './modules/notifications/notifications.routes.js'
 
 /**
  * Gom router của tất cả module lại, gắn dưới tiền tố /api.
@@ -22,6 +23,10 @@ export const apiRouter = Router()
 
 apiRouter.use('/health', healthRoutes)
 apiRouter.use('/auth', authRoutes)
+apiRouter.use('/toi/thong-bao', notificationRoutes)
+apiRouter.use('/thong-bao', notificationRoutes)
+// Alias tiếng Anh để các client tích hợp ngoài không phải biết tên hiển thị tiếng Việt.
+apiRouter.use('/notifications', notificationRoutes)
 apiRouter.use('/skills', skillsRoutes)
 
 /* Việc làm công khai — endpoint DUY NHẤT trong dự án không cần đăng nhập ngoài /health. */
