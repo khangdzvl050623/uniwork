@@ -14,7 +14,9 @@ Mốc cuối tuần 7 trong timeline: **"Đi hết được một vòng tuyển 
 
 Đây là sprint làm cho sản phẩm **khép kín**. Trước nó, tin đăng lên rồi nằm đó — sinh viên xem được nhưng không làm gì được, nhà tuyển dụng không nhận được ai. Sau nó, cả hai phía đi hết được một vòng:
 
-> Sinh viên tìm thấy tin → nộp đơn kèm CV và thư ngỏ → NTD xem danh sách ứng viên → đánh dấu vào vòng trong → nhận hoặc từ chối → cả hai phía nhận thông báo trong app và qua email.
+> Sinh viên tìm thấy tin → nộp đơn kèm CV và thư ngỏ → NTD xem danh sách ứng viên → mời phỏng vấn hoặc từ chối → **liên hệ mở ra** → NTD gọi cho ứng viên. Cả hai phía nhận thông báo trong app và qua email.
+
+**Vòng khép kín dừng ở chỗ bàn giao liên hệ, không đi tới "nhận việc"** — chốt 2026-08-29, lý do ở mục ngay dưới.
 
 Năm tính năng của sprint:
 
@@ -156,6 +158,12 @@ export interface ThanhPhan {
   /** `null` = KHÔNG TÍNH ĐƯỢC. Khác hẳn `0` (tính được, kết quả là không khớp). */
   score: number | null
   weight: number
+
+  /**
+   * Vì sao `score` là `null`. KHÔNG tham gia phép tính điểm — chỉ để đếm độ phủ
+   * và nhắc đúng người. Xem mục "Độ phủ" bên dưới.
+   */
+  vangVi?: 'KHONG_AP_DUNG' | 'THIEU_DU_LIEU'
 }
 
 /**
@@ -247,6 +255,48 @@ Nên ở màn hình NTD (tính năng 2):
 2. Hiện **độ phủ** ngay cạnh điểm: *"tính trên 2/3 tiêu chí"*. Không hiện thì NTD so hai con số không so được với nhau.
 3. Không bao giờ tự động loại theo điểm. Điểm là gợi ý thứ tự, quyết định là của NTD — đúng như đã chốt ở luật "cho nộp kèm cảnh báo" bên dưới.
 
+### Độ phủ là một TRƯỜNG, và là HAI số chứ không phải một phân số
+
+Ba mục trên đều nói "hiện độ phủ cạnh điểm" nhưng không nói nó nằm ở đâu. Để mỗi nơi tiêu thụ tự đếm lại từ `matchBreakdown` là cách hai màn hình đếm ra hai kết quả khác nhau mà không ai đối chiếu. **Nó phải là trường lưu sẵn, đóng băng cùng điểm.**
+
+Cái bẫy nằm ở mẫu số. Viết `coverage = 1/3` với mẫu số cứng bằng 3 sẽ **phá chính ví dụ 1**: tin "Phát tờ rơi" không yêu cầu kỹ năng và không có cam kết, sinh viên khai đủ mọi thứ tin đó cần và được 100 — nhưng phân số kia ghi *"tính trên 1/3 tiêu chí"*, bêu một hồ sơ **hoàn chỉnh** là thiếu, rồi nhắc họ đi khai thứ chẳng ai hỏi.
+
+Lý do rất thẳng: **một phân số gộp hai nguyên nhân khác hẳn nhau vào cùng một con số.** `KHÔNG ÁP DỤNG` thuộc về tin, `THIẾU DỮ LIỆU` thuộc về sinh viên — chính bảng ở trên đã tách hai thứ đó ra. Độ phủ phải giữ nguyên phép tách:
+
+```ts
+export interface DoPhu {
+  /** Số tiêu chí TIN NÀY có yêu cầu. Loại `KHONG_AP_DUNG` khỏi mẫu số. */
+  apDung: number
+  /** Số tiêu chí đo được cho SINH VIÊN NÀY. */
+  doDuoc: number
+}
+
+/** Hàm thứ ba, và cũng không gọi hai hàm kia. */
+export function tinhDoPhu(cac: Record<string, ThanhPhan>): DoPhu {
+  const tp = Object.values(cac)
+  return {
+    apDung: tp.filter((c) => c.vangVi !== 'KHONG_AP_DUNG').length,
+    doDuoc: tp.filter((c) => c.score !== null).length,
+  }
+}
+```
+
+Ba ví dụ ở trên ra đúng thứ chúng cần:
+
+| | `apDung` | `doDuoc` | Điểm | Giao diện nói gì |
+| --- | --- | --- | --- | --- |
+| Ví dụ 1 — tin không có kỹ năng lẫn cam kết | 1 | 1 | 100 | **Không nói gì** — đã đủ |
+| Ví dụ 2 — thiếu `availableUntil` | 3 | 2 | 73 | "Tính trên 2/3 tiêu chí — khai thêm…" |
+| Ví dụ 3 — thiếu cả lịch lẫn cam kết | 3 | 1 | 100 | "Tính trên 1/3 tiêu chí — khai thêm…" |
+
+**Luật hiển thị chỉ có một dòng: `apDung === doDuoc` thì im lặng, khác thì hiện.** Không cần biết vì sao lệch — mẫu số đã tự loại phần không thuộc lỗi sinh viên.
+
+Ví dụ 1 và ví dụ 3 cùng cho 100 điểm nhưng **không phải cùng một chuyện**, và giờ dữ liệu nói ra được điều đó: một cái `1/1`, một cái `1/3`.
+
+**Ở màn hình NTD thì `apDung` là hằng số** — mọi ứng viên của cùng một tin chia chung mẫu số. Nên chênh lệch `doDuoc` giữa hai người là **thuần tuý ai khai đầy đủ hơn**, đúng con số cần đặt cạnh điểm để NTD hiểu vì sao người khai ít lại điểm cao.
+
+**Độ phủ KHÔNG tham gia xếp hạng.** Vẫn sắp `eligible` → `matchScore`, độ phủ chỉ hiển thị. Nhân điểm với `doDuoc/apDung` để "phạt hồ sơ khai thiếu" nghe hợp lý nhưng là bịa ra một chiều chấm điểm thứ hai chưa có dữ liệu nào đỡ — và nó tự động loại ứng viên thay NTD, đúng thứ đã bác ở luật "cho nộp kèm cảnh báo". Đưa con số ra, để người quyết định.
+
 ### Trọng số
 
 ```ts
@@ -300,9 +350,10 @@ Cấu trúc `matchBreakdown`:
 {
   "shifts":     { "matched": 8, "total": 20, "required": 5, "score": 40, "weight": 0.5 },
   "skills":     { "matched": 3, "total": 5,  "score": 60, "weight": 0.3 },
-  "commitment": { "months": 4, "required": 6, "score": 67, "weight": 0.2 },
+  "commitment": { "score": null, "weight": 0.2, "vangVi": "KHONG_AP_DUNG" },
+  "coverage":   { "apDung": 2, "doDuoc": 2 },
   "eligible": true,
-  "finalScore": 51
+  "finalScore": 48
 }
 ```
 
@@ -331,6 +382,8 @@ Nếu không đóng băng: hôm nay sinh viên nộp đơn với 8/20 ca (ngư�
 Nguyên tắc đó đã đúng một lần: `notifications` hoãn từ Sprint 0, tới Sprint 4 mới tạo — và tạo với hình dạng biết chắc là đúng vì đã có luồng thật cần nó.
 
 **Test của riêng phần này** (viết được ngay, không cần database): `tongHopDiem` với đủ 3 thành phần, thiếu 1, thiếu 2, thiếu cả 3 → `null`, tổng trọng số bằng 0 → `null`; phân biệt "không áp dụng" với "thiếu dữ liệu" cho ra cùng con số nhưng cờ nhắc nhở khác nhau; `duNguongCa` với `required` lớn hơn tổng số ca của tin; và ca **"100% kỹ năng nhưng không đủ ca"** — điểm cao mà `eligible = false`.
+
+Riêng `tinhDoPhu`: ví dụ 1 ra `1/1` (**không** phải `1/3`), ví dụ 2 ra `2/3`, ví dụ 3 ra `1/3`; và hai hồ sơ cùng 100 điểm nhưng `1/1` với `1/3` phải phân biệt được từ dữ liệu, không phải từ cách hiển thị.
 
 ---
 
@@ -524,6 +577,77 @@ Ghi trong **cùng transaction** với việc đổi `Application.status` và c�
 
 Migration bảng này nằm ở **lớp nền**, không nằm ở đây — vì tính năng 1 cũng ghi vào nó.
 
+### Phạm vi: UniWork KHÔNG phải một ATS
+
+Chốt 2026-08-29 sau khi thử trên trình duyệt và đối chiếu JobsGO.
+
+Câu hỏi: *"nhận vào làm là phải cập nhật trên app hả? tôi tưởng app này là xem xét hồ sơ rồi từ chối CV hay chấp nhận CV thôi chứ."*
+
+Đúng. Luồng chốt lại:
+
+```
+Sinh viên nộp → NTD đọc hồ sơ → mời phỏng vấn / từ chối → MỞ LIÊN HỆ → NTD gọi
+                                                            └── ứng dụng dừng ở đây
+```
+
+**Vì sao bỏ `ACCEPTED`, kể cả dưới dạng "ghi sổ tuỳ tâm":** nó chỉ đúng khi nhà tuyển dụng nhớ quay lại bấm sau một sự kiện xảy ra **ngoài** ứng dụng. Phần lớn sẽ không. Một con số "đã nhận" đúng chừng một phần ba **tệ hơn không có**, vì người đọc coi nó là sự thật.
+
+Đây đúng nguyên tắc `null ≠ 0` đã dùng xuyên suốt dự án, chỉ nâng lên tầng hệ thống: **đừng khẳng định thứ mình không đo được.** Cột `matchScore` không dám nói "0% hợp" khi chưa biết lịch rảnh; hệ thống cũng không nên nói "đã nhận 5 người" khi nó không hề chứng kiến việc đó.
+
+**Nhưng `SHORTLISTED → REJECTED` thì GIỮ.** Bất đối xứng này là điểm quan trọng nhất của cả mục:
+
+| Kết quả sau buổi gặp | Sinh viên có tự biết không? | Ứng dụng có cần ghi không? |
+| --- | --- | --- |
+| Được nhận | **Có** — họ đi làm buổi đầu | Không |
+| Bị từ chối | **Không** — rất nhiều nơi im lặng luôn | **Có** |
+
+Sinh viên chờ mãi một câu trả lời không bao giờ tới chính là vấn nạn dự án này sinh ra để giải. Nên đường ghi lại lời **từ chối** phải luôn mở, còn đường ghi lời **đồng ý** thì không cần.
+
+**Không migration.** Giá trị `ACCEPTED` vẫn nằm trong enum — xoá một giá trị enum của Postgres là migration đụng mọi hàng để đổi lấy đúng một cái tên không ai gọi tới. Chỉ gỡ nó khỏi `CHUYEN_TRANG_THAI_HOP_LE.SHORTLISTED`; những hàng `ACCEPTED` có sẵn vẫn hiển thị bình thường.
+
+Hệ quả nhỏ: `TRANG_THAI_DANG_XU_LY` bỏ `SHORTLISTED` — hồ sơ đã mở liên hệ thì UniWork hết việc với nó, không còn nằm trong "đang chờ bạn xử lý".
+
+### `SHORTLISTED` nghĩa là "đã mời phỏng vấn"
+
+Chốt 2026-08-29, sau khi kiểm thử trên trình duyệt và đối chiếu nghiệp vụ thật.
+
+**Câu hỏi khơi ra:** giữa "Vào vòng trong" và "Đã nhận" không có thao tác nào ngoài việc NTD bấm nút. Vậy hai trạng thái đó khác nhau chỗ nào?
+
+**Tra được gì:**
+
+| Nguồn | Các bước |
+| --- | --- |
+| TopCV (nền tảng lớn nhất VN) | đã xem xét → **đã phỏng vấn** → đã từ chối / đã tuyển dụng |
+| ATS quốc tế (Greenhouse, SAP) | Applied → In Review → **Interviewing** → Offer → Hired |
+| Part-time VN (quán cà phê) | sàng lọc CV → **gọi hẹn** → một buổi gặp → nhận |
+
+Cả ba đều có bước **PHỎNG VẤN** giữa "thích hồ sơ này" và "nhận người này". Không nguồn nào dùng "vào vòng trong" làm một trạng thái.
+
+**Nhưng mô hình không sai — chỉ đặt tên sai.** `SHORTLISTED` chính là bước đó, vì nó là mốc **mở khoá số điện thoại**:
+
+```
+SHORTLISTED → NTD có số → gọi hẹn gặp (NGOÀI app) → ACCEPTED / REJECTED
+```
+
+Thao tác vẫn có, chỉ là nó xảy ra ngoài ứng dụng. Cái sai là giao diện không nói ra: bấm xong thì màn hình im lặng, không ai bảo nhà tuyển dụng rằng tới lượt họ gọi.
+
+**Đã làm — sửa ngôn ngữ, không sửa bảng trạng thái:**
+
+| Chỗ | Trước | Sau |
+| --- | --- | --- |
+| Huy hiệu trạng thái | "Vào vòng trong" | **"Đã mời phỏng vấn"** |
+| Nút bấm | "Vào vòng trong" | **"Mời phỏng vấn"** |
+| Sau khi bấm | *(không gì)* | *"Đã mở số điện thoại và email — gọi cho ứng viên để hẹn buổi gặp."* |
+| Trang chi tiết tin | "…khi hồ sơ vào vòng trong" | "…khi họ mời bạn phỏng vấn" |
+
+Tách `APPLICATION_ACTION_LABELS` khỏi `APPLICATION_STATUS_LABELS`: nút là **mệnh lệnh**, huy hiệu là **sự thật hiện tại**. Dùng chung một bảng thì hoặc nút đọc như lời kể, hoặc huy hiệu đọc như mệnh lệnh.
+
+**Vì sao KHÔNG thêm trạng thái `INTERVIEW` riêng** (phương án đúng chuẩn TopCV hơn): với việc part-time chỉ có **một** buổi gặp, nên "mời phỏng vấn" và "đã phỏng vấn" gần như trùng nhau — thêm một cú bấm mà không thêm thông tin nào. Đổi lại là migration, đổi enum, đổi bảng chuyển, sửa test, ở tuần 7/8. Thứ hỏng là nhãn chứ không phải mô hình, nên sửa nhãn.
+
+Giá trị enum trong database giữ nguyên `SHORTLISTED`: đổi tên enum trong Postgres là một migration đổi mọi hàng cũ để đúng được đúng một cái tên. Tên và nghĩa lệch nhau thì ghi chú thẳng vào `schema.prisma` và `domain.ts`.
+
+**Hệ quả cố ý cần giữ:** không có đường `VIEWED → ACCEPTED`. **Không nhận được người mà mình chưa từng liên hệ** — chưa qua `SHORTLISTED` thì NTD còn chưa có số để báo tin.
+
 ### Chuyển trạng thái nào là hợp lệ
 
 Cần chốt trước khi code, nếu không mỗi người hiểu một kiểu:
@@ -702,7 +826,9 @@ Ranh giới đặt đúng ở `SHORTLISTED` vì đó cũng là ngưỡng mở th
 - [ ] ⚠ Thông tin liên hệ **không nằm trong response** khi đơn dưới `SHORTLISTED` — kiểm bằng `curl`, không kiểm bằng mắt trên giao diện
 - [ ] Mọi thứ ghi kèm nhau nằm trong **cùng một transaction**: đơn + sự kiện + thông báo
 - [ ] `matchScore` / `matchBreakdown` / `matchAlgoVersion` ghi **một lần lúc nộp**, không bao giờ tính lại
-- [ ] Hàm cổng và hàm điểm là **hai hàm riêng**, không hàm nào gọi hàm kia
+- [ ] Hàm cổng, hàm điểm và hàm độ phủ là **ba hàm riêng**, không hàm nào gọi hàm kia
+- [ ] Độ phủ đóng băng trong `matchBreakdown`, không màn hình nào tự đếm lại
+- [ ] `tinhDoPhu` ra `1/1` cho ví dụ 1 — ra `1/3` nghĩa là mẫu số đang cứng bằng 3, sai
 - [ ] Test có ca âm — không chỉ "chạy đúng", còn phải có "chuyển trạng thái sai bị chặn" và "người khác gọi bị chặn"
 - [ ] Đã thử trên bản deploy thật trước khi đánh dấu xong hẳn, không chỉ trên máy
 
@@ -715,6 +841,7 @@ Ranh giới đặt đúng ở `SHORTLISTED` vì đó cũng là ngưỡng mở th
 | Lộ thông tin liên hệ ở trạng thái thấp | BA test thấy SĐT trong response `PENDING` | Lọc ở `select` **cùng lúc** với việc viết endpoint, không phải bước sau; test kiểm **response**, không kiểm giao diện |
 | Trộn cổng vào điểm | Sinh viên không nhận nổi ca vẫn xếp trên | Hai hàm riêng ngay từ đầu; test có ca "100% kỹ năng nhưng không đủ ca" |
 | So điểm giữa hai sinh viên có độ phủ khác nhau | NTD thắc mắc vì sao người khai ít lại điểm cao | Hiện độ phủ cạnh điểm; sắp `eligible` trước |
+| Mẫu số độ phủ để cứng bằng 3 | Tin không yêu cầu kỹ năng vẫn bị ghi "tính trên 1/3 tiêu chí" | `apDung` loại `KHONG_AP_DUNG` khỏi mẫu số; test ví dụ 1 phải ra `1/1` |
 | Email Brevo lỗi làm hỏng luồng chính | Nộp đơn trả 500 dù đơn đã ghi | Gửi email **ngoài** transaction, nuốt lỗi, ghi log; test có ca `sendMail` reject |
 | Tính năng 2 và 3 cùng sửa `Applicants.tsx` | Test của tính năng 2 hỏng sau khi làm tính năng 3 | Làm 2 xong hẳn rồi mới tới 3, hoặc một người làm cả hai. Chạy lại toàn bộ test của trang sau mỗi lần |
 | Phạm vi: README ước tính sprint này **2 tuần**, ta có **1 tuần** | Hết ngày 3 mà chưa xong tính năng 3 | Cắt tính năng 5 xuống chỉ còn email (bỏ chuông), giữ luồng khép kín. **Không** cắt phần che liên hệ — đó là luật bảo vệ dữ liệu, và nay nó nằm trong tính năng 2 nên không cắt rời được nữa |

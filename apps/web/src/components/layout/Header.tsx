@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { ChevronDown, Menu, X } from 'lucide-react'
 import { UserMenu } from '@/components/layout/UserMenu'
+import { NotificationBell } from '@/components/layout/NotificationBell'
 import { useAuth, useLogout } from '@/hooks/useAuth'
 import { MENU_THEO_VAI, NAV_KHACH, NAV_THEO_VAI } from '@/lib/menu-nguoi-dung'
 import { cn } from '@/lib/utils'
@@ -39,6 +40,7 @@ export function Header() {
                     : 'text-brand-50/90 hover:bg-white/10 hover:text-white',
                 )
               }
+
             >
               {item.label}
               {item.caret && <ChevronDown size={14} className="opacity-70" />}
@@ -49,6 +51,7 @@ export function Header() {
         <div className="ml-auto hidden items-center gap-2 lg:flex">
           {daDangNhap ? (
             <>
+              <NotificationBell enabled />
               <UserMenu />
               {/* Chỉ nhà tuyển dụng mới thấy nút đăng tuyển — sinh viên bấm vào
                   chỉ để nhận về một trang bị chặn. */}
@@ -124,7 +127,10 @@ export function Header() {
           <div className="mt-3 border-t border-white/10 pt-3">
             {daDangNhap && user ? (
               <>
-                <p className="px-3 pb-2 text-sm font-medium text-white">{user.displayName}</p>
+                <div className="flex items-center justify-between px-3 pb-2">
+                  <p className="text-sm font-medium text-white">{user.displayName}</p>
+                  <NotificationBell enabled />
+                </div>
                 <div className="flex flex-col gap-1">
                   {MENU_THEO_VAI[user.role].map((item) => (
                     <Link

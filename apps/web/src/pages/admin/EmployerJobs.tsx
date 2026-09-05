@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { Eye, FileText, Loader2, Send, Trash2, XCircle } from 'lucide-react'
+import { Eye, FileText, Loader2, Send, Trash2, Users, XCircle } from 'lucide-react'
 import {
   JOB_STATUS_LABELS,
   SCHEDULE_TYPE_LABELS,
@@ -287,6 +287,23 @@ function HangTin({
 
       <Td className="text-right">
         <div className="flex justify-end gap-1">
+          {/* Đường vào danh sách ứng viên của ĐÚNG tin này.
+
+              Chỉ hiện cho tin đã từng công khai: tin DRAFT/PENDING chưa ai thấy
+              nên chắc chắn chưa có đơn nào, mời bấm vào một trang rỗng là một
+              cú bấm phí. Tin CLOSED thì vẫn phải vào được — đóng tin không xoá
+              đơn, và nhà tuyển dụng còn phải trả lời những người đã nộp. */}
+          {(job.status === 'OPEN' || job.status === 'CLOSED') && (
+            <Link to={`/ntd/ung-vien?job=${job.id}`}>
+              <RowAction>
+                <span className="inline-flex items-center gap-1">
+                  <Users size={12} />
+                  Ứng viên
+                </span>
+              </RowAction>
+            </Link>
+          )}
+
           {suaDuoc && (
             <RowAction onClick={onSua} disabled={banRon}>
               Sửa

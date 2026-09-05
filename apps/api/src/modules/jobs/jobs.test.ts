@@ -1449,6 +1449,9 @@ const HANG_JOB_PUBLIC = {
   shifts: [{ dayOfWeek: 2, slot: 'EVENING' as const }],
   skills: [{ skill: { id: 'sk-1', name: 'Pha chế', slug: 'pha-che' } }],
   employerProfile: {
+    // `userId` để `getPublicJob` biết người đang xem có phải chủ tin không.
+    // KHÔNG đi ra response — mapper chỉ nhặt `companyName` và `verifiedAt`.
+    userId: 'u-ntd',
     companyName: 'Chuỗi cà phê Sương Mai',
     verifiedAt: new Date('2026-08-05'),
     address: '12 Nguyễn Thị Minh Khai, Quận 1',
@@ -1550,25 +1553,38 @@ describe('GET /api/viec-lam — danh sách công khai', () => {
     expect(jobFindMany.mock.calls[0][0].where).toEqual({ status: 'OPEN' })
   })
 
-  it('chặn cứng 100 hàng, nhưng total vẫn là số thật', async () => {
-    // Không phải phân trang — chỉ là chặn để endpoint không bao giờ dump cả
-    // bảng. `total` cho giao diện biết mình đang xem một phần hay toàn bộ.
+  it('trang 2 cắt đúng chỗ, page size không vượt quá 100, và total vẫn là số thật', async () => {
     jobFindMany.mockResolvedValue([HANG_JOB_PUBLIC])
     jobCount.mockResolvedValue(357)
 
-    const res = await request(createApp()).get('/api/viec-lam')
+    const res = await request(createApp()).get('/api/viec-lam?page=2&limit=250')
 
-    expect(jobFindMany.mock.calls[0][0].take).toBe(100)
+    expect(jobFindMany.mock.calls[0][0]).toMatchObject({
+      skip: 100,
+      take: 100,
+    })
+    // `total` là số tin THẬT khớp bộ lọc, không phải số hàng trang này trả về —
+    // giao diện dựa vào nó để biết còn trang nữa hay không.
     expect(res.body.data.total).toBe(357)
+    expect(res.body.data).toMatchObject({ page: 2, limit: 100 })
   })
 
-  it('sắp xếp tin mới đăng lên đầu', async () => {
+  it('sắp xếp tin mới đăng lên đầu, kèm khoá phụ để thứ tự ổn định giữa các trang', async () => {
     jobFindMany.mockResolvedValue([])
     jobCount.mockResolvedValue(0)
 
     await request(createApp()).get('/api/viec-lam')
 
-    expect(jobFindMany.mock.calls[0][0].orderBy).toEqual({ publishedAt: 'desc' })
+    /*
+     * `publishedAt` một mình KHÔNG đủ: `reviewJob` đặt mốc đó lúc duyệt nên
+     * admin duyệt liên tiếp là trùng mốc. Mỗi trang của "tải thêm" là một câu
+     * truy vấn riêng, các hàng trùng mốc không có thứ tự đảm bảo giữa hai câu —
+     * một tin sẽ hiện ở cả hai trang, hoặc rơi vào khe giữa chúng và mất hẳn.
+     */
+    expect(jobFindMany.mock.calls[0][0].orderBy).toEqual([
+      { publishedAt: 'desc' },
+      { id: 'asc' },
+    ])
   })
 
   it('scheduleType không có thật thì 400', async () => {
@@ -1594,6 +1610,38 @@ describe('GET /api/viec-lam/:id — chi tiết công khai', () => {
       where: { id: 'job-1' },
       data: { viewCount: { increment: 1 } },
     })
+  })
+
+  it('CHỦ TIN xem tin của mình thì KHÔNG tăng lượt xem', async () => {
+    jobFindFirst.mockResolvedValue(HANG_JOB_PUBLIC)
+    // Có token thì `getPublicJob` còn đi lấy lịch rảnh để chấm điểm.
+    lichRanhFindMany.mockResolvedValue([])
+
+    const res = await request(createApp())
+      .get('/api/viec-lam/job-1')
+      .set('Authorization', `Bearer ${ntdToken}`)
+
+    expect(res.status).toBe(200)
+    // Nhà tuyển dụng mở trang công khai để xem tin mình trông thế nào là việc
+    // ai cũng làm, và làm nhiều lần trong lúc soạn. Cộng vào thì họ tự bơm con
+    // số của mình rồi đọc lại như tín hiệu về người ngoài.
+    expect(jobUpdate).not.toHaveBeenCalled()
+    // Và con số trả về phải đúng bằng thứ nằm trong database, không cộng ảo.
+    expect(res.body.data.viewCount).toBe(41)
+  })
+
+  it('NTD KHÁC xem thì VẪN tăng — chỉ chủ tin mới được loại trừ', async () => {
+    jobFindFirst.mockResolvedValue(HANG_JOB_PUBLIC)
+    jobUpdate.mockResolvedValue({})
+    lichRanhFindMany.mockResolvedValue([])
+
+    const khac = signAccessToken({ sub: 'u-ntd-khac', role: 'EMPLOYER' })
+    const res = await request(createApp())
+      .get('/api/viec-lam/job-1')
+      .set('Authorization', `Bearer ${khac}`)
+
+    expect(jobUpdate).toHaveBeenCalledTimes(1)
+    expect(res.body.data.viewCount).toBe(42)
   })
 
   it('điều kiện OPEN nằm ngay trong câu truy vấn, không kiểm sau', async () => {
@@ -2094,6 +2142,43 @@ describe('GET /api/viec-lam — sắp xếp theo điểm', () => {
     ])
   })
 
+  /*
+   * Ba ca dưới đây giữ đúng ràng buộc của tính năng 3 khi tính năng 5 (phân
+   * trang) chồng lên: chấm điểm và sắp xếp phải diễn ra TRƯỚC khi cắt trang.
+   * Commit 845f3c6 đẩy `skip`/`take` xuống SQL và làm hỏng đúng chỗ này, nhưng
+   * mọi test lúc đó vẫn xanh vì không ca nào chạy `sort=match` KÈM phân trang.
+   */
+  it('sort=match không để database cắt trang — lấy trọn tập rồi mới sắp', async () => {
+    await request(createApp())
+      .get('/api/viec-lam?sort=match&page=2&limit=2')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    // `skip` khác 0 nghĩa là database đã sắp theo `publishedAt` rồi cắt trước
+    // khi ta kịp chấm điểm — tin hợp lịch nhất nằm ngoài trang đó sẽ không bao
+    // giờ lên đầu. Trang 2 mà vẫn `skip: 0` + lấy trọn tập mới là đúng: phép
+    // cắt của nhánh này nằm ở `slice` phía sau, sau khi đã sắp.
+    expect(jobFindMany.mock.calls[0][0].skip).toBe(0)
+    expect(jobFindMany.mock.calls[0][0].take).toBe(100)
+  })
+
+  it('sort=match cắt trang SAU khi sắp, nên trang 2 là phần đuôi của thứ tự điểm', async () => {
+    const res = await request(createApp())
+      .get('/api/viec-lam?sort=match&page=2&limit=2')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    // Thứ tự sau khi sắp: job-100, job-50, job-0. Trang 2 (limit 2) là phần còn lại.
+    expect(res.body.data.jobs.map((j: { id: string }) => j.id)).toEqual(['job-0'])
+    expect(res.body.data).toMatchObject({ page: 2, limit: 2, total: 3 })
+  })
+
+  it('sort=match trang 1 lấy đúng số hàng của limit, không trả cả tập', async () => {
+    const res = await request(createApp())
+      .get('/api/viec-lam?sort=match&page=1&limit=2')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.body.data.jobs.map((j: { id: string }) => j.id)).toEqual(['job-100', 'job-50'])
+  })
+
   it('không truyền sort thì GIỮ NGUYÊN thứ tự publishedAt của database', async () => {
     const res = await request(createApp())
       .get('/api/viec-lam')
@@ -2189,6 +2274,31 @@ describe('GET /api/viec-lam — lọc lương', () => {
 
     expect(res.status).toBe(200)
     expect(menhDeAND()).toContainEqual({ salaryUnit: 'HOUR' })
+  })
+})
+
+describe('GET /api/viec-lam — full-text search', () => {
+  beforeEach(() => {
+    transaction.mockImplementation(async (ops: unknown[]) => Promise.all(ops))
+    jobFindMany.mockResolvedValue([])
+    jobCount.mockResolvedValue(0)
+  })
+
+  it('lọc theo q trên title hoặc description, không phân biệt hoa/thường', async () => {
+    await request(createApp()).get('/api/viec-lam?q=frontend developer')
+
+    expect(menhDeAND()).toContainEqual({
+      OR: [
+        { title: { contains: 'frontend developer', mode: 'insensitive' } },
+        { description: { contains: 'frontend developer', mode: 'insensitive' } },
+      ],
+    })
+  })
+
+  it('q rỗng không tạo điều kiện lọc', async () => {
+    await request(createApp()).get('/api/viec-lam?q=   ')
+
+    expect(menhDeWhere()).not.toHaveProperty('AND')
   })
 })
 

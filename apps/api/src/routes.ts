@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { adminRoutes } from './modules/admin/admin.routes.js'
+import { studentApplicationRoutes } from './modules/applications/applications.routes.js'
 import { authRoutes } from './modules/auth/auth.routes.js'
 import { healthRoutes } from './modules/health/health.routes.js'
 import {
@@ -10,6 +11,7 @@ import {
 } from './modules/jobs/jobs.routes.js'
 import { profileRoutes } from './modules/profile/profile.routes.js'
 import { adminSkillsRoutes, skillsRoutes } from './modules/skills/skills.routes.js'
+import { notificationRoutes } from './modules/notifications/notifications.routes.js'
 
 /**
  * Gom router của tất cả module lại, gắn dưới tiền tố /api.
@@ -21,6 +23,13 @@ export const apiRouter = Router()
 
 apiRouter.use('/health', healthRoutes)
 apiRouter.use('/auth', authRoutes)
+/*
+ * Thông báo — MỘT đường vào duy nhất.
+ *
+ * Khai TRƯỚC `/toi` bên dưới vì `profileRoutes` gắn `requireAuth` cho cả nhánh
+ * đó; cùng lý do `/toi/tin-da-luu` và `/toi/don-ung-tuyen` cũng nằm trên.
+ */
+apiRouter.use('/toi/thong-bao', notificationRoutes)
 apiRouter.use('/skills', skillsRoutes)
 
 /* Việc làm công khai — endpoint DUY NHẤT trong dự án không cần đăng nhập ngoài /health. */
@@ -36,6 +45,16 @@ apiRouter.use('/viec-lam', publicJobRoutes)
  * mới rơi xuống đây và xác thực lại lần nữa — chạy đúng nhưng thừa một lượt.
  */
 apiRouter.use('/toi/tin-da-luu', savedJobRoutes)
+
+/*
+ * Đơn ứng tuyển của chính sinh viên — cùng lý do đặt dưới `/toi` và cùng lý do
+ * phải khai TRƯỚC `/toi` như dòng trên.
+ *
+ * `jobId` đi trong body chứ không trên đường dẫn: `/viec-lam` phải giữ được
+ * tính chất "nhánh duy nhất không cần đăng nhập" ghi ở dưới.
+ */
+apiRouter.use('/toi/don-ung-tuyen', studentApplicationRoutes)
+
 apiRouter.use('/toi', profileRoutes)
 apiRouter.use('/ntd/tin-tuyen-dung', employerJobRoutes)
 apiRouter.use('/admin', adminRoutes)

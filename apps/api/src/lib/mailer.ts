@@ -170,3 +170,23 @@ export function otpEmail(code: string): Pick<Mail, 'subject' | 'html'> {
 </div>`.trim(),
   }
 }
+
+/** Mẫu thư ngắn cho các thay đổi hồ sơ ứng tuyển. */
+export function applicationNotificationEmail(
+  title: string,
+  message: string,
+): Pick<Mail, 'subject' | 'html'> {
+  const escapeHtml = (value: string) =>
+    value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!)
+  const safeTitle = escapeHtml(title)
+  const safeMessage = escapeHtml(message)
+  return {
+    subject: `${title} · UniWork`,
+    html: `
+<div style="font-family:system-ui,-apple-system,'Segoe UI',sans-serif;max-width:520px;margin:0 auto;padding:32px 24px;color:#14161b">
+  <h1 style="margin:0 0 20px;font-size:20px;color:#00857a">UniWork</h1>
+  <h2 style="margin:0 0 10px;font-size:17px">${safeTitle}</h2>
+  <p style="margin:0;font-size:15px;line-height:1.6">${safeMessage}</p>
+</div>`.trim(),
+  }
+}

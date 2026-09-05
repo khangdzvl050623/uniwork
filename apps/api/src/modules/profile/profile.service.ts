@@ -38,6 +38,7 @@ function toStudentProfileResponse(profile: {
   phone: string | null
   cvUrl: string | null
   expectedHourlyRate: number | null
+  availableUntil: Date | null
   skills: { skill: { id: string; name: string; slug: string } }[]
 }): StudentProfileResponse {
   return {
@@ -49,6 +50,7 @@ function toStudentProfileResponse(profile: {
     phone: profile.phone,
     cvUrl: profile.cvUrl,
     expectedHourlyRate: profile.expectedHourlyRate,
+    availableUntil: profile.availableUntil?.toISOString() ?? null,
     skills: profile.skills.map((s) => s.skill),
   }
 }
@@ -124,6 +126,7 @@ export async function getMe(userId: string): Promise<MeResponse> {
           phone: true,
           cvUrl: true,
           expectedHourlyRate: true,
+          availableUntil: true,
           skills: { select: { skill: { select: { id: true, name: true, slug: true } } } },
         },
       },
@@ -194,6 +197,14 @@ export async function updateStudentProfile(
       major: input.major,
       year: input.year,
       bio: input.bio,
+      // Từ Sprint 4: nhà tuyển dụng gọi số này sau khi mời phỏng vấn. Trước đó
+      // cột `phone` chỉ được ĐỌC mà không đường nào ghi vào — mọi hồ sơ đều rỗng.
+      phone: input.phone,
+      // Cùng một lớp lỗi: hai cột này có từ Sprint 0, được đọc ở nhiều nơi,
+      // nhưng chỉ `seed.ts` từng ghi. `availableUntil` là đầu vào của thành phần
+      // `commitment` khi chấm điểm — không nối thì một phần ba công thức chết.
+      availableUntil: input.availableUntil,
+      expectedHourlyRate: input.expectedHourlyRate,
     },
     select: {
       fullName: true,
@@ -204,6 +215,7 @@ export async function updateStudentProfile(
       phone: true,
       cvUrl: true,
       expectedHourlyRate: true,
+      availableUntil: true,
       skills: { select: { skill: { select: { id: true, name: true, slug: true } } } },
     },
   })
@@ -389,6 +401,7 @@ export async function uploadCv(userId: string, buffer: Buffer): Promise<StudentP
       phone: true,
       cvUrl: true,
       expectedHourlyRate: true,
+      availableUntil: true,
       skills: { select: { skill: { select: { id: true, name: true, slug: true } } } },
     },
   })

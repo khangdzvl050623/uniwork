@@ -21,6 +21,7 @@ import { Profile } from '@/pages/Profile'
 import { EmployerProfile } from '@/pages/EmployerProfile'
 import { Availability } from '@/pages/Availability'
 import { SavedJobs } from '@/pages/SavedJobs'
+import { MyApplications } from '@/pages/MyApplications'
 import { PostJob } from '@/pages/PostJob'
 import { Applicants } from '@/pages/Applicants'
 import { NotFound } from '@/pages/NotFound'
@@ -76,6 +77,7 @@ export function App() {
               <Route path="/ho-so" element={<Profile />} />
               <Route path="/lich-ranh" element={<Availability />} />
               <Route path="/tin-da-luu" element={<SavedJobs />} />
+              <Route path="/don-ung-tuyen" element={<MyApplications />} />
             </Route>
 
             <Route element={<RequireRole roles={['EMPLOYER']} />}>

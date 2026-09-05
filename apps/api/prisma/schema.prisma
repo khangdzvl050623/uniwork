@@ -4,9 +4,7 @@
 // trong docs/brd-uoc-luong.md, nơi có cả danh sách điểm cần BA xác nhận. Đọc
 // tài liệu đó trước khi sửa file này.
 //
-// Ba bảng CỐ Ý chưa có: notifications, job_reports và bảng thống kê admin. Chúng
-// thuộc Sprint 5–6, chưa có luồng nghiệp vụ nào ghi vào. Bảng rỗng nằm trong
-// schema nhiều tháng thì tới lúc dùng gần như chắc chắn sai hình dạng.
+// Hai bảng job_reports và bảng thống kê admin vẫn để dành cho Sprint 5–6.
 
 generator client {
   provider = "prisma-client-js"
@@ -77,9 +75,30 @@ enum JobStatus {
   CLOSED
 }
 
+/// Trạng thái đơn ứng tuyển.
+///
+/// ---------------------------------------------------------------------------
+/// `SHORTLISTED` NGHĨA LÀ "ĐÃ MỜI PHỎNG VẤN" — TÊN VÀ NGHĨA LỆCH NHAU
+/// ---------------------------------------------------------------------------
+/// Chốt 2026-08-29 sau khi đối chiếu TopCV và các ATS quốc tế: cả ba mô hình
+/// đều có bước PHỎNG VẤN giữa "thích hồ sơ này" và "nhận người này", còn ta thì
+/// không đặt tên cho nó.
+///
+/// Hoá ra `SHORTLISTED` ĐÃ là bước đó, vì nó chính là mốc mở khoá số điện thoại:
+///
+///   SHORTLISTED → NTD có số → gọi hẹn gặp (NGOÀI app) → ACCEPTED / REJECTED
+///
+/// Nên thứ phải sửa là câu chữ, không phải bảng trạng thái. Giao diện gọi nó là
+/// "Mời phỏng vấn"; giá trị enum giữ nguyên vì đổi tên enum trong Postgres là
+/// một migration đổi mọi hàng cũ để đúng được một cái tên.
+///
+/// Hệ quả cố ý: KHÔNG có đường `VIEWED → ACCEPTED`. Không nhận được người mà
+/// mình chưa từng liên hệ — chưa qua `SHORTLISTED` thì NTD còn chưa có số để
+/// báo tin. Bảng chuyển đầy đủ ở `CHUYEN_TRANG_THAI_HOP_LE` trong `domain.ts`.
 enum ApplicationStatus {
   PENDING
   VIEWED
+  /// Đã mời phỏng vấn. Mốc mở khoá thông tin liên hệ — xem chú thích ở trên.
   SHORTLISTED
   ACCEPTED
   REJECTED
@@ -148,8 +167,34 @@ model User {
   refreshTokens  RefreshToken[]
   oneTimeTokens  OneTimeToken[]
   linkedAccounts UserAccount[]
+  notifications Notification[]
 
   @@map("users")
+}
+
+enum NotificationType {
+  APPLICATION_SUBMITTED
+  APPLICATION_STATUS_CHANGED
+}
+
+/// Thông báo trong ứng dụng, dành riêng cho một tài khoản.
+model Notification {
+  id String @id @default(cuid())
+
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type    NotificationType
+  title   String
+  body    String
+  link    String?
+  readAt  DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, readAt, createdAt])
+  @@index([userId, createdAt])
+  @@map("notifications")
 }
 
 /// Danh tính từ nhà cung cấp ngoài, hiện chỉ có Google.
@@ -631,6 +676,23 @@ model Application {
   /// viên đã đổi lịch rảnh từ lâu.
   matchScore Int?
 
+  /// Chi tiết từng thành phần điểm tại thời điểm nộp — hình dạng `MatchBreakdown`
+  /// trong `packages/shared/src/phu-hop.ts`.
+  ///
+  /// Trường quan trọng nhất bên trong là `shifts.required`: `minShiftsPerWeek`
+  /// KHÔNG nằm trong `TRUONG_BAT_DUYET_LAI` nên nhà tuyển dụng sửa ngưỡng lúc
+  /// nào cũng được. Không đóng băng thì đơn nộp hôm nay đủ điều kiện sẽ thành
+  /// "không đủ" khi họ nâng ngưỡng tuần sau — lịch sử bị viết lại sau lưng.
+  ///
+  /// JSON chứ không phải mỗi thành phần một cột: thêm tiêu chí mới (khoảng cách
+  /// địa lý, lương mong muốn) không cần migration. Đổi lại JSON truy vấn chậm
+  /// hơn, nên `matchScore` vẫn là cột số riêng để sắp xếp.
+  matchBreakdown Json?
+
+  /// Đời công thức đã dùng, ví dụ "v1". Không có nó thì đổi trọng số là làm
+  /// hỏng ý nghĩa mọi hàng cũ mà không cách nào biết hàng nào tính theo đời nào.
+  matchAlgoVersion String?
+
   /// Mốc đổi trạng thái gần nhất, để dựng cột "cập nhật lúc" trong danh sách
   /// ứng viên mà không phải bới bảng lịch sử.
   statusChangedAt DateTime?
@@ -638,12 +700,50 @@ model Application {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  events ApplicationEvent[]
+
   /// Chặn ứng tuyển hai lần ngay ở tầng database. Kiểm ở tầng service cũng cần,
   /// nhưng hai request bấm cùng lúc thì chỉ ràng buộc này chặn được.
   @@unique([jobId, studentProfileId])
   @@index([studentProfileId, status])
   @@index([jobId, status])
   @@map("applications")
+}
+
+/// Lịch sử chuyển trạng thái của một đơn.
+///
+/// `Application.status` chỉ cho biết trạng thái HIỆN TẠI. Muốn vẽ timeline
+/// "Đã nộp → NTD đã xem → Kết quả" kèm ngày ở từng bước thì phải ghi lại mỗi
+/// lần chuyển — suy ngược timeline từ một trạng thái là bịa ra ngày tháng.
+///
+/// Luôn ghi trong CÙNG transaction với việc đổi `Application.status`. Tách ra
+/// thì có khoảnh khắc trạng thái đã đổi mà lịch sử chưa ghi, và timeline khuyết
+/// một bước không ai giải thích được.
+model ApplicationEvent {
+  id String @id @default(cuid())
+
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  /// Trạng thái chuyển SANG. Hàng đầu tiên là PENDING, ghi lúc nộp đơn.
+  status ApplicationStatus
+
+  /// Ai gây ra thay đổi. Rút đơn là sinh viên, còn lại là nhà tuyển dụng.
+  ///
+  /// CỐ Ý không khai quan hệ tới `User`: quan hệ kéo theo ràng buộc khoá ngoại,
+  /// và xoá một tài khoản sẽ hoặc chặn việc xoá, hoặc kéo theo lịch sử của
+  /// những đơn KHÔNG thuộc về họ. Lịch sử phải sống lâu hơn diễn viên trong nó.
+  actorUserId String?
+
+  /// Lý do từ chối, ghi chú nội bộ của NTD. Bắt buộc khi chuyển sang REJECTED —
+  /// luật đó nằm ở tầng service, không ở đây, vì nó chỉ đúng cho một trạng thái.
+  note String?
+
+  createdAt DateTime @default(now())
+
+  /// Truy vấn xương sống: lấy toàn bộ mốc của một đơn theo thứ tự thời gian.
+  @@index([applicationId, createdAt])
+  @@map("application_events")
 }
 
 /// Tin đã lưu — nút dấu trang trên mỗi thẻ việc làm.
