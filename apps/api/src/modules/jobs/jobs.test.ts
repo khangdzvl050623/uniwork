@@ -1449,6 +1449,9 @@ const HANG_JOB_PUBLIC = {
   shifts: [{ dayOfWeek: 2, slot: 'EVENING' as const }],
   skills: [{ skill: { id: 'sk-1', name: 'Pha chế', slug: 'pha-che' } }],
   employerProfile: {
+    // `userId` để `getPublicJob` biết người đang xem có phải chủ tin không.
+    // KHÔNG đi ra response — mapper chỉ nhặt `companyName` và `verifiedAt`.
+    userId: 'u-ntd',
     companyName: 'Chuỗi cà phê Sương Mai',
     verifiedAt: new Date('2026-08-05'),
     address: '12 Nguyễn Thị Minh Khai, Quận 1',
@@ -1607,6 +1610,38 @@ describe('GET /api/viec-lam/:id — chi tiết công khai', () => {
       where: { id: 'job-1' },
       data: { viewCount: { increment: 1 } },
     })
+  })
+
+  it('CHỦ TIN xem tin của mình thì KHÔNG tăng lượt xem', async () => {
+    jobFindFirst.mockResolvedValue(HANG_JOB_PUBLIC)
+    // Có token thì `getPublicJob` còn đi lấy lịch rảnh để chấm điểm.
+    lichRanhFindMany.mockResolvedValue([])
+
+    const res = await request(createApp())
+      .get('/api/viec-lam/job-1')
+      .set('Authorization', `Bearer ${ntdToken}`)
+
+    expect(res.status).toBe(200)
+    // Nhà tuyển dụng mở trang công khai để xem tin mình trông thế nào là việc
+    // ai cũng làm, và làm nhiều lần trong lúc soạn. Cộng vào thì họ tự bơm con
+    // số của mình rồi đọc lại như tín hiệu về người ngoài.
+    expect(jobUpdate).not.toHaveBeenCalled()
+    // Và con số trả về phải đúng bằng thứ nằm trong database, không cộng ảo.
+    expect(res.body.data.viewCount).toBe(41)
+  })
+
+  it('NTD KHÁC xem thì VẪN tăng — chỉ chủ tin mới được loại trừ', async () => {
+    jobFindFirst.mockResolvedValue(HANG_JOB_PUBLIC)
+    jobUpdate.mockResolvedValue({})
+    lichRanhFindMany.mockResolvedValue([])
+
+    const khac = signAccessToken({ sub: 'u-ntd-khac', role: 'EMPLOYER' })
+    const res = await request(createApp())
+      .get('/api/viec-lam/job-1')
+      .set('Authorization', `Bearer ${khac}`)
+
+    expect(jobUpdate).toHaveBeenCalledTimes(1)
+    expect(res.body.data.viewCount).toBe(42)
   })
 
   it('điều kiện OPEN nằm ngay trong câu truy vấn, không kiểm sau', async () => {

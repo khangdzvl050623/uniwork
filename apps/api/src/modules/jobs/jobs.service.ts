@@ -748,7 +748,10 @@ const CHON_JOB_PUBLIC = {
   shifts: { select: { dayOfWeek: true, slot: true } },
   skills: { select: { skill: { select: { id: true, name: true, slug: true } } } },
   employerProfile: {
-    select: { companyName: true, verifiedAt: true, address: true, website: true },
+    // `userId` KHÔNG đi ra response — `toPublicJobSummary`/`toPublicJobDetail`
+    // chỉ nhặt `companyName` và `verifiedAt`. Lấy về để `getPublicJob` biết
+    // người đang xem có phải chủ tin không; xem chỗ tăng lượt xem.
+    select: { userId: true, companyName: true, verifiedAt: true, address: true, website: true },
   },
 } satisfies Prisma.JobSelect
 
@@ -1174,10 +1177,29 @@ export async function getPublicJob(jobId: string, userId?: string): Promise<Publ
   })
   if (!job) throw notFound('Không tìm thấy tin tuyển dụng')
 
-  await prisma.job.update({
-    where: { id: jobId },
-    data: { viewCount: { increment: 1 } },
-  })
+  /*
+   * ---------------------------------------------------------------------------
+   * CHỦ TIN XEM TIN CỦA MÌNH THÌ KHÔNG TÍNH LƯỢT XEM
+   * ---------------------------------------------------------------------------
+   * Nhà tuyển dụng dùng con số này để đoán tin có hiệu quả không. Nếu chính họ
+   * mở trang công khai để kiểm tra tin trông thế nào — việc ai cũng làm, và làm
+   * nhiều lần trong lúc soạn — thì họ đang tự bơm số của mình rồi đọc lại như
+   * một tín hiệu về người ngoài. Con số nói dối đúng người nó phục vụ.
+   *
+   * Vẫn còn hai giới hạn đã biết, cố ý CHƯA làm:
+   *   - Không phân biệt người: một khách mở 20 lần bằng 20 khách mở một lần.
+   *     Làm đúng cần bảng `JobView(jobId, viewerKey, ngay)` với `@@unique`.
+   *   - Ghi trên đường đọc: mỗi lượt xem là một UPDATE khoá hàng `jobs`.
+   * Ở quy mô này chưa đáng đánh đổi; ghi ra để người sau không tưởng là sót.
+   */
+  const laChuTin = userId !== undefined && userId === job.employerProfile.userId
+
+  if (!laChuTin) {
+    await prisma.job.update({
+      where: { id: jobId },
+      data: { viewCount: { increment: 1 } },
+    })
+  }
 
   // Chấm điểm ở đây nữa chứ không chỉ ở danh sách: `PublicJobDetail` kế thừa
   // `PublicJobSummary` nên nó MANG SẴN trường `matchScore`. Bỏ trống là trả về
@@ -1185,9 +1207,11 @@ export async function getPublicJob(jobId: string, userId?: string): Promise<Publ
   const lichRanh = await layLichRanh(userId)
 
   // Cộng thêm 1 vào bản đang cầm thay vì đọc lại từ database: tiết kiệm một
-  // vòng truy vấn, và con số hiện ra đúng bằng thứ vừa ghi xuống.
+  // vòng truy vấn, và con số hiện ra đúng bằng thứ vừa ghi xuống. Chủ tin không
+  // được cộng nên cũng không cộng vào bản trả về — nếu không thì họ thấy một con
+  // số cao hơn thứ thật sự nằm trong database.
   return toPublicJobDetail(
-    { ...job, viewCount: job.viewCount + 1 },
+    { ...job, viewCount: job.viewCount + (laChuTin ? 0 : 1) },
     ghepLich(toShiftItems(job.shifts), lichRanh, job.minShiftsPerWeek),
   )
 }

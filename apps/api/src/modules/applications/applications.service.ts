@@ -1,7 +1,9 @@
 import { Prisma } from '@prisma/client'
 import {
+  APPLICATION_STATUS_LABELS,
   CHUYEN_TRANG_THAI_HOP_LE,
   PHIEN_BAN_CHAM_DIEM,
+  TRANG_THAI_KET_THUC,
   TRANG_THAI_MO_LIEN_HE,
   chamDiemPhuHop,
 } from '@uniwork/shared'
@@ -26,7 +28,6 @@ import { conflict, forbidden, notFound } from '../../lib/errors.js'
 import { applicationNotificationEmail, sendMail } from '../../lib/mailer.js'
 import { logger } from '../../lib/logger.js'
 import { createNotification } from '../notifications/notifications.service.js'
-import { APPLICATION_STATUS_LABELS } from '@uniwork/shared'
 
 /**
  * Nghiệp vụ đơn ứng tuyển.
@@ -408,7 +409,9 @@ export async function withdrawApplication(
   if (current.studentProfile.userId !== userId) {
     throw forbidden('Bạn không có quyền rút đơn ứng tuyển này')
   }
-  if (['ACCEPTED', 'REJECTED', 'WITHDRAWN'].includes(current.status)) {
+  // `TRANG_THAI_KET_THUC` thay cho danh sách chép tay: cùng một luật từng nằm ở
+  // ba nơi (đây, giao diện "Đơn của tôi", và hằng số này) nên sớm muộn lệch nhau.
+  if (TRANG_THAI_KET_THUC.includes(current.status)) {
     throw conflict('Đơn này đã kết thúc và không thể rút')
   }
 
@@ -704,15 +707,18 @@ export async function updateApplicationStatus(
     return { don: capNhat, event: ev }
   })
 
-  const userDelegate = (prisma as unknown as {
-    user?: { findUnique: (args: unknown) => Promise<{ email: string } | null> }
-  }).user
-  const studentEmail = userDelegate
-    ? await userDelegate.findUnique({
-        where: { id: don.studentProfile.userId },
-        select: { email: true },
-      })
-    : null
+  /*
+   * Gọi thẳng `prisma.user`, KHÔNG ép kiểu phòng thủ.
+   *
+   * Bản đầu bọc lời gọi này trong `(prisma as unknown as {user?: …}).user` để
+   * sống sót qua mock thiếu delegate. Cùng một lớp sai với nhánh thoát đã gỡ ở
+   * `createNotification`: mã production nhận trách nhiệm chiều test, đổi lại
+   * một cấu hình hỏng sẽ lặng lẽ bỏ gửi email thay vì nổ ra cho người ta thấy.
+   */
+  const studentEmail = await prisma.user.findUnique({
+    where: { id: don.studentProfile.userId },
+    select: { email: true },
+  })
   if (studentEmail) {
     const title = `Đơn ứng tuyển: ${APPLICATION_STATUS_LABELS[input.status]}`
     const message =

@@ -3,12 +3,26 @@ import request from 'supertest'
 import { Prisma } from '@prisma/client'
 import { createApp } from '../../app.js'
 import { prisma } from '../../lib/prisma.js'
+import { sendMail } from '../../lib/mailer.js'
 import { signAccessToken } from '../../lib/token.js'
 import { resetRateLimits } from '../../middlewares/rate-limit.js'
+
+/*
+ * Mock phải phủ ĐỦ mọi bảng mà nghiệp vụ chạm tới.
+ *
+ * Thiếu `notification` hay `user` ở đây từng được "chữa" bằng cách thêm nhánh
+ * thoát vào mã production — mã thật nhận trách nhiệm chiều mock. Đổi lại là một
+ * cấu hình hỏng sẽ nuốt im lặng mọi thông báo. Mock thiếu thì sửa mock.
+ */
+vi.mock('../../lib/mailer.js', () => ({
+  sendMail: vi.fn(),
+  applicationNotificationEmail: (subject: string, body: string) => ({ subject, html: body }),
+}))
 
 vi.mock('../../lib/prisma.js', () => ({
   prisma: {
     studentProfile: { findUnique: vi.fn() },
+    user: { findUnique: vi.fn() },
     job: { findUnique: vi.fn() },
     application: {
       create: vi.fn(),
@@ -17,6 +31,7 @@ vi.mock('../../lib/prisma.js', () => ({
       update: vi.fn(),
     },
     applicationEvent: { create: vi.fn() },
+    notification: { create: vi.fn() },
     $transaction: vi.fn(),
   },
 }))
@@ -28,7 +43,10 @@ const donFindFirst = prisma.application.findFirst as unknown as Mock
 const donFindMany = prisma.application.findMany as unknown as Mock
 const donUpdate = prisma.application.update as unknown as Mock
 const mocCreate = prisma.applicationEvent.create as unknown as Mock
+const thongBaoCreate = prisma.notification.create as unknown as Mock
+const userFindUnique = prisma.user.findUnique as unknown as Mock
 const transaction = prisma.$transaction as unknown as Mock
+const guiMail = sendMail as unknown as Mock
 
 const svToken = signAccessToken({ sub: 'u-sv', role: 'STUDENT' })
 const ntdToken = signAccessToken({ sub: 'u-ntd', role: 'EMPLOYER' })
@@ -65,7 +83,10 @@ function tinMo(ghiDe: Record<string, unknown> = {}) {
     commitmentMonths: 6,
     shifts: [T2_SANG, T3_TOI, T5_TOI],
     skills: [{ skillId: 'sk-giao-tiep' }, { skillId: 'sk-pha-che' }],
-    employerProfile: { userId: 'u-ntd' },
+    // `user.email` BẮT BUỘC có: thiếu nó thì nhánh gửi email không bao giờ chạy,
+    // và ca test "email hỏng vẫn xong" sẽ xanh vì lý do sai — đã dẫm một lần,
+    // chỉ lộ ra khi cố tình gỡ try/catch mà không ca nào đỏ.
+    employerProfile: { userId: 'u-ntd', user: { email: 'ntd@uniwork.dev' } },
     ...ghiDe,
   }
 }
@@ -120,6 +141,17 @@ beforeEach(() => {
     note: null,
     createdAt: new Date('2026-08-20T10:00:00Z'),
   })
+  thongBaoCreate.mockResolvedValue({
+    id: 'tb-1',
+    type: 'APPLICATION_SUBMITTED',
+    title: 'Có ứng viên mới',
+    body: '…',
+    link: null,
+    readAt: null,
+    createdAt: new Date('2026-08-20T10:00:00Z'),
+  })
+  userFindUnique.mockResolvedValue({ email: 'sv@uniwork.dev' })
+  guiMail.mockResolvedValue(undefined)
 })
 
 /* ==================================================================== */
@@ -683,5 +715,200 @@ describe('PUT /api/ntd/tin-tuyen-dung/:id/ung-vien/:applicationId/trang-thai', (
     tinCuaToi()
 
     expect((await doiTrangThai({ status: 'KHONG_CO_THAT' })).status).toBe(400)
+  })
+})
+
+/* ==================================================================== */
+/* Tính năng 4 — "Đơn của tôi"                                           */
+/* ==================================================================== */
+
+describe('GET/DELETE /api/toi/don-ung-tuyen', () => {
+  function donCuaAi(userId: string, status = 'PENDING') {
+    donFindFirst.mockResolvedValue({
+      id: 'app-1',
+      status,
+      studentProfile: { userId },
+      job: {
+        id: 'job-1',
+        title: 'Phục vụ quán cà phê',
+        employerProfile: { userId: 'u-ntd', user: { email: 'ntd@uniwork.dev' } },
+      },
+    })
+  }
+
+  function rut() {
+    return request(app)
+      .delete('/api/toi/don-ung-tuyen/app-1')
+      .set('Authorization', `Bearer ${svToken}`)
+  }
+
+  it('sinh viên A KHÔNG rút được đơn của sinh viên B → 403', async () => {
+    donCuaAi('u-sv-khac')
+
+    const res = await rut()
+
+    expect(res.status).toBe(403)
+    expect(donUpdate).not.toHaveBeenCalled()
+  })
+
+  it('rút đơn đã kết thúc → 409', async () => {
+    for (const cuoi of ['ACCEPTED', 'REJECTED', 'WITHDRAWN']) {
+      donCuaAi('u-sv', cuoi)
+      expect((await rut()).status).toBe(409)
+    }
+    expect(donUpdate).not.toHaveBeenCalled()
+  })
+
+  it('rút đơn KHÔNG xoá hàng — chỉ đặt WITHDRAWN', async () => {
+    donCuaAi('u-sv', 'SHORTLISTED')
+    donUpdate.mockResolvedValue({
+      ...hangDon({ status: 'WITHDRAWN' }),
+      job: {
+        id: 'job-1',
+        title: 'Phục vụ quán cà phê',
+        employerProfile: { companyName: 'Cà phê Sớm', verifiedAt: new Date() },
+      },
+      events: [],
+    })
+
+    const res = await rut()
+
+    expect(res.status).toBe(200)
+    expect(donUpdate.mock.calls[0][0].data.status).toBe('WITHDRAWN')
+    // Xoá cứng thì NTD thấy một ứng viên biến mất không dấu vết, và ràng buộc
+    // `@@unique` sẽ cho nộp lại — thành ra rút rồi nộp lại vòng vòng. Bằng chứng
+    // hàng còn sống: mốc lịch sử ghi được, mà mốc thì trỏ khoá ngoại vào đơn.
+    expect(mocCreate.mock.calls[0][0].data).toMatchObject({
+      applicationId: 'app-1',
+      status: 'WITHDRAWN',
+      actorUserId: 'u-sv',
+    })
+  })
+
+  it('rút từ SHORTLISTED → NTD nhận chuông VÀ email; rút từ PENDING chỉ chuông', async () => {
+    donUpdate.mockResolvedValue({
+      ...hangDon({ status: 'WITHDRAWN' }),
+      job: {
+        id: 'job-1',
+        title: 'Phục vụ quán cà phê',
+        employerProfile: { companyName: 'Cà phê Sớm', verifiedAt: null },
+      },
+      events: [],
+    })
+
+    donCuaAi('u-sv', 'PENDING')
+    await rut()
+    expect(thongBaoCreate).toHaveBeenCalledTimes(1)
+    // NTD chưa bỏ công gì — email cho mọi lần rút thì hộp thư thành nơi không ai đọc.
+    expect(guiMail).not.toHaveBeenCalled()
+
+    vi.clearAllMocks()
+    moDauTransaction()
+    donUpdate.mockResolvedValue({
+      ...hangDon({ status: 'WITHDRAWN' }),
+      job: {
+        id: 'job-1',
+        title: 'Phục vụ quán cà phê',
+        employerProfile: { companyName: 'Cà phê Sớm', verifiedAt: null },
+      },
+      events: [],
+    })
+    donCuaAi('u-sv', 'SHORTLISTED')
+    await rut()
+    // Đã đọc hồ sơ, đã mở liên hệ, có thể đang xếp lịch quanh người này.
+    expect(guiMail).toHaveBeenCalledTimes(1)
+  })
+})
+
+/* ==================================================================== */
+/* Tính năng 5 — thông báo                                               */
+/* ==================================================================== */
+
+describe('thông báo', () => {
+  it('nộp đơn → NTD nhận đúng MỘT thông báo, ghi trong cùng transaction', async () => {
+    svFindUnique.mockResolvedValue(hoSoSinhVien())
+    jobFindUnique.mockResolvedValue(tinMo())
+    donCreate.mockResolvedValue(hangDon())
+
+    await request(app)
+      .post('/api/toi/don-ung-tuyen')
+      .set('Authorization', `Bearer ${svToken}`)
+      .send({ jobId: 'job-1' })
+
+    expect(transaction).toHaveBeenCalledTimes(1)
+    expect(thongBaoCreate).toHaveBeenCalledTimes(1)
+    expect(thongBaoCreate.mock.calls[0][0].data).toMatchObject({
+      userId: 'u-ntd',
+      type: 'APPLICATION_SUBMITTED',
+      link: '/ntd/ung-vien?job=job-1',
+    })
+  })
+
+  it('gửi email HỎNG thì nghiệp vụ chính VẪN xong', async () => {
+    svFindUnique.mockResolvedValue(hoSoSinhVien())
+    jobFindUnique.mockResolvedValue(tinMo())
+    donCreate.mockResolvedValue(hangDon())
+    guiMail.mockRejectedValue(new Error('Brevo 503'))
+
+    const res = await request(app)
+      .post('/api/toi/don-ung-tuyen')
+      .set('Authorization', `Bearer ${svToken}`)
+      .send({ jobId: 'job-1' })
+
+    // Đơn đã ghi xong rồi; Brevo chậm không được biến nó thành 500. Chuông là
+    // nguồn sự thật, email chỉ là bản sao tiện lợi.
+    expect(res.status).toBe(201)
+    expect(thongBaoCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('VIEWED KHÔNG sinh thông báo — mở danh sách là đã xem, báo mỗi lần mở là spam', async () => {
+    jobFindUnique.mockResolvedValue({
+      id: 'job-1',
+      title: 'Phục vụ quán cà phê',
+      employerProfile: { userId: 'u-ntd' },
+    })
+    donFindFirst.mockResolvedValue({ id: 'app-1', status: 'PENDING' })
+    donUpdate.mockResolvedValue({
+      ...hangDon({ status: 'VIEWED' }),
+      studentProfile: { ...hoSoUngVien(), userId: 'u-sv' },
+    })
+
+    await request(app)
+      .put('/api/ntd/tin-tuyen-dung/job-1/ung-vien/app-1/trang-thai')
+      .set('Authorization', `Bearer ${ntdToken}`)
+      .send({ status: 'VIEWED' })
+
+    expect(thongBaoCreate).not.toHaveBeenCalled()
+    expect(guiMail).not.toHaveBeenCalled()
+  })
+
+  it('SHORTLISTED → sinh viên nhận cả chuông lẫn email', async () => {
+    jobFindUnique.mockResolvedValue({
+      id: 'job-1',
+      title: 'Phục vụ quán cà phê',
+      employerProfile: { userId: 'u-ntd' },
+    })
+    donFindFirst.mockResolvedValue({ id: 'app-1', status: 'PENDING' })
+    donUpdate.mockResolvedValue({
+      ...hangDon({ status: 'SHORTLISTED' }),
+      studentProfile: {
+        ...hoSoUngVien(),
+        userId: 'u-sv',
+        phone: '0901234567',
+        user: { email: 'sv@uniwork.dev' },
+      },
+    })
+
+    await request(app)
+      .put('/api/ntd/tin-tuyen-dung/job-1/ung-vien/app-1/trang-thai')
+      .set('Authorization', `Bearer ${ntdToken}`)
+      .send({ status: 'SHORTLISTED' })
+
+    expect(thongBaoCreate.mock.calls[0][0].data).toMatchObject({
+      userId: 'u-sv',
+      type: 'APPLICATION_STATUS_CHANGED',
+      link: '/don-ung-tuyen',
+    })
+    expect(guiMail).toHaveBeenCalledTimes(1)
   })
 })

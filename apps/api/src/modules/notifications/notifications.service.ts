@@ -7,7 +7,7 @@ import type {
   NotificationType,
 } from '@uniwork/shared'
 import { prisma } from '../../lib/prisma.js'
-import { forbidden, notFound } from '../../lib/errors.js'
+import { notFound } from '../../lib/errors.js'
 
 const NOTIFICATION_SELECT = {
   id: true,
@@ -33,9 +33,25 @@ function toNotificationItem(row: NotificationRow): NotificationItem {
   }
 }
 
-/** Ghi thông báo trong transaction của nghiệp vụ tạo/chuyển đơn. */
+/**
+ * Ghi thông báo, LUÔN trong transaction của nghiệp vụ sinh ra nó.
+ *
+ * ---------------------------------------------------------------------------
+ * KHÔNG có nhánh thoát khi thiếu delegate — và đó là chủ đích
+ * ---------------------------------------------------------------------------
+ * Bản đầu có một nhánh `if (!tx.notification) return {objectGiả}` để các test cũ
+ * mock Prisma thiếu bảng này vẫn chạy. Nhưng nó là mã PRODUCTION bị bẻ cong để
+ * chiều mock, và hệ quả rộng hơn hẳn ý định:
+ *
+ *   client Prisma lệch schema → mọi thông báo bị NUỐT IM LẶNG
+ *   → ứng tuyển vẫn trả 201, nhà tuyển dụng không bao giờ biết có đơn
+ *   → không lỗi, không log, hàm còn trả về `id: ''` như thể đã ghi
+ *
+ * Thiếu delegate là hỏng cấu hình. Hỏng thì phải NỔ ngay lúc chạy, không phải
+ * âm thầm bỏ việc rồi báo thành công. Test thiếu mock thì sửa test.
+ */
 export async function createNotification(
-  tx: Prisma.TransactionClient | typeof prisma,
+  tx: Prisma.TransactionClient,
   input: {
     userId: string
     type: NotificationType
@@ -44,20 +60,6 @@ export async function createNotification(
     link?: string | null
   },
 ): Promise<NotificationItem> {
-  // Một số unit test cũ mock Prisma trước khi bảng notifications được thêm vào.
-  // Production luôn có delegate này sau `prisma generate`; nhánh bảo vệ chỉ giữ
-  // các test nghiệp vụ cũ độc lập với migration mới.
-  if (!('notification' in tx) || !tx.notification) {
-    return {
-      id: '',
-      type: input.type,
-      title: input.title,
-      body: input.body,
-      link: input.link ?? null,
-      readAt: null,
-      createdAt: new Date().toISOString(),
-    }
-  }
   const row = await tx.notification.create({
     data: {
       userId: input.userId,
@@ -92,21 +94,38 @@ export async function markNotificationRead(
   userId: string,
   notificationId: string,
 ): Promise<MarkNotificationReadResponse> {
-  const existing = await prisma.notification.findUnique({
-    where: { id: notificationId },
-    select: { userId: true },
-  })
-  if (!existing) throw notFound('Không tìm thấy thông báo')
-  if (existing.userId !== userId) throw forbidden('Bạn không có quyền với thông báo này')
-
+  /*
+   * MỘT truy vấn, không phải ba.
+   *
+   * Bản đầu làm `findUnique` → `updateMany` → `findUniqueOrThrow`. Ngoài chuyện
+   * tốn ba lượt, nó còn có khe đua: giữa lúc kiểm chủ sở hữu và lúc ghi, hàng có
+   * thể bị xoá — rồi `findUniqueOrThrow` ném một lỗi 500 thay vì 404.
+   *
+   * Lọc kèm `userId` ngay trong `where` thì quyền và phép ghi là CÙNG một thao
+   * tác nguyên tử: không khớp thì không có hàng nào đổi, và không có khoảnh khắc
+   * nào ở giữa để chen vào.
+   *
+   * `readAt` chỉ đặt khi còn `null` — bấm lại một thông báo đã đọc không được
+   * dời mốc đọc sang thời điểm mới.
+   */
   await prisma.notification.updateMany({
-    where: { id: notificationId, userId },
+    where: { id: notificationId, userId, readAt: null },
     data: { readAt: new Date() },
   })
-  const row = await prisma.notification.findUniqueOrThrow({
-    where: { id: notificationId },
+
+  const row = await prisma.notification.findFirst({
+    where: { id: notificationId, userId },
     select: NOTIFICATION_SELECT,
   })
+
+  /*
+   * Không tách 403 khỏi 404 ở đây: id thông báo là cuid không đoán được và không
+   * hiện công khai ở đâu, nên trả 403 cho thông báo của người khác chính là xác
+   * nhận nó tồn tại. Khác hẳn tin tuyển dụng, nơi id nằm sẵn trên URL nên 403 mới
+   * là câu trả lời đúng.
+   */
+  if (!row) throw notFound('Không tìm thấy thông báo')
+
   return { notification: toNotificationItem(row) }
 }
 

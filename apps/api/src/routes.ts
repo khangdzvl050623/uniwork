@@ -23,10 +23,13 @@ export const apiRouter = Router()
 
 apiRouter.use('/health', healthRoutes)
 apiRouter.use('/auth', authRoutes)
+/*
+ * Thông báo — MỘT đường vào duy nhất.
+ *
+ * Khai TRƯỚC `/toi` bên dưới vì `profileRoutes` gắn `requireAuth` cho cả nhánh
+ * đó; cùng lý do `/toi/tin-da-luu` và `/toi/don-ung-tuyen` cũng nằm trên.
+ */
 apiRouter.use('/toi/thong-bao', notificationRoutes)
-apiRouter.use('/thong-bao', notificationRoutes)
-// Alias tiếng Anh để các client tích hợp ngoài không phải biết tên hiển thị tiếng Việt.
-apiRouter.use('/notifications', notificationRoutes)
 apiRouter.use('/skills', skillsRoutes)
 
 /* Việc làm công khai — endpoint DUY NHẤT trong dự án không cần đăng nhập ngoài /health. */
