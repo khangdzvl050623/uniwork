@@ -889,6 +889,51 @@ async function layIdDuDieuKien(lichRanh: AvailabilitySlot[]): Promise<string[]> 
 }
 
 /**
+ * Id những tin khớp từ khoá, SO KHÔNG PHÂN BIỆT DẤU.
+ *
+ * ---------------------------------------------------------------------------
+ * VÌ SAO LẠI THÊM MỘT CHỖ SQL VIẾT TAY NỮA
+ * ---------------------------------------------------------------------------
+ * Sinh viên gõ "gia su" trên điện thoại — gần như không ai bật bộ gõ để tìm
+ * việc. Trước hàm này, `contains` của Prisma dịch ra `ILIKE '%gia su%'` và trả
+ * về RỖNG, trong khi database có tin "Gia sư Toán lớp 9". Đo thật 2026-09-06:
+ * "gia sư" → 1 kết quả, "gia su" → 0.
+ *
+ * Prisma không gọi được hàm SQL trong `where`, nên `unaccent()` bắt buộc phải
+ * đi qua SQL tay. Dùng ĐÚNG khuôn của `layIdDuDieuKien` ngay trên: hỏi SQL đúng
+ * phần nó làm được mà Prisma không làm được, trả về danh sách id, rồi để Prisma
+ * lọc `id IN (...)` cùng mọi tiêu chí khác. Không có bản luật lọc thứ hai.
+ *
+ * ---------------------------------------------------------------------------
+ * `%` VÀ `_` TRONG TỪ KHOÁ PHẢI ĐƯỢC THOÁT
+ * ---------------------------------------------------------------------------
+ * Chúng là ký tự đại diện của `LIKE`. Không thoát thì gõ `%` ra TOÀN BỘ tin —
+ * trông như tìm kiếm hỏng, và người dùng không đời nào đoán được vì sao. Đây
+ * không phải lỗ hổng bảo mật (tham số vẫn đi qua prepared statement của
+ * `$queryRaw`, không phải nối chuỗi), chỉ là kết quả sai.
+ *
+ * Thoát bằng `\` — mặc định của Postgres, nên không cần mệnh đề `ESCAPE`. Phải
+ * thoát chính `\` TRƯỚC, nếu không thì `\` do người dùng gõ sẽ nuốt mất dấu
+ * thoát vừa thêm cho ký tự đứng sau nó.
+ *
+ * Lọc sẵn `status = 'OPEN'` không phải để đúng — Prisma lọc lại ở ngoài rồi —
+ * mà để danh sách `IN` không phình theo cả tin nháp và tin chờ duyệt.
+ */
+async function layIdKhopTuKhoa(q: string): Promise<string[]> {
+  const mau = `%${q.replace(/[\\%_]/g, (kyTu) => `\\${kyTu}`)}%`
+
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT "id"
+    FROM "jobs"
+    WHERE "status" = 'OPEN'
+      AND (unaccent("title") ILIKE unaccent(${mau})
+        OR unaccent("description") ILIKE unaccent(${mau}))
+  `
+
+  return rows.map((r) => r.id)
+}
+
+/**
  * Dựng mệnh đề lọc cho danh sách công khai.
  *
  * ---------------------------------------------------------------------------
@@ -905,19 +950,21 @@ async function layIdDuDieuKien(lichRanh: AvailabilitySlot[]): Promise<string[]> 
 function dungBoLoc(
   query: PublicJobQuery,
   idDuDieuKien: string[] | null,
+  idKhopTuKhoa: string[] | null,
 ): Prisma.JobWhereInput {
   const dieuKien: Prisma.JobWhereInput[] = []
 
-  if (query.q) {
-    const q = query.q.trim()
-    if (q) {
-      dieuKien.push({
-        OR: [
-          { title: { contains: q, mode: 'insensitive' } },
-          { description: { contains: q, mode: 'insensitive' } },
-        ],
-      })
-    }
+  /*
+   * Từ khoá — lọc theo id đã tính sẵn ở `layIdKhopTuKhoa`, không dùng `contains`.
+   *
+   * `null` nghĩa là KHÔNG có từ khoá (không lọc), còn mảng rỗng nghĩa là có từ
+   * khoá nhưng không tin nào khớp (lọc ra rỗng). Hai thứ đó khác hẳn nhau —
+   * gộp lại bằng một phép kiểm `?.length` thì gõ từ khoá lạ sẽ trả về TOÀN BỘ
+   * tin thay vì không tin nào. Cùng sự phân biệt `null` với `0` dùng xuyên suốt
+   * dự án.
+   */
+  if (idKhopTuKhoa !== null) {
+    dieuKien.push({ id: { in: idKhopTuKhoa } })
   }
 
   /*
@@ -1055,7 +1102,13 @@ export async function listPublicJobs(
   const idDuDieuKien =
     query.matchAvailability && lichRanh ? await layIdDuDieuKien(lichRanh) : null
 
-  const where = dungBoLoc(query, idDuDieuKien)
+  // `trim()` rồi mới kiểm rỗng: ô tìm kiếm gửi lên " " khi người dùng gõ nhầm
+  // dấu cách, và một câu `ILIKE '% %'` khớp mọi tin có khoảng trắng — tức là
+  // gần như tất cả. Trông giống bộ lọc hỏng.
+  const tuKhoa = query.q?.trim()
+  const idKhopTuKhoa = tuKhoa ? await layIdKhopTuKhoa(tuKhoa) : null
+
+  const where = dungBoLoc(query, idDuDieuKien, idKhopTuKhoa)
 
   const page = query.page ?? 1
   const limit = Math.min(query.limit ?? GIOI_HAN_CONG_KHAI, GIOI_HAN_CONG_KHAI)
