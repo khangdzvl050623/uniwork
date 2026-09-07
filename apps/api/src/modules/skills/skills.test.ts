@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import request from 'supertest'
+import { Prisma } from '@prisma/client'
 import { createApp } from '../../app.js'
 import { prisma } from '../../lib/prisma.js'
 import { signAccessToken } from '../../lib/token.js'
@@ -42,8 +43,8 @@ const update = prisma.skill.update as unknown as Mock
 const del = prisma.skill.delete as unknown as Mock
 
 const KY_NANG_MAU = [
-  { id: 'c1', name: 'Bán hàng', slug: 'ban-hang' },
-  { id: 'c2', name: 'Pha chế', slug: 'pha-che' },
+  { id: 'c1', name: 'Bán hàng', slug: 'ban-hang', featured: true },
+  { id: 'c2', name: 'Pha chế', slug: 'pha-che', featured: false },
 ]
 
 const adminToken = signAccessToken({ sub: 'admin-1', role: 'ADMIN' })
@@ -54,18 +55,35 @@ beforeEach(() => {
 })
 
 describe('skills service', () => {
-  it('chỉ lấy đúng ba cột công khai, sắp xếp theo tên', async () => {
+  it('chỉ lấy đúng bốn cột công khai, sắp xếp theo tên', async () => {
     findMany.mockResolvedValue(KY_NANG_MAU)
 
     const result = await listSkills()
 
     expect(result).toEqual(KY_NANG_MAU)
-    // Khoá chặt hình dạng truy vấn: nếu sau này ai đó đổi sang lấy hết cột,
-    // test này đỏ trước khi cột nội bộ kịp lọt ra API.
+    /*
+     * Khoá chặt hình dạng truy vấn: nếu sau này ai đó đổi sang lấy hết cột,
+     * test này đỏ trước khi cột nội bộ kịp lọt ra API.
+     *
+     * `featured` thêm vào ở Sprint 5 và là lựa chọn CÓ CHỦ ĐÍCH — trang chủ cần
+     * biết kỹ năng nào là chip "Từ khoá phổ biến", mà nó đã gọi endpoint này rồi
+     * nên trả kèm rẻ hơn dựng một endpoint thứ hai. Danh sách này là chỗ ghi lại
+     * quyết định đó: cột nào lọt ra API phải đi qua đây trước.
+     */
     expect(findMany).toHaveBeenCalledWith({
-      select: { id: true, name: true, slug: true },
+      select: { id: true, name: true, slug: true, featured: true },
       orderBy: { name: 'asc' },
     })
+  })
+
+  it('trả nguyên cờ featured để trang chủ lọc chip', async () => {
+    // Không kiểm "trang chủ hiện đúng chip" ở đây — kiểm rằng dữ liệu để làm
+    // việc đó ĐI RA KHỎI service. Trang chủ tự lọc trên danh sách này.
+    findMany.mockResolvedValue(KY_NANG_MAU)
+
+    const result = await listSkills()
+
+    expect(result.filter((k) => k.featured).map((k) => k.name)).toEqual(['Bán hàng'])
   })
 })
 
@@ -274,6 +292,120 @@ describe('PUT /api/admin/ky-nang/:id', () => {
       .send({ name: 'Tên mới' })
 
     expect(res.status).toBe(404)
+  })
+})
+
+describe('PUT /api/admin/ky-nang/:id/noi-bat', () => {
+  /** Hàng `update` trả về, đủ hình dạng `AdminSkillResponse`. */
+  function hangSauKhiGhi(featured: boolean) {
+    return {
+      id: 'c1',
+      name: 'Pha chế',
+      slug: 'pha-che',
+      featured,
+      _count: { jobs: 2, students: 5 },
+    }
+  }
+
+  it('bật cờ và CHỈ ghi cột featured', async () => {
+    /*
+     * Đây là điểm chính của việc tách route riêng thay vì thêm `featured` vào
+     * `PUT /:id`: tick một ô KHÔNG được gửi kèm tên. Gộp chung thì hai admin
+     * cùng mở bảng, người tick sau sẽ ghi đè tên người kia vừa sửa — và không
+     * ai thấy gì bất thường cho tới lúc đọc lại danh mục.
+     */
+    update.mockResolvedValue(hangSauKhiGhi(true))
+
+    const res = await request(createApp())
+      .put('/api/admin/ky-nang/c1/noi-bat')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ featured: true })
+
+    expect(res.status).toBe(200)
+    expect(res.body.data.featured).toBe(true)
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: 'c1' }, data: { featured: true } }),
+    )
+  })
+
+  it('tắt cờ cũng đi qua đúng đường đó', async () => {
+    // `false` phải ghi được thật, không bị coi là "không truyền gì". Kiểm luôn
+    // vì đây là chỗ dễ rơi vào bẫy falsy khi ai đó viết `featured || undefined`.
+    update.mockResolvedValue(hangSauKhiGhi(false))
+
+    const res = await request(createApp())
+      .put('/api/admin/ky-nang/c1/noi-bat')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ featured: false })
+
+    expect(res.status).toBe(200)
+    expect(update).toHaveBeenCalledWith(expect.objectContaining({ data: { featured: false } }))
+  })
+
+  it('route /:id/noi-bat KHÔNG bị /:id nuốt mất', async () => {
+    // Express so khớp theo số đoạn đường dẫn nên hai route này không đụng nhau.
+    // Nếu có ngày ai đó đổi `/:id` thành `/:id/*` thì ca này đỏ: `updateSkill`
+    // sẽ chạy và đòi `name`, trả 400 thay vì 200.
+    update.mockResolvedValue(hangSauKhiGhi(true))
+
+    const res = await request(createApp())
+      .put('/api/admin/ky-nang/c1/noi-bat')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ featured: true })
+
+    expect(res.status).toBe(200)
+    expect(findFirst).not.toHaveBeenCalled()
+  })
+
+  it('thiếu featured trong body thì 400', async () => {
+    const res = await request(createApp())
+      .put('/api/admin/ky-nang/c1/noi-bat')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({})
+
+    expect(res.status).toBe(400)
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('kỹ năng không tồn tại thì 404, không phải 500', async () => {
+    /*
+     * `setSkillFeatured` cố ý KHÔNG đọc trước rồi mới ghi — nó để `update` của
+     * Prisma ném P2025 và `error-handler` quy về 404. Ca này khoá đúng chỗ nối
+     * đó: bỏ nhánh P2025 khỏi error-handler là người dùng nhận 500 cho một
+     * chuyện hoàn toàn bình thường.
+     */
+    update.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Record to update not found.', {
+        code: 'P2025',
+        clientVersion: 'test',
+      }),
+    )
+
+    const res = await request(createApp())
+      .put('/api/admin/ky-nang/khong-co/noi-bat')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ featured: true })
+
+    expect(res.status).toBe(404)
+  })
+
+  it('sinh viên gọi vào thì 403, không đụng database', async () => {
+    const res = await request(createApp())
+      .put('/api/admin/ky-nang/c1/noi-bat')
+      .set('Authorization', `Bearer ${studentToken}`)
+      .send({ featured: true })
+
+    expect(res.status).toBe(403)
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('không đăng nhập thì 401', async () => {
+    const res = await request(createApp())
+      .put('/api/admin/ky-nang/c1/noi-bat')
+      .send({ featured: true })
+
+    expect(res.status).toBe(401)
+    expect(update).not.toHaveBeenCalled()
   })
 })
 
