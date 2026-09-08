@@ -27,11 +27,15 @@ const DEFAULT_PAGE_SIZE = 100
 /**
  * Đổi bộ lọc thành query string.
  *
+ * XUẤT RA NGOÀI vì `JobList` dùng lại đúng hàm này để ghi bộ lọc lên thanh địa
+ * chỉ. Viết bản thứ hai cho URL trình duyệt thì hai bản sẽ lệch nhau — và triệu
+ * chứng là link chia sẻ đi mở ra một bộ lọc khác với thứ người gửi đang nhìn.
+ *
  * Mỗi tham số chỉ được đặt khi CÓ giá trị thật — không bao giờ gửi chuỗi rỗng.
  * Server đã chặn `?salaryFrom=` thành "bằng 0" rồi, nhưng chặn luôn ở đây để
  * URL sạch và cache key không sinh ra hai biến thể cho cùng một bộ lọc.
  */
-function chuoiTruyVan(query: PublicJobQuery): string {
+export function chuoiTruyVan(query: PublicJobQuery): string {
   const p = new URLSearchParams()
 
   if (query.q) p.set('q', query.q.trim())

@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { CalendarPlus, Loader2, Search, SlidersHorizontal, X } from 'lucide-react'
 import {
   PUBLIC_JOB_SORTS,
@@ -11,7 +11,8 @@ import { JobCard } from '@/components/JobCard'
 import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/hooks/useAuth'
 import { useAvailability, useSkills } from '@/hooks/useProfile'
-import { usePublicJobs } from '@/hooks/usePublicJobs'
+import { chuoiTruyVan, usePublicJobs } from '@/hooks/usePublicJobs'
+import { docBoLoc } from '@/lib/bo-loc-url'
 import { cn } from '@/lib/utils'
 
 /**
@@ -31,24 +32,160 @@ import { cn } from '@/lib/utils'
  * Trang này chỉ làm hai việc: gom trạng thái bộ lọc, và vẽ thứ server trả về.
  */
 export function JobList() {
-  const [boLoc, setBoLoc] = useState<BoLoc>({})
-  const [q, setQ] = useState('')
-  const [sort, setSort] = useState<PublicJobSort>('newest')
+  /*
+   * ---------------------------------------------------------------------------
+   * URL LÀ NGUỒN SỰ THẬT CHO BỘ LỌC — KHÔNG GIỮ BẢN SAO TRONG `useState`
+   * ---------------------------------------------------------------------------
+   * Bản đầu giữ bộ lọc trong `useState` khởi tạo từ URL rồi ghi ngược ra. Hai
+   * lỗi thật sinh ra từ đó, cả hai đều do `useState` KHÔNG chạy lại hàm khởi
+   * tạo khi component còn sống:
+   *
+   * 1. Đang ở `/viec-lam?skillIds=c1`, bấm "Việc làm" trên header để về
+   *    `/viec-lam` — component không unmount, trạng thái vẫn giữ `skillIds`, và
+   *    effect ghi ngược lập tức dán `?skillIds=c1` trở lại. Người dùng bấm xoá
+   *    bộ lọc mà bộ lọc tự mọc lại.
+   * 2. Nút Back của trình duyệt đổi URL nhưng trạng thái không đổi theo.
+   *
+   * Bỏ hẳn bản sao thì cả hai biến mất theo — không phải vá, mà là không còn
+   * chỗ cho chúng tồn tại.
+   */
+  const [thamSo, datThamSo] = useSearchParams()
+
+  const boLoc = useMemo(() => docBoLoc(thamSo), [thamSo])
+  const sort: PublicJobSort = thamSo.get('sort') === 'match' ? 'match' : 'newest'
+
+  /*
+   * `q` là NGOẠI LỆ, cố ý: nó vẫn nằm trong state.
+   *
+   * Bộ lọc là những cú bấm rời rạc, đẩy thẳng vào URL không sao. Còn ô tìm kiếm
+   * thì mỗi phím là một lần đổi — đẩy thẳng vào URL nghĩa là mỗi phím một lần
+   * `history.replaceState()`, mà Safari chặn khoảng 100 lần trong 30 giây. Gõ
+   * nhanh là trình duyệt bắt đầu bỏ qua, và thanh địa chỉ lệch khỏi ô nhập.
+   *
+   * Nên `q` gõ vào state, rồi 300ms sau mới hạ xuống URL. Con số 300ms lấy từ
+   * `sprint-3.md` (tính năng 2) — chỗ đã đặc tả debounce mà chưa ai làm, nên
+   * tới trước hôm nay mỗi phím gõ là một request xuống API.
+   */
+  const [q, setQ] = useState(() => thamSo.get('q') ?? '')
+
+  /*
+   * URL đổi từ bên ngoài (bấm Back, bấm link khác) thì ô tìm kiếm phải theo.
+   *
+   * Chỉ đồng bộ khi hai bên THẬT SỰ lệch: thiếu phép so này thì mỗi lần
+   * `thamSo` đổi vì lý do khác (bấm một bộ lọc) sẽ ghi đè đúng chữ người dùng
+   * đang gõ dở.
+   */
+  const qTrenUrl = thamSo.get('q') ?? ''
+  useEffect(() => {
+    setQ((dangGo) => (dangGo === qTrenUrl ? dangGo : qTrenUrl))
+  }, [qTrenUrl])
+
+  /** Ghi một bộ lọc mới lên URL. Mọi thay đổi bộ lọc đều đi qua đây. */
+  function datBoLoc(moi: BoLoc) {
+    // `replace` chứ không `push`: đổi bộ lọc không phải một trang mới, và nút
+    // Back phải đưa người dùng về nơi họ tới từ đó chứ không phải lùi từng nấc
+    // qua mọi lần bấm bộ lọc.
+    datThamSo(chuoiTruyVan({ ...moi, q, sort }).replace(/^\?/, ''), { replace: true })
+  }
+
+  /*
+   * Xoá SẠCH: cả cột lọc lẫn ô tìm kiếm.
+   *
+   * `datBoLoc({})` không đủ — nó giữ nguyên `q`. Mà `coBoLoc` (thứ quyết định
+   * nút này có hiện hay không) lại tính cả `q` là một bộ lọc, nên người tìm
+   * "xyzabc" ra 0 kết quả sẽ thấy nút "Xoá bộ lọc", bấm vào, và vẫn 0 kết quả.
+   * Một nút không làm được đúng thứ nó ghi trên mặt.
+   *
+   * `sort` giữ lại: nó không thu hẹp kết quả, nó chỉ đổi thứ tự.
+   */
+  function xoaHetBoLoc() {
+    setQ('')
+    datThamSo(chuoiTruyVan({ sort }).replace(/^\?/, ''), { replace: true })
+  }
+
+  function datSort(moi: PublicJobSort) {
+    datThamSo(chuoiTruyVan({ ...boLoc, q, sort: moi }).replace(/^\?/, ''), { replace: true })
+  }
+
   const [hienLocDiDong, setHienLocDiDong] = useState(false)
 
-  const { user } = useAuth()
+  const { user, status: trangThaiDangNhap } = useAuth()
   const laSinhVien = user?.role === 'STUDENT'
 
   const { data: kyNang } = useSkills()
   // Chỉ hỏi lịch rảnh khi người xem là sinh viên: endpoint đòi vai STUDENT, gọi
   // từ tài khoản khác chỉ nhận 403 cho một thứ không liên quan tới họ.
-  const { data: lichRanh } = useAvailability({ enabled: laSinhVien })
+  const { data: lichRanh, isFetched: daHoiXongLich } = useAvailability({ enabled: laSinhVien })
 
   const daKhaiLich = Boolean(lichRanh?.slots.length)
   const dungDuocLichRanh = laSinhVien && daKhaiLich
 
+  /*
+   * Hạ `q` xuống URL sau 300ms không gõ thêm.
+   *
+   * `chuoiTruyVan` bỏ `q` rỗng nên xoá sạch ô tìm kiếm cũng tự dọn URL.
+   *
+   * ⚠ Đây KHÔNG chỉ là chuyện thanh địa chỉ. `qTrenUrl` cũng chính là từ khoá
+   * gửi xuống API (xem `usePublicJobs` bên dưới), nên chỗ này là cái duy nhất
+   * quyết định bao nhiêu request được bắn đi.
+   */
+  useEffect(() => {
+    if (q === qTrenUrl) return
+    const hen = setTimeout(() => {
+      datThamSo(chuoiTruyVan({ ...boLoc, q, sort }).replace(/^\?/, ''), { replace: true })
+    }, 300)
+    return () => clearTimeout(hen)
+  }, [q, qTrenUrl, boLoc, sort, datThamSo])
+
+  /*
+   * Link chia sẻ có `matchAvailability=true` nhưng người mở KHÔNG dùng được bộ
+   * lọc đó (khách, nhà tuyển dụng, hoặc sinh viên chưa khai lịch) thì phải gỡ —
+   * không gỡ thì API trả 401/400 và họ thấy một trang lỗi cho việc duy nhất họ
+   * làm là bấm vào link bạn gửi. Ô tick cũng đã bị khoá nên họ không tự tắt được.
+   *
+   * ⚠ NHƯNG PHẢI CHỜ BIẾT CHẮC ĐÃ.
+   *
+   * Bản đầu gỡ ngay khi `dungDuocLichRanh === false`, mà lúc trang vừa mở thì
+   * phiên đăng nhập còn đang kiểm và lịch rảnh còn đang tải — `false` lúc đó
+   * nghĩa là "chưa biết", không phải "không dùng được". Kết quả: sinh viên CÓ
+   * lịch mở link lọc lịch rảnh thì bộ lọc bị xoá mất trước khi dữ liệu về, và
+   * không có gì khôi phục nó.
+   *
+   * `daBietChac` là điều kiện "đã đủ căn cứ để kết luận":
+   * - phiên đăng nhập không còn ở trạng thái `dang-kiem-tra`, VÀ
+   * - hoặc không phải sinh viên (khỏi cần hỏi lịch), hoặc đã hỏi xong lịch.
+   */
+  const daBietChac =
+    trangThaiDangNhap !== 'dang-kiem-tra' && (!laSinhVien || daHoiXongLich)
+
+  useEffect(() => {
+    if (daBietChac && !dungDuocLichRanh && boLoc.matchAvailability) {
+      datThamSo(
+        chuoiTruyVan({ ...boLoc, matchAvailability: undefined, q, sort }).replace(/^\?/, ''),
+        { replace: true },
+      )
+    }
+  }, [daBietChac, dungDuocLichRanh, boLoc, q, sort, datThamSo])
+
+  /*
+   * ---------------------------------------------------------------------------
+   * TRUY VẤN DÙNG `qTrenUrl`, KHÔNG DÙNG `q` ĐANG GÕ
+   * ---------------------------------------------------------------------------
+   * `q` đổi theo TỪNG PHÍM. `queryKey` của TanStack Query chứa nguyên object
+   * này, nên truyền `q` vào đây nghĩa là gõ "gia sư" bắn đi sáu request và tạo
+   * sáu cache entry — năm cái đầu bị vứt ngay khi có phím kế tiếp.
+   *
+   * Bản trước mắc đúng lỗi đó: debounce 300ms chỉ hoãn việc GHI URL, còn truy
+   * vấn vẫn chạy mỗi phím. Debounce nằm ở chỗ không ai được lợi.
+   *
+   * `qTrenUrl` là giá trị ĐÃ LẮNG — nó chỉ đổi sau 300ms không gõ thêm. Ô nhập
+   * vẫn phản hồi tức thì vì nó đọc `q`; chỉ có request là chờ.
+   *
+   * Hệ quả phụ đáng giá: URL và tập kết quả luôn khớp nhau. Chép link ở thanh
+   * địa chỉ ra gửi cho người khác thì họ thấy đúng thứ mình đang thấy.
+   */
   const { data, isLoading, isError, error, fetchNextPage, hasNextPage, isFetchingNextPage } =
-    usePublicJobs({ ...boLoc, q, sort })
+    usePublicJobs({ ...boLoc, q: qTrenUrl, sort })
 
   const jobs = data?.pages.flatMap((page) => page.jobs) ?? []
   const total = data?.pages[0]?.total ?? 0
@@ -100,7 +237,7 @@ export function JobList() {
         <div className={hienLocDiDong ? 'block' : 'hidden lg:block'}>
           <FilterSidebar
             gaTri={boLoc}
-            onDoi={setBoLoc}
+            onDoi={datBoLoc}
             kyNang={kyNang ?? []}
             dungDuocLichRanh={dungDuocLichRanh}
           />
@@ -160,7 +297,7 @@ export function JobList() {
                   <button
                     key={s}
                     type="button"
-                    onClick={() => setSort(s)}
+                    onClick={() => datSort(s)}
                     disabled={khoa}
                     aria-pressed={sort === s}
                     title={
@@ -210,7 +347,7 @@ export function JobList() {
               {coBoLoc && (
                 <button
                   type="button"
-                  onClick={() => setBoLoc({})}
+                  onClick={xoaHetBoLoc}
                   className="mt-2 text-sm font-medium text-brand-600 transition-colors duration-150 hover:text-brand-700"
                 >
                   Xoá bộ lọc

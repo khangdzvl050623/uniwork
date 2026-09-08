@@ -15,7 +15,7 @@ import { conflict, notFound } from '../../lib/errors.js'
  */
 export async function listSkills(): Promise<SkillResponse[]> {
   return prisma.skill.findMany({
-    select: { id: true, name: true, slug: true },
+    select: { id: true, name: true, slug: true, featured: true },
     orderBy: { name: 'asc' },
   })
 }
@@ -35,6 +35,7 @@ export async function listSkillsForAdmin(): Promise<AdminSkillResponse[]> {
       id: true,
       name: true,
       slug: true,
+      featured: true,
       _count: { select: { jobs: true, students: true } },
     },
     orderBy: { name: 'asc' },
@@ -44,6 +45,7 @@ export async function listSkillsForAdmin(): Promise<AdminSkillResponse[]> {
     id: s.id,
     name: s.name,
     slug: s.slug,
+    featured: s.featured,
     jobCount: s._count.jobs,
     studentCount: s._count.students,
   }))
@@ -82,7 +84,7 @@ export async function createSkill(name: string): Promise<AdminSkillResponse> {
 
   const created = await prisma.skill.create({
     data: { name, slug },
-    select: { id: true, name: true, slug: true },
+    select: { id: true, name: true, slug: true, featured: true },
   })
 
   // Vừa tạo nên chắc chắn chưa ai dùng — khỏi cần một câu đếm nữa.
@@ -121,6 +123,7 @@ export async function updateSkill(id: string, name: string): Promise<AdminSkillR
       id: true,
       name: true,
       slug: true,
+      featured: true,
       _count: { select: { jobs: true, students: true } },
     },
   })
@@ -129,6 +132,41 @@ export async function updateSkill(id: string, name: string): Promise<AdminSkillR
     id: updated.id,
     name: updated.name,
     slug: updated.slug,
+    featured: updated.featured,
+    jobCount: updated._count.jobs,
+    studentCount: updated._count.students,
+  }
+}
+
+/**
+ * Bật/tắt chip "Từ khoá phổ biến" ở trang chủ cho một kỹ năng.
+ *
+ * Không kiểm tồn tại trước rồi mới ghi: `update` của Prisma tự ném P2025 khi
+ * không có hàng, và `error-handler` đã quy P2025 về 404 kèm câu chữ đúng nghĩa.
+ * Thêm một câu `findUnique` ở đây chỉ để nói cùng một điều, mà lại mở ra một
+ * khe đua giữa hai câu truy vấn.
+ *
+ * Khác với `deleteSkill` ngay dưới — ở đó phải đọc trước THẬT, vì nó cần nói
+ * còn bao nhiêu chỗ đang dùng, thứ mà mã lỗi của Postgres không nói được.
+ */
+export async function setSkillFeatured(id: string, featured: boolean): Promise<AdminSkillResponse> {
+  const updated = await prisma.skill.update({
+    where: { id },
+    data: { featured },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+      featured: true,
+      _count: { select: { jobs: true, students: true } },
+    },
+  })
+
+  return {
+    id: updated.id,
+    name: updated.name,
+    slug: updated.slug,
+    featured: updated.featured,
     jobCount: updated._count.jobs,
     studentCount: updated._count.students,
   }

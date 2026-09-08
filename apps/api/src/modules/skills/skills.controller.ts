@@ -1,6 +1,6 @@
 import type { RequestHandler } from 'express'
 import { z } from 'zod'
-import { createSkillSchema, updateSkillSchema } from '@uniwork/shared'
+import { createSkillSchema, setSkillFeaturedSchema, updateSkillSchema } from '@uniwork/shared'
 import { ok } from '../../lib/respond.js'
 import { badRequest } from '../../lib/errors.js'
 import * as skillsService from './skills.service.js'
@@ -46,6 +46,12 @@ export const updateSkillController: RequestHandler = async (req, res) => {
   const { id } = parse(thamSoId, req.params)
   const { name } = parse(updateSkillSchema, req.body)
   ok(res, await skillsService.updateSkill(id, name))
+}
+
+export const setSkillFeaturedController: RequestHandler = async (req, res) => {
+  const { id } = parse(thamSoId, req.params)
+  const { featured } = parse(setSkillFeaturedSchema, req.body)
+  ok(res, await skillsService.setSkillFeatured(id, featured))
 }
 
 /*

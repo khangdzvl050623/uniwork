@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Check, Loader2, Pencil, Plus, Trash2, X } from 'lucide-react'
+import { Check, Loader2, Pencil, Plus, Star, Trash2, X } from 'lucide-react'
 import { taoSlug, type AdminSkillResponse } from '@uniwork/shared'
 import {
   EmptyRow,
@@ -14,9 +14,11 @@ import {
   useAdminSkills,
   useCreateSkill,
   useDeleteSkill,
+  useSetSkillFeatured,
   useUpdateSkill,
 } from '@/hooks/useAdminSkills'
 import { ApiClientError } from '@/lib/api'
+import { cn } from '@/lib/utils'
 
 /**
  * Danh mục kỹ năng.
@@ -33,6 +35,11 @@ import { ApiClientError } from '@/lib/api'
  * - **Đổi tên KHÔNG đổi slug.** Cột slug hiện mờ và không sửa được, đúng với
  *   hành vi của API: tin tuyển dụng tham chiếu kỹ năng bằng slug, đổi nó là làm
  *   chết mọi link lọc đã phát ra ngoài.
+ * - Cột **Trang chủ** quyết định kỹ năng nào thành chip "Từ khoá phổ biến" dưới
+ *   ô tìm kiếm. Có cột này vì danh mục trộn hai loại: VIỆC LÀ GÌ (Gia sư, Pha
+ *   chế) và NGƯỜI PHẢI THẾ NÀO (Kiên nhẫn, Giao tiếp) — chỉ loại đầu đáng làm
+ *   từ khoá. Lấy cả danh mục thì trang chủ hiện chip "Kiên nhẫn"; xếp theo số
+ *   tin còn tệ hơn, vì kỹ năng mềm gắn vào hầu hết mọi tin nên chúng lên đầu.
  *
  * Hàm `taoSlug` lấy từ `@uniwork/shared` — CÙNG một hàm server dùng để ghi
  * xuống database. Giữ bản sao riêng ở đây thì ô xem trước sẽ có ngày nói dối.
@@ -42,6 +49,7 @@ export function AdminSkills() {
   const themMoi = useCreateSkill()
   const doiTen = useUpdateSkill()
   const xoa = useDeleteSkill()
+  const doiNoiBat = useSetSkillFeatured()
 
   const [query, setQuery] = useState('')
   const [draft, setDraft] = useState('')
@@ -67,7 +75,10 @@ export function AdminSkills() {
    * dụng và 20 hồ sơ sinh viên dùng kỹ năng này"). Viết lại một câu chung chung
    * kiểu "Thao tác thất bại" ở đây là vứt đi đúng phần thông tin hữu ích nhất.
    */
-  const loi = [themMoi.error, doiTen.error, xoa.error].find(Boolean)
+  // ⚠ Mọi mutation của trang này phải có mặt trong mảng dưới. Thiếu một cái là
+  // thao tác đó hỏng trong im lặng: nút nhả ra, ô tick bật lại như cũ, và không
+  // câu nào nói vì sao. Đã sót `doiNoiBat` đúng như vậy một lần.
+  const loi = [themMoi.error, doiTen.error, doiNoiBat.error, xoa.error].find(Boolean)
   const thongBaoLoi = loi instanceof ApiClientError ? loi.message : null
 
   function them() {
@@ -153,11 +164,12 @@ export function AdminSkills() {
       <TableShell>
         <Toolbar placeholder="Tìm kỹ năng…" value={query} onChange={setQuery} />
 
-        <table className="w-full min-w-[680px] border-collapse">
+        <table className="w-full min-w-[790px] border-collapse">
           <thead>
             <tr>
               <Th>Kỹ năng</Th>
               <Th>Slug</Th>
+              <Th>Trang chủ</Th>
               <Th>Tin đang dùng</Th>
               <Th>Sinh viên khai</Th>
               <Th className="text-right">Hành động</Th>
@@ -165,7 +177,7 @@ export function AdminSkills() {
           </thead>
 
           <tbody>
-            {rows.length === 0 && <EmptyRow colSpan={5}>Không tìm thấy kỹ năng nào.</EmptyRow>}
+            {rows.length === 0 && <EmptyRow colSpan={6}>Không tìm thấy kỹ năng nào.</EmptyRow>}
 
             {rows.map((skill, i) => (
               <HangKyNang
@@ -175,6 +187,8 @@ export function AdminSkills() {
                 dangSua={dangSua?.id === skill.id ? dangSua.ten : null}
                 dangLuu={doiTen.isPending && dangSua?.id === skill.id}
                 dangXoa={dangXoa === skill.id && xoa.isPending}
+                dangDoiNoiBat={doiNoiBat.isPending && doiNoiBat.variables?.id === skill.id}
+                onDoiNoiBat={() => doiNoiBat.mutate({ id: skill.id, featured: !skill.featured })}
                 onBatDauSua={() => setDangSua({ id: skill.id, ten: skill.name })}
                 onDoiTen={(ten) => setDangSua({ id: skill.id, ten })}
                 onLuu={luuTen}
@@ -204,6 +218,8 @@ function HangKyNang({
   dangSua,
   dangLuu,
   dangXoa,
+  dangDoiNoiBat,
+  onDoiNoiBat,
   onBatDauSua,
   onDoiTen,
   onLuu,
@@ -216,6 +232,8 @@ function HangKyNang({
   dangSua: string | null
   dangLuu: boolean
   dangXoa: boolean
+  dangDoiNoiBat: boolean
+  onDoiNoiBat: () => void
   onBatDauSua: () => void
   onDoiTen: (ten: string) => void
   onLuu: () => void
@@ -249,6 +267,42 @@ function HangKyNang({
       {/* Slug hiện mờ và không sửa được — nó là khoá tra cứu ổn định, đổi tên
           không đụng tới nó. */}
       <Td className="text-dash-muted font-mono text-xs">{skill.slug}</Td>
+
+      {/*
+        Nút bật/tắt chứ không phải ô tick: nó gọi API ngay chứ không chờ một nút
+        "Lưu" nào cả, nên phải trông như một hành động. `aria-pressed` cho trình
+        đọc màn hình biết đây là công tắc hai trạng thái, không phải nút thường.
+      */}
+      <Td>
+        <button
+          type="button"
+          onClick={onDoiNoiBat}
+          disabled={dangDoiNoiBat}
+          aria-pressed={skill.featured}
+          title={
+            skill.featured
+              ? 'Đang hiện ở trang chủ — bấm để tắt'
+              : 'Bấm để hiện thành từ khoá phổ biến ở trang chủ'
+          }
+          className={cn(
+            'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs whitespace-nowrap',
+            'transition-colors duration-150 ease-out',
+            'active:scale-[0.97] motion-reduce:active:scale-100',
+            'focus-visible:outline-dash-accent focus-visible:outline-2 focus-visible:outline-offset-1',
+            'disabled:cursor-not-allowed disabled:opacity-50 disabled:active:scale-100',
+            skill.featured
+              ? 'text-dash-accent hover:bg-dash-accent/10'
+              : 'text-dash-muted hover:text-dash-fg hover:bg-white/5',
+          )}
+        >
+          {dangDoiNoiBat ? (
+            <Loader2 size={12} className="animate-spin" />
+          ) : (
+            <Star size={12} className={skill.featured ? 'fill-current' : undefined} />
+          )}
+          {skill.featured ? 'Đang hiện' : 'Ẩn'}
+        </button>
+      </Td>
 
       <Td className="tabular-nums">{skill.jobCount || '—'}</Td>
       <Td className="tabular-nums">{skill.studentCount || '—'}</Td>

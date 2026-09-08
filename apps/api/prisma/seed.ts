@@ -77,17 +77,27 @@ const ARGON2_OPTIONS = {
  * `slug` là khoá tra cứu ổn định: tin demo bên dưới tham chiếu kỹ năng bằng
  * slug, nên đổi `name` cho đẹp hơn không làm hỏng gì.
  */
+/*
+ * `featured: true` = hiện thành chip "Từ khoá phổ biến" ở trang chủ.
+ *
+ * Sáu cái được đánh dấu đều trả lời câu "VIỆC LÀ GÌ". Những cái còn lại trả lời
+ * câu "NGƯỜI PHẢI THẾ NÀO" (Giao tiếp, Kiên nhẫn, Làm việc nhóm) hoặc là kỹ
+ * năng bổ trợ (Tin học văn phòng, Sư phạm) — không ai gõ chúng vào ô tìm việc.
+ *
+ * Đây chỉ là GIÁ TRỊ KHỞI TẠO. Admin đổi được trong trang Kỹ năng, và lựa chọn
+ * của họ không bị seed ghi đè — xem `seedSkills()` bên dưới.
+ */
 const SKILLS = [
   { name: 'Giao tiếp', slug: 'giao-tiep' },
   { name: 'Tiếng Anh giao tiếp', slug: 'tieng-anh-giao-tiep' },
-  { name: 'Bán hàng', slug: 'ban-hang' },
-  { name: 'Chăm sóc khách hàng', slug: 'cham-soc-khach-hang' },
-  { name: 'Pha chế', slug: 'pha-che' },
-  { name: 'Phục vụ bàn', slug: 'phuc-vu-ban' },
-  { name: 'Thu ngân', slug: 'thu-ngan' },
+  { name: 'Bán hàng', slug: 'ban-hang', featured: true },
+  { name: 'Chăm sóc khách hàng', slug: 'cham-soc-khach-hang', featured: true },
+  { name: 'Pha chế', slug: 'pha-che', featured: true },
+  { name: 'Phục vụ bàn', slug: 'phuc-vu-ban', featured: true },
+  { name: 'Thu ngân', slug: 'thu-ngan', featured: true },
   { name: 'Tin học văn phòng', slug: 'tin-hoc-van-phong' },
   { name: 'Thiết kế đồ hoạ', slug: 'thiet-ke-do-hoa' },
-  { name: 'Gia sư', slug: 'gia-su' },
+  { name: 'Gia sư', slug: 'gia-su', featured: true },
   { name: 'Sư phạm', slug: 'su-pham' },
   { name: 'Quản lý lớp', slug: 'quan-ly-lop' },
   { name: 'Làm việc nhóm', slug: 'lam-viec-nhom' },
@@ -99,6 +109,20 @@ async function seedSkills() {
   const idTheoSlug = new Map<string, string>()
 
   for (const skill of SKILLS) {
+    /*
+     * ⚠ `update` CỐ Ý không có `featured`.
+     *
+     * Hàm này chạy ở MỌI môi trường, kể cả Neon — lệnh build của Render gọi
+     * `prisma db seed` mỗi lần deploy, và khối dữ liệu demo bên dưới thoát sớm
+     * chứ khối này thì không.
+     *
+     * Đưa `featured` vào nhánh `update` nghĩa là mỗi lần deploy sẽ xoá sạch
+     * lựa chọn admin vừa tick, đặt lại về danh sách ghi cứng ở trên. Không lỗi,
+     * không log, chỉ là trang chủ tự quay về như cũ sau mỗi lần đẩy code — loại
+     * lỗi mất rất lâu mới nối được nguyên nhân với hậu quả.
+     *
+     * Giá trị trong `SKILLS` chỉ là điểm khởi đầu cho database TRỐNG.
+     */
     const row = await prisma.skill.upsert({
       where: { slug: skill.slug },
       update: { name: skill.name },
