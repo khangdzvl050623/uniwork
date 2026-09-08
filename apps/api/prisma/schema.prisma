@@ -419,6 +419,20 @@ model Skill {
   name String @unique
   slug String @unique
 
+  /// Có hiện thành chip "Từ khoá phổ biến" ở trang chủ hay không. Admin bật/tắt.
+  ///
+  /// VÌ SAO PHẢI CÓ CỜ NÀY, thay vì lấy cả danh mục hoặc xếp theo số tin:
+  /// danh mục đang trộn hai loại khác hẳn nhau — VIỆC LÀ GÌ (Gia sư, Pha chế,
+  /// Thu ngân) và NGƯỜI PHẢI THẾ NÀO (Kiên nhẫn, Làm việc nhóm, Giao tiếp).
+  /// Chỉ loại đầu mới đáng làm từ khoá tìm việc.
+  ///
+  /// Xếp theo số tin đang mở còn tệ hơn: kỹ năng mềm gắn vào hầu hết mọi tin
+  /// nên chúng sẽ đứng ĐẦU. Một ô tick là cách rẻ nhất tách hai loại mà không
+  /// phải phân loại lại cả danh mục.
+  ///
+  /// Mặc định `false`: thêm kỹ năng mới không tự đẩy nó lên trang chủ.
+  featured Boolean @default(false)
+
   createdAt DateTime @default(now())
 
   students StudentSkill[]

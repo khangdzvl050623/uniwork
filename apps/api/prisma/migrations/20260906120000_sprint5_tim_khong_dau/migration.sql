@@ -1,0 +1,24 @@
+-- Tìm kiếm không dấu cho ô tìm việc (Sprint 5).
+--
+-- Sinh viên gõ "gia su" trên điện thoại, không ai bật bộ gõ để tìm việc. Trước
+-- migration này `ILIKE '%gia su%'` trả về 0 kết quả trong khi database có tin
+-- "Gia sư Toán lớp 9" — đo thật ngày 2026-09-06, không phải phỏng đoán.
+--
+-- `unaccent` là extension có sẵn của PostgreSQL (contrib), Neon cho phép tạo.
+-- Bộ quy tắc mặc định xử lý luôn đ → d, đã kiểm:
+--   SELECT unaccent('Đầu bếp')  →  'Dau bep'
+-- nên KHÔNG cần bộ rules tự chế.
+--
+-- ---------------------------------------------------------------------------
+-- CỐ Ý KHÔNG TẠO INDEX
+-- ---------------------------------------------------------------------------
+-- `unaccent()` được khai là STABLE chứ không IMMUTABLE, nên Postgres từ chối
+-- dùng nó trong index biểu thức. Cách vòng là bọc lại thành một hàm IMMUTABLE
+-- của mình — làm được, nhưng nó nói dối trình tối ưu hoá: đổi bộ rules của
+-- extension thì index thành sai lặng lẽ.
+--
+-- Ở quy mô hiện tại (dưới 100 tin) quét tuần tự là dưới 5ms, nên chưa đáng đổi
+-- một rủi ro đã hiểu rõ lấy một rủi ro âm thầm. Khi bảng lên hàng nghìn tin thì
+-- đây là chỗ phải quay lại, và lúc đó cân nhắc `tsvector` + GIN thay vì vá index
+-- cho ILIKE.
+CREATE EXTENSION IF NOT EXISTS unaccent;

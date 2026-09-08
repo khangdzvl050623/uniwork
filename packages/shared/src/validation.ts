@@ -321,6 +321,22 @@ const tenKyNang = z
 export const createSkillSchema = z.object({ name: tenKyNang })
 export const updateSkillSchema = z.object({ name: tenKyNang })
 
+/**
+ * Bật/tắt chip "Từ khoá phổ biến" ở trang chủ cho một kỹ năng.
+ *
+ * Endpoint RIÊNG chứ không thêm `featured` vào `updateSkillSchema` — cùng khuôn
+ * `verifyEmployerSchema` ở trên, và vì hai lý do cụ thể:
+ *
+ * 1. Bật một ô tick thì KHÔNG phải gửi kèm tên. Nhập chung thì web buộc phải
+ *    đính tên hiện tại vào mỗi lần tick, và nếu hai admin cùng mở bảng thì
+ *    người tick sau sẽ ghi đè tên mà người kia vừa sửa.
+ * 2. `updateSkill` đang kiểm trùng tên. Cho `name` thành tuỳ chọn là thêm nhánh
+ *    vào đúng phép kiểm không được sai — không đáng, chỉ để tiết kiệm một route.
+ */
+export const setSkillFeaturedSchema = z.object({
+  featured: z.boolean(),
+})
+
 /* -------------------------------------------------- tin tuyển dụng (T68) -- */
 
 /**
@@ -683,8 +699,25 @@ const danhSachIdTuyChon = z
     return ids.length > 0 ? ids : undefined
   })
 
-export const publicJobQuerySchema = z
-  .object({
+/**
+ * Luật cho TỪNG tham số lọc tin công khai.
+ *
+ * Tách riêng khỏi `publicJobQuerySchema` bên dưới để phía web đọc URL bằng ĐÚNG
+ * bộ luật này, từng trường một.
+ *
+ * Vì sao cần: thanh địa chỉ là chỗ người dùng gõ tay được, nên web phải lọc bỏ
+ * giá trị vô lý TRƯỚC khi gửi đi — nếu không thì `?maxCommitmentMonths=61` đi
+ * thẳng xuống API và trả 422 cho một người vừa chỉ bấm vào link ai đó gửi.
+ *
+ * Nhưng web KHÔNG được tự chép lại các giới hạn (trần 60 tháng, trần
+ * `SO_O_MOI_TUAN` ca, phải là số nguyên dương). Chép là có hai bộ luật, và
+ * chúng lệch nhau ngay lần đầu ai đó sửa một bên. Đây là bản duy nhất.
+ *
+ * Khác nhau ở CÁCH XỬ LÝ khi sai, không phải ở luật: API trả 422 vì người gọi
+ * sai hợp đồng; web bỏ qua trường đó và hiện danh sách rộng hơn, vì người dùng
+ * chỉ đang muốn xem việc làm chứ không muốn xem một màn hình lỗi.
+ */
+export const publicJobQueryShape = {
     q: z
       .string()
       .trim()
@@ -719,7 +752,10 @@ export const publicJobQuerySchema = z
     ),
 
     sort: z.enum(PUBLIC_JOB_SORTS).optional(),
-  })
+} as const
+
+export const publicJobQuerySchema = z
+  .object(publicJobQueryShape)
   .superRefine((val, ctx) => {
     /*
      * `salaryFrom` không có nghĩa nếu thiếu `salaryUnit`.

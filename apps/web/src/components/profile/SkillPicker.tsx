@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Check, Loader2, Search, X } from 'lucide-react'
-import type { SkillResponse } from '@uniwork/shared'
+import type { SkillRef } from '@uniwork/shared'
 import { Button } from '@/components/ui/Button'
 import { useSkills, useUpdateSkills } from '@/hooks/useProfile'
 import { cn } from '@/lib/utils'
@@ -15,7 +15,7 @@ const NEN_CHON_TOI_DA = 10
  * sinh ra "Giao tiếp", "giao tiếp", "Kỹ năng giao tiếp" thành ba thẻ khác nhau
  * và bộ lọc việc làm hỏng theo.
  */
-export function SkillPicker({ daChon }: { daChon: SkillResponse[] }) {
+export function SkillPicker({ daChon }: { daChon: SkillRef[] }) {
   const { data: danhMuc, isLoading } = useSkills()
   const luu = useUpdateSkills()
 

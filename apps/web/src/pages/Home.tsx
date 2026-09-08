@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import {
   ArrowRight,
   Award,
@@ -41,7 +41,8 @@ import { MarketChart } from '@/components/MarketChart'
 import { SpotlightCompanies } from '@/components/SpotlightCompanies'
 import { Button } from '@/components/ui/Button'
 import { DISTRICTS } from '@/lib/khu-vuc'
-import { usePublicJobs } from '@/hooks/usePublicJobs'
+import { chuoiTruyVan, usePublicJobs } from '@/hooks/usePublicJobs'
+import { useSkills } from '@/hooks/useProfile'
 import { useSiteStats } from '@/hooks/useSiteStats'
 import { cn, formatDate } from '@/lib/utils'
 
@@ -57,7 +58,6 @@ const JOB_TABS: { label: string; district?: string }[] = [
   { label: 'Việc mới nhất' },
   { label: 'Làm từ xa', district: 'Làm từ xa' },
 ]
-const HOT_KEYWORDS = ['Phục vụ quán', 'Gia sư', 'Trực page', 'Sự kiện', 'Nhập liệu', 'Bán hàng']
 
 const HERO_POINTS = [
   'Lọc việc theo đúng khung giờ bạn rảnh',
@@ -204,6 +204,44 @@ const PRESS = [
 
 export function Home() {
   const [jobTab, setJobTab] = useState(0)
+  const navigate = useNavigate()
+
+  /*
+   * Ô tìm kiếm ở hero KHÔNG tự gọi API — nó chuyển sang `/viec-lam` kèm tham số.
+   *
+   * Trang chủ mà tự vẽ kết quả tìm kiếm thì phải dựng lại toàn bộ thứ
+   * `/viec-lam` đã có: phân trang, cột lọc, sắp xếp, trạng thái rỗng. Ô này chỉ
+   * là một LỐI VÀO — nhiệm vụ của nó kết thúc ở chỗ điều hướng đúng địa chỉ.
+   */
+  const [tuKhoa, setTuKhoa] = useState('')
+  const [khuVuc, setKhuVuc] = useState('')
+
+  function timViec() {
+    // `chuoiTruyVan` là cùng hàm `JobList` dùng để ghi URL, nên link sinh ra ở
+    // đây giống hệt link người dùng tự lọc rồi chép từ thanh địa chỉ.
+    const duoi = chuoiTruyVan({
+      q: tuKhoa.trim() || undefined,
+      district: khuVuc || undefined,
+    })
+    navigate(`/viec-lam${duoi}`)
+  }
+
+  /*
+   * Chip "Từ khoá phổ biến" lấy từ DANH MỤC kỹ năng, do admin tick ở trang quản
+   * trị (`skills.featured`). Trước đây là sáu chuỗi ghi cứng, và bốn trong sáu
+   * cái đó — "Phục vụ quán", "Trực page", "Sự kiện", "Nhập liệu" — không hề tồn
+   * tại trong danh mục kỹ năng.
+   *
+   * Nghĩa là chúng KHÔNG lọc theo `skillIds` được. (Chúng vẫn có thể khớp bằng
+   * tìm văn bản `q` — "Phục vụ quán" khớp tin "Phục vụ quán cà phê ca tối" —
+   * nhưng đó là hai chuyện khác nhau, và tìm văn bản thì khớp cả những tin chỉ
+   * tình cờ có cụm chữ đó trong phần mô tả.)
+   *
+   * Dùng lại `useSkills()` mà cột lọc ở `/viec-lam` đã gọi (cache 30 phút), nên
+   * trang chủ không tốn thêm request nào.
+   */
+  const { data: danhMucKyNang } = useSkills()
+  const kyNangNoiBat = (danhMucKyNang ?? []).filter((k) => k.featured)
   // Trang chủ chỉ khoe vài tin đầu; ai muốn xem hết thì sang /viec-lam.
   const { data: duLieuTin } = usePublicJobs({ district: JOB_TABS[jobTab].district })
   const jobs = (duLieuTin?.pages.flatMap((page) => page.jobs) ?? []).slice(0, 6)
@@ -250,23 +288,36 @@ export function Home() {
           </p>
 
           <form
-            onSubmit={(e) => e.preventDefault()}
+            onSubmit={(e) => {
+              e.preventDefault()
+              timViec()
+            }}
             className="hero-rise search-shell mx-auto mt-9 flex max-w-3xl flex-col gap-2 rounded-2xl bg-white p-2 shadow-[0_24px_48px_-24px_rgba(0,0,0,0.55)] md:flex-row md:items-center"
             style={{ animationDelay: '200ms' }}
           >
             <div className="flex flex-1 items-center gap-2 px-3">
               <Search size={18} className="shrink-0 text-slate-400" />
               <input
+                value={tuKhoa}
+                onChange={(e) => setTuKhoa(e.target.value)}
                 placeholder="Vị trí, kỹ năng hoặc tên công ty"
+                aria-label="Từ khoá tìm việc"
                 className="h-12 w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
               />
             </div>
             <div className="flex items-center gap-2 px-3 md:border-l md:border-slate-200">
               <MapPin size={18} className="shrink-0 text-slate-400" />
-              <select className="h-12 w-full cursor-pointer bg-transparent text-sm text-slate-600 outline-none md:w-44">
+              <select
+                value={khuVuc}
+                onChange={(e) => setKhuVuc(e.target.value)}
+                aria-label="Khu vực"
+                className="h-12 w-full cursor-pointer bg-transparent text-sm text-slate-600 outline-none md:w-44"
+              >
                 <option value="">Tất cả khu vực</option>
                 {DISTRICTS.map((d) => (
-                  <option key={d}>{d}</option>
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
                 ))}
               </select>
             </div>
@@ -276,21 +327,48 @@ export function Home() {
             </Button>
           </form>
 
-          <div
-            className="hero-rise mt-5 flex flex-wrap items-center justify-center gap-2 text-sm"
-            style={{ animationDelay: '260ms' }}
-          >
-            <span className="text-white/55">Từ khoá phổ biến:</span>
-            {HOT_KEYWORDS.map((k) => (
-              <Link
-                key={k}
-                to="/viec-lam"
-                className="rounded-full border border-white/25 bg-white/5 px-3.5 py-1.5 font-medium text-white/85 backdrop-blur-sm transition-[transform,background-color,border-color,color] duration-200 ease-out hover:-translate-y-0.5 hover:border-brand-300/70 hover:bg-white/15 hover:text-white active:scale-[0.96]"
-              >
-                {k}
-              </Link>
-            ))}
-          </div>
+          {/*
+            Admin bỏ tick hết thì KHÔNG dựng khối này — để lại mỗi dòng chữ "Từ
+            khoá phổ biến:" không có chip nào trông như trang tải hỏng.
+
+            Dựng rồi ẩn bằng thuộc tính `hidden` thì KHÔNG ăn thua: `hidden` chỉ
+            đặt `display: none` trong stylesheet mặc định của trình duyệt, mà
+            class `flex` của Tailwind là style của tác giả nên luôn thắng. Khối
+            vẫn hiện nguyên.
+          */}
+          {kyNangNoiBat.length > 0 && (
+            <div
+              className="hero-rise mt-5 flex flex-wrap items-center justify-center gap-2 text-sm"
+              style={{ animationDelay: '260ms' }}
+            >
+              <span className="text-white/55">Từ khoá phổ biến:</span>
+              {kyNangNoiBat.map((k) => (
+                <Link
+                  key={k.id}
+                  /*
+                  Trỏ tới `?skillIds=` chứ KHÔNG phải `?q=<tên>`.
+
+                  `q` tìm chuỗi con trong tiêu đề và mô tả, nên một tin phục vụ
+                  quán có câu "quán gần trung tâm gia sư" cũng lọt vào chip
+                  "Gia sư". `skillIds` khớp đúng cái nhãn nhà tuyển dụng đã gắn,
+                  nên không có loại khớp nhầm đó.
+
+                  Nó KHÔNG đảm bảo kết quả đúng hay đủ: nhà tuyển dụng vẫn có
+                  thể gắn thiếu nhãn, gắn sai, hoặc kỹ năng đó đang không có tin
+                  nào mở. Chip trỏ đúng câu hỏi, không hứa câu trả lời.
+
+                  Và vì đây đúng là bộ lọc `FilterSidebar` đang dùng, người bấm
+                  chip sang `/viec-lam` sẽ thấy ô kỹ năng ĐÃ TICK SẴN trong cột
+                  lọc: biết ngay vì sao danh sách hẹp lại, và bỏ tick được.
+                */
+                  to={`/viec-lam${chuoiTruyVan({ skillIds: [k.id] })}`}
+                  className="rounded-full border border-white/25 bg-white/5 px-3.5 py-1.5 font-medium text-white/85 backdrop-blur-sm transition-[transform,background-color,border-color,color] duration-200 ease-out hover:-translate-y-0.5 hover:border-brand-300/70 hover:bg-white/15 hover:text-white active:scale-[0.96]"
+                >
+                  {k.name}
+                </Link>
+              ))}
+            </div>
+          )}
 
           {/* Bốn lời hứa, gộp thành một dòng mảnh phân cách bằng dấu chấm giữa.
               Bốn thẻ riêng như bản trước chiếm gần 100px chỉ để nói bốn ý ngắn —

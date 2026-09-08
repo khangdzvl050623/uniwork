@@ -89,7 +89,25 @@ export interface SkillResponse {
   name: string
   /** Dạng không dấu, dùng cho URL lọc: /viec-lam?skill=pha-che */
   slug: string
+  /**
+   * Có hiện thành chip "Từ khoá phổ biến" ở trang chủ không.
+   *
+   * Trả kèm trong danh sách chung thay vì làm một endpoint riêng: danh mục chỉ
+   * vài chục dòng và `useSkills()` đã được cache 30 phút cho cột lọc ở
+   * `/viec-lam`, nên trang chủ lọc tại chỗ mà KHÔNG tốn thêm request nào.
+   */
+  featured: boolean
 }
+
+/**
+ * Một kỹ năng ĐÃ ĐƯỢC GẮN vào ai đó hoặc vào một tin.
+ *
+ * Hẹp hơn `SkillResponse` một cách có chủ đích: `featured` là thuộc tính của
+ * DANH MỤC ("có hiện ở trang chủ không"), không phải của lần gắn. Trả nó kèm
+ * trong hồ sơ sinh viên sẽ đọc thành "kỹ năng này của bạn đang nổi bật" — vô
+ * nghĩa, và mở đường cho ai đó sau này hiển thị đúng như thế.
+ */
+export type SkillRef = Pick<SkillResponse, 'id' | 'name' | 'slug'>
 
 /**
  * GET /api/thong-ke — số liệu hiện trên trang chủ.
@@ -270,7 +288,7 @@ export interface StudentProfileResponse {
   expectedHourlyRate: number | null
   /** Còn đi làm được tới ngày nào — ISO. Đầu vào của thành phần `commitment`. */
   availableUntil: string | null
-  skills: SkillResponse[]
+  skills: SkillRef[]
 }
 
 /** Sửa trường, ngành, năm học, giới thiệu (T52). Không sửa kỹ năng hay CV ở đây. */
@@ -461,6 +479,8 @@ export interface AdminSkillResponse {
   name: string
   /** Khoá tra cứu ổn định, dùng trong URL lọc. Đổi `name` KHÔNG đổi cái này. */
   slug: string
+  /** Đang hiện ở trang chủ hay không — admin tự bật/tắt. */
+  featured: boolean
   /** Số tin tuyển dụng đang yêu cầu kỹ năng này. */
   jobCount: number
   /** Số sinh viên đang khai kỹ năng này trong hồ sơ. */

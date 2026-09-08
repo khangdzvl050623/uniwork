@@ -2277,28 +2277,85 @@ describe('GET /api/viec-lam — lọc lương', () => {
   })
 })
 
-describe('GET /api/viec-lam — full-text search', () => {
+describe('GET /api/viec-lam — tìm kiếm không dấu', () => {
   beforeEach(() => {
     transaction.mockImplementation(async (ops: unknown[]) => Promise.all(ops))
     jobFindMany.mockResolvedValue([])
     jobCount.mockResolvedValue(0)
+    queryRaw.mockResolvedValue([])
   })
 
-  it('lọc theo q trên title hoặc description, không phân biệt hoa/thường', async () => {
-    await request(createApp()).get('/api/viec-lam?q=frontend developer')
+  /** Câu SQL thô của lần gọi `$queryRaw` đầu tiên, nối lại thành một chuỗi. */
+  function sqlTuKhoa(): string {
+    const doan = queryRaw.mock.calls[0]?.[0] as string[] | undefined
+    return doan?.join('?') ?? ''
+  }
 
-    expect(menhDeAND()).toContainEqual({
-      OR: [
-        { title: { contains: 'frontend developer', mode: 'insensitive' } },
-        { description: { contains: 'frontend developer', mode: 'insensitive' } },
-      ],
-    })
+  /** Tham số truyền vào câu đó — chính là mẫu `%…%` đã thoát ký tự. */
+  function mauTuKhoa(): unknown {
+    return queryRaw.mock.calls[0]?.[1]
+  }
+
+  it('so sánh bằng unaccent ở CẢ HAI vế, không chỉ vế cột', async () => {
+    // Đây là ca canh chính của cả tính năng. Chỉ bọc `unaccent` quanh cột mà
+    // quên vế từ khoá thì "gia sư" (người dùng CÓ gõ dấu) lại trượt — hỏng
+    // đúng nhóm người dùng mà lần sửa này không định đụng tới.
+    await request(createApp()).get('/api/viec-lam?q=gia su')
+
+    const sql = sqlTuKhoa()
+    expect(sql).toMatch(/unaccent\("title"\)/)
+    expect(sql).toMatch(/unaccent\("description"\)/)
+    // Hai lần `unaccent(?)` — một cho title, một cho description.
+    expect(sql.match(/unaccent\(\?\)/g)).toHaveLength(2)
   })
 
-  it('q rỗng không tạo điều kiện lọc', async () => {
+  it('lọc theo id mà SQL trả về, không dùng contains nữa', async () => {
+    queryRaw.mockResolvedValue([{ id: 'job-3' }, { id: 'job-7' }])
+
+    await request(createApp()).get('/api/viec-lam?q=gia su')
+
+    expect(menhDeAND()).toContainEqual({ id: { in: ['job-3', 'job-7'] } })
+  })
+
+  it('⚠ từ khoá không khớp tin nào → RỖNG, không phải trả về tất cả', async () => {
+    // `null` (không có từ khoá) và `[]` (có từ khoá, không tin nào khớp) là hai
+    // chuyện khác hẳn. Gộp bằng một phép kiểm `?.length` thì gõ từ khoá lạ sẽ
+    // trả về TOÀN BỘ bảng tin — sai lặng lẽ, và trông y như tìm kiếm không chạy.
+    queryRaw.mockResolvedValue([])
+
+    await request(createApp()).get('/api/viec-lam?q=khong-co-tin-nao-ten-the-nay')
+
+    expect(menhDeAND()).toContainEqual({ id: { in: [] } })
+  })
+
+  it('% và _ trong từ khoá bị thoát, không thành ký tự đại diện', async () => {
+    // Không thoát thì gõ `%` khớp MỌI tin. Không phải lỗ hổng bảo mật (tham số
+    // vẫn qua prepared statement) nhưng là kết quả sai mà người dùng không đoán
+    // nổi lý do.
+    await request(createApp()).get('/api/viec-lam?q=50%25_ca')
+
+    expect(mauTuKhoa()).toBe('%50\\%\\_ca%')
+  })
+
+  it('dấu gạch chéo ngược được thoát TRƯỚC, không nuốt mất dấu thoát khác', async () => {
+    await request(createApp()).get(`/api/viec-lam?q=${encodeURIComponent('a\\%b')}`)
+
+    // Sai thứ tự thoát cho ra `%a\\%b%`, trong đó `\\` là một backslash literal
+    // rồi `%` lại thành ký tự đại diện.
+    expect(mauTuKhoa()).toBe('%a\\\\\\%b%')
+  })
+
+  it('q chỉ có khoảng trắng thì KHÔNG chạy câu SQL nào', async () => {
     await request(createApp()).get('/api/viec-lam?q=   ')
 
+    expect(queryRaw).not.toHaveBeenCalled()
     expect(menhDeWhere()).not.toHaveProperty('AND')
+  })
+
+  it('câu SQL tự giới hạn ở tin OPEN để danh sách IN không phình', async () => {
+    await request(createApp()).get('/api/viec-lam?q=gia su')
+
+    expect(sqlTuKhoa()).toMatch(/"status" = 'OPEN'/)
   })
 })
 
