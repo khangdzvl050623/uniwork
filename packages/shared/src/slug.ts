@@ -29,22 +29,24 @@
  * bằng chữ Đ.
  */
 export function taoSlug(ten: string): string {
-  return ten
-    .normalize('NFD')
-    // Xoá dấu thanh và dấu mũ đã bị NFD tách rời.
-    .replace(/[̀-ͯ]/g, '')
-    // Hai dòng riêng cho đ/Đ — NFD không đụng tới chúng, xem giải thích trên.
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .toLowerCase()
-    .trim()
-    // Mọi thứ còn lại không phải chữ/số thành dấu gạch: khoảng trắng, dấu câu,
-    // và cả ký tự lạ lọt vào lúc dán từ Word.
-    .replace(/[^a-z0-9]+/g, '-')
-    // Gộp gạch liên tiếp và cắt gạch ở hai đầu, để " Pha chế! " không ra
-    // "-pha-che-".
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
+  return (
+    ten
+      .normalize('NFD')
+      // Xoá dấu thanh và dấu mũ đã bị NFD tách rời.
+      .replace(/[̀-ͯ]/g, '')
+      // Hai dòng riêng cho đ/Đ — NFD không đụng tới chúng, xem giải thích trên.
+      .replace(/đ/g, 'd')
+      .replace(/Đ/g, 'D')
+      .toLowerCase()
+      .trim()
+      // Mọi thứ còn lại không phải chữ/số thành dấu gạch: khoảng trắng, dấu câu,
+      // và cả ký tự lạ lọt vào lúc dán từ Word.
+      .replace(/[^a-z0-9]+/g, '-')
+      // Gộp gạch liên tiếp và cắt gạch ở hai đầu, để " Pha chế! " không ra
+      // "-pha-che-".
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+  )
 }
 
 /**

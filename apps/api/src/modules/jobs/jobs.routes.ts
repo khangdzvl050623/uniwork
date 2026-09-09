@@ -48,7 +48,7 @@ employerJobRoutes.use(requireAuth, requireRole('EMPLOYER'))
 const taoTinLimit = rateLimit({
   max: 20,
   windowMs: 60 * 60_000,
-  keyOf: (req) => req.user?.id ?? (req.ip ?? 'unknown'),
+  keyOf: (req) => req.user?.id ?? req.ip ?? 'unknown',
 })
 
 employerJobRoutes.post('/', taoTinLimit, createJobController)

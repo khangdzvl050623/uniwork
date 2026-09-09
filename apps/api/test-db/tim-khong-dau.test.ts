@@ -96,8 +96,9 @@ describe('tìm kiếm không dấu trên Postgres thật', () => {
   it('extension unaccent phải tồn tại trong database này', async () => {
     // Ca đầu tiên và quan trọng nhất. Thiếu extension thì mọi ca dưới đều đỏ,
     // nhưng với thông báo lỗi khó đọc; ca này nói thẳng nguyên nhân.
-    const rows =
-      await prisma.$queryRaw<{ extname: string }[]>`SELECT extname FROM pg_extension WHERE extname = 'unaccent'`
+    const rows = await prisma.$queryRaw<
+      { extname: string }[]
+    >`SELECT extname FROM pg_extension WHERE extname = 'unaccent'`
 
     expect(rows, 'chưa chạy migration 20260906120000_sprint5_tim_khong_dau?').toHaveLength(1)
   })

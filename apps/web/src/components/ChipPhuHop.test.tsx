@@ -48,7 +48,13 @@ describe('ChipPhuHop', () => {
     render(
       <ChipPhuHop
         breakdown={breakdown({
-          commitment: { months: null, required: 6, score: null, weight: 0.2, vangVi: 'THIEU_DU_LIEU' },
+          commitment: {
+            months: null,
+            required: 6,
+            score: null,
+            weight: 0.2,
+            vangVi: 'THIEU_DU_LIEU',
+          },
           coverage: { apDung: 3, doDuoc: 2 },
         })}
       />,
@@ -63,7 +69,13 @@ describe('ChipPhuHop', () => {
       <ChipPhuHop
         breakdown={breakdown({
           skills: { matched: 0, total: 0, score: null, weight: 0.3, vangVi: 'KHONG_AP_DUNG' },
-          commitment: { months: null, required: null, score: null, weight: 0.2, vangVi: 'KHONG_AP_DUNG' },
+          commitment: {
+            months: null,
+            required: null,
+            score: null,
+            weight: 0.2,
+            vangVi: 'KHONG_AP_DUNG',
+          },
           coverage: { apDung: 1, doDuoc: 1 },
         })}
       />,

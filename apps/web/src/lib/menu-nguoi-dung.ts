@@ -1,4 +1,11 @@
-import { Bookmark, BriefcaseBusiness, CalendarDays, LayoutDashboard, ShieldCheck, UserRound } from 'lucide-react'
+import {
+  Bookmark,
+  BriefcaseBusiness,
+  CalendarDays,
+  LayoutDashboard,
+  ShieldCheck,
+  UserRound,
+} from 'lucide-react'
 import type { Role } from '@uniwork/shared'
 
 /**
@@ -9,22 +16,20 @@ import type { Role } from '@uniwork/shared'
  * `react-refresh/only-export-components`). Menu này dùng ở cả bản máy tính
  * (`UserMenu`) lẫn bản di động (`Header`), nên nó phải nằm ngoài cả hai.
  */
-export const MENU_THEO_VAI: Record<
-  Role,
-  { to: string; label: string; icon: typeof UserRound }[]
-> = {
-  STUDENT: [
-    { to: '/ho-so', label: 'Hồ sơ của tôi', icon: UserRound },
-    { to: '/lich-ranh', label: 'Lịch rảnh', icon: CalendarDays },
-    { to: '/tin-da-luu', label: 'Tin đã lưu', icon: Bookmark },
-    { to: '/don-ung-tuyen', label: 'Đơn của tôi', icon: BriefcaseBusiness },
-  ],
-  EMPLOYER: [
-    { to: '/ntd/ho-so', label: 'Hồ sơ doanh nghiệp', icon: UserRound },
-    { to: '/ntd/quan-ly', label: 'Tin đăng của tôi', icon: LayoutDashboard },
-  ],
-  ADMIN: [{ to: '/admin', label: 'Khu quản trị', icon: ShieldCheck }],
-}
+export const MENU_THEO_VAI: Record<Role, { to: string; label: string; icon: typeof UserRound }[]> =
+  {
+    STUDENT: [
+      { to: '/ho-so', label: 'Hồ sơ của tôi', icon: UserRound },
+      { to: '/lich-ranh', label: 'Lịch rảnh', icon: CalendarDays },
+      { to: '/tin-da-luu', label: 'Tin đã lưu', icon: Bookmark },
+      { to: '/don-ung-tuyen', label: 'Đơn của tôi', icon: BriefcaseBusiness },
+    ],
+    EMPLOYER: [
+      { to: '/ntd/ho-so', label: 'Hồ sơ doanh nghiệp', icon: UserRound },
+      { to: '/ntd/quan-ly', label: 'Tin đăng của tôi', icon: LayoutDashboard },
+    ],
+    ADMIN: [{ to: '/admin', label: 'Khu quản trị', icon: ShieldCheck }],
+  }
 
 /** Một mục trên thanh điều hướng chính của header. */
 export interface MucNav {

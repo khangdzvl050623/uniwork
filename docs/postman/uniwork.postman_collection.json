@@ -41,13 +41,8 @@
         "method": "GET",
         "url": {
           "raw": "{{baseUrl}}/api/health",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "health"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "health"]
         }
       },
       "event": [
@@ -79,14 +74,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/auth/dang-ky",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "auth",
-            "dang-ky"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "dang-ky"]
         }
       },
       "event": [
@@ -146,14 +135,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/auth/dang-ky",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "auth",
-            "dang-ky"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "dang-ky"]
         }
       },
       "event": [
@@ -187,14 +170,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/auth/dang-ky",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "auth",
-            "dang-ky"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "dang-ky"]
         }
       },
       "event": [
@@ -228,14 +205,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/auth/dang-nhap",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "auth",
-            "dang-nhap"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "dang-nhap"]
         }
       },
       "event": [
@@ -272,14 +243,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/auth/dang-nhap",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "auth",
-            "dang-nhap"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "dang-nhap"]
         }
       },
       "event": [
@@ -312,13 +277,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/toi",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "toi"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "toi"]
         }
       },
       "event": [
@@ -345,13 +305,8 @@
         "method": "GET",
         "url": {
           "raw": "{{baseUrl}}/api/toi",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "toi"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "toi"]
         }
       },
       "event": [
@@ -375,14 +330,8 @@
         "method": "POST",
         "url": {
           "raw": "{{baseUrl}}/api/auth/refresh",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "auth",
-            "refresh"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "refresh"]
         },
         "description": "Không cần điền gì. Postman tự gửi cookie refresh token đã nhận từ bước đăng nhập."
       },
@@ -419,14 +368,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/auth/gui-otp",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "auth",
-            "gui-otp"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "gui-otp"]
         },
         "description": "Cần đăng nhập trước (chạy 01 hoặc 04). Endpoint CỐ Ý không nhận email trong body — nếu nhận thì ai cũng gọi được và nó thành công cụ dò email + máy gửi thư rác."
       },
@@ -469,14 +412,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/auth/xac-thuc-email",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "auth",
-            "xac-thuc-email"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "xac-thuc-email"]
         },
         "body": {
           "mode": "raw",
@@ -515,14 +452,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/auth/xac-thuc-email",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "auth",
-            "xac-thuc-email"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "xac-thuc-email"]
         },
         "body": {
           "mode": "raw",
@@ -556,14 +487,8 @@
         "method": "POST",
         "url": {
           "raw": "{{baseUrl}}/api/auth/dang-xuat",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "auth",
-            "dang-xuat"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "dang-xuat"]
         }
       },
       "event": [
@@ -571,9 +496,7 @@
           "listen": "test",
           "script": {
             "type": "text/javascript",
-            "exec": [
-              "pm.test('luôn trả 200', () => pm.response.to.have.status(200))"
-            ]
+            "exec": ["pm.test('luôn trả 200', () => pm.response.to.have.status(200))"]
           }
         }
       ]
@@ -584,14 +507,8 @@
         "method": "POST",
         "url": {
           "raw": "{{baseUrl}}/api/auth/refresh",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "auth",
-            "refresh"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "refresh"]
         }
       },
       "event": [
@@ -614,13 +531,8 @@
         "method": "GET",
         "url": {
           "raw": "{{baseUrl}}/api/skills",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "skills"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "skills"]
         }
       },
       "event": [
@@ -628,9 +540,7 @@
           "listen": "test",
           "script": {
             "type": "text/javascript",
-            "exec": [
-              "pm.test('trả 200', () => pm.response.to.have.status(200))"
-            ]
+            "exec": ["pm.test('trả 200', () => pm.response.to.have.status(200))"]
           }
         }
       ]
@@ -657,14 +567,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/toi/cv",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "toi",
-            "cv"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "toi", "cv"]
         }
       },
       "event": [
@@ -704,14 +608,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/toi/cv",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "toi",
-            "cv"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "toi", "cv"]
         }
       },
       "event": [
@@ -759,14 +657,8 @@
         },
         "url": {
           "raw": "{{baseUrl}}/api/toi/giay-to",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "toi",
-            "giay-to"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "toi", "giay-to"]
         }
       },
       "event": [
@@ -830,16 +722,8 @@
         ],
         "url": {
           "raw": "{{baseUrl}}/api/toi/giay-to/ID_CARD/xem",
-          "host": [
-            "{{baseUrl}}"
-          ],
-          "path": [
-            "api",
-            "toi",
-            "giay-to",
-            "ID_CARD",
-            "xem"
-          ]
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "toi", "giay-to", "ID_CARD", "xem"]
         }
       },
       "event": [

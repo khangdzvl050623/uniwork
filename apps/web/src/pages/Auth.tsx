@@ -74,7 +74,15 @@ function RoleTabs({
   )
 }
 
-function AuthShell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+function AuthShell({
+  title,
+  subtitle,
+  children,
+}: {
+  title: string
+  subtitle: string
+  children: React.ReactNode
+}) {
   return (
     <div className="mx-auto flex max-w-md flex-col justify-center px-4 py-12">
       <Link to="/" className="mb-6 flex items-center justify-center gap-2">

@@ -43,9 +43,7 @@ export function DialogTuChoi({ open, onOpenChange, tenUngVien, dangGui, onXacNha
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Từ chối hồ sơ</DialogTitle>
-          <DialogDescription>
-            {tenUngVien} sẽ nhận được lý do bạn viết dưới đây.
-          </DialogDescription>
+          <DialogDescription>{tenUngVien} sẽ nhận được lý do bạn viết dưới đây.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-1.5">

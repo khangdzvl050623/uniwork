@@ -146,15 +146,19 @@ export function AdminSkills() {
             disabled={!slugXemTruoc || trungSlug || themMoi.isPending}
             className="bg-dash-accent text-dash-accent-ink inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg px-4 text-sm font-semibold transition-[transform,opacity] duration-150 ease-out active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {themMoi.isPending ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+            {themMoi.isPending ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Plus size={16} />
+            )}
             Thêm
           </button>
         </div>
 
         {trungSlug && (
           <p className="text-dash-bad mt-2.5 text-xs">
-            Slug <span className="font-mono">{slugXemTruoc}</span> đã tồn tại. Đổi tên khác để bộ lọc
-            không trả về lẫn lộn.
+            Slug <span className="font-mono">{slugXemTruoc}</span> đã tồn tại. Đổi tên khác để bộ
+            lọc không trả về lẫn lộn.
           </p>
         )}
 

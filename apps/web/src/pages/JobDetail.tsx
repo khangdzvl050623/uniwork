@@ -184,8 +184,8 @@ export function JobDetail() {
                   : 'Ô xanh đậm là khung giờ tin này cần người làm được.'}
               </p>
               <p className="mb-4 text-xs text-slate-400">
-                Đây là khung để đối chiếu lịch, không phải giờ vào ca. Giờ làm cụ
-                thể do bạn và nhà tuyển dụng trao đổi khi phỏng vấn.
+                Đây là khung để đối chiếu lịch, không phải giờ vào ca. Giờ làm cụ thể do bạn và nhà
+                tuyển dụng trao đổi khi phỏng vấn.
               </p>
 
               <LuoiKhungGio
@@ -276,7 +276,7 @@ export function JobDetail() {
               </div>
             )}
 
-{/*
+            {/*
               Nút ứng tuyển chỉ dành cho SINH VIÊN đã đăng nhập.
 
               Khách và nhà tuyển dụng thấy hai thứ khác nhau, và khác nhau có lý
@@ -296,10 +296,7 @@ export function JobDetail() {
                 <DialogUngTuyen job={job} open={moUngTuyen} onOpenChange={setMoUngTuyen} />
               </>
             ) : !user ? (
-              <Link
-                to={`/dang-nhap?tiep=${encodeURIComponent(duongDan)}`}
-                className="block"
-              >
+              <Link to={`/dang-nhap?tiep=${encodeURIComponent(duongDan)}`} className="block">
                 <Button size="lg" className="w-full">
                   <Send size={16} />
                   Đăng nhập để ứng tuyển
@@ -328,9 +325,7 @@ export function JobDetail() {
               {job.minShiftsPerWeek && (
                 <li className="flex items-center justify-between">
                   <span className="text-slate-500">Tối thiểu</span>
-                  <span className="font-medium text-slate-800">
-                    {job.minShiftsPerWeek} ca/tuần
-                  </span>
+                  <span className="font-medium text-slate-800">{job.minShiftsPerWeek} ca/tuần</span>
                 </li>
               )}
               {job.workDate && (
@@ -364,7 +359,8 @@ export function JobDetail() {
 
             <p className="mt-4 flex items-start gap-2 rounded-lg bg-slate-50 p-3 text-xs text-slate-500">
               <CalendarClock size={14} className="mt-0.5 shrink-0" />
-              Số điện thoại và email của bạn chỉ được gửi cho nhà tuyển dụng khi họ mời bạn phỏng vấn.
+              Số điện thoại và email của bạn chỉ được gửi cho nhà tuyển dụng khi họ mời bạn phỏng
+              vấn.
             </p>
           </Card>
         </aside>

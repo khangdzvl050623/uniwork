@@ -39,13 +39,7 @@ function chuDau(ten: string) {
  * Trước đây màu này do dữ liệu giả mang sẵn (`companyColor`); API thật không trả
  * về màu, và cũng không nên — đó là chuyện trình bày.
  */
-const MAU_AVATAR = [
-  'bg-amber-500',
-  'bg-emerald-500',
-  'bg-sky-500',
-  'bg-violet-500',
-  'bg-rose-500',
-]
+const MAU_AVATAR = ['bg-amber-500', 'bg-emerald-500', 'bg-sky-500', 'bg-violet-500', 'bg-rose-500']
 
 function mauTheoTen(ten: string) {
   const tong = [...ten].reduce((acc, ch) => acc + ch.charCodeAt(0), 0)
@@ -73,10 +67,7 @@ export function JobCard({ job }: { job: PublicJobSummary }) {
               {/* Đường dẫn mang cả slug tiêu đề lẫn id — xem `duongDanTin`.
                   Phần chữ chỉ để người đọc và máy tìm kiếm hiểu tin nói về gì;
                   id ở cuối mới là thứ tra cứu. */}
-              <Link
-                to={`/viec-lam/${duongDanTin(job)}`}
-                className="before:absolute before:inset-0"
-              >
+              <Link to={`/viec-lam/${duongDanTin(job)}`} className="before:absolute before:inset-0">
                 {job.title}
               </Link>
             </h3>

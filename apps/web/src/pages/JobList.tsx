@@ -1,11 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { CalendarPlus, Loader2, Search, SlidersHorizontal, X } from 'lucide-react'
-import {
-  PUBLIC_JOB_SORTS,
-  PUBLIC_JOB_SORT_LABELS,
-  type PublicJobSort,
-} from '@uniwork/shared'
+import { PUBLIC_JOB_SORTS, PUBLIC_JOB_SORT_LABELS, type PublicJobSort } from '@uniwork/shared'
 import { FilterSidebar, type BoLoc } from '@/components/FilterSidebar'
 import { JobCard } from '@/components/JobCard'
 import { Button } from '@/components/ui/Button'
@@ -155,8 +151,7 @@ export function JobList() {
    * - phiên đăng nhập không còn ở trạng thái `dang-kiem-tra`, VÀ
    * - hoặc không phải sinh viên (khỏi cần hỏi lịch), hoặc đã hỏi xong lịch.
    */
-  const daBietChac =
-    trangThaiDangNhap !== 'dang-kiem-tra' && (!laSinhVien || daHoiXongLich)
+  const daBietChac = trangThaiDangNhap !== 'dang-kiem-tra' && (!laSinhVien || daHoiXongLich)
 
   useEffect(() => {
     if (daBietChac && !dungDuocLichRanh && boLoc.matchAvailability) {
@@ -192,9 +187,7 @@ export function JobList() {
 
   const coBoLoc =
     Boolean(q.trim()) ||
-    Object.values(boLoc).some((v) =>
-      Array.isArray(v) ? v.length > 0 : v !== undefined,
-    )
+    Object.values(boLoc).some((v) => (Array.isArray(v) ? v.length > 0 : v !== undefined))
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -246,7 +239,10 @@ export function JobList() {
         <div>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative flex-1">
-              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <Search
+                size={16}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
               <input
                 type="search"
                 value={q}
@@ -300,18 +296,14 @@ export function JobList() {
                     onClick={() => datSort(s)}
                     disabled={khoa}
                     aria-pressed={sort === s}
-                    title={
-                      khoa ? 'Khai lịch rảnh để sắp xếp theo độ phù hợp' : undefined
-                    }
+                    title={khoa ? 'Khai lịch rảnh để sắp xếp theo độ phù hợp' : undefined}
                     className={cn(
                       'rounded-lg px-2.5 py-1.5 text-xs font-medium',
                       'transition-colors duration-150 ease-out',
                       'active:scale-[0.97] motion-reduce:active:scale-100',
                       'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500',
                       'disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100',
-                      sort === s
-                        ? 'bg-slate-900 text-white'
-                        : 'text-slate-600 hover:bg-slate-100',
+                      sort === s ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100',
                     )}
                   >
                     {PUBLIC_JOB_SORT_LABELS[s]}

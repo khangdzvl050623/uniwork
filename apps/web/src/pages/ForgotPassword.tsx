@@ -171,7 +171,12 @@ export function ForgotPassword() {
               </p>
             )}
 
-            <OtpInput value={code} onChange={setCode} disabled={datLai.isPending} error={Boolean(loi._)} />
+            <OtpInput
+              value={code}
+              onChange={setCode}
+              disabled={datLai.isPending}
+              error={Boolean(loi._)}
+            />
 
             <Field
               label="Mật khẩu mới"

@@ -197,9 +197,7 @@ export function LuoiKhungGio({
                   đây là một khoảng ước chừng, và chỗ nào dùng lưới này cũng có
                   một câu nói rõ bên ngoài (xem `JobDetail`, `PostJob`).
                 */}
-                <div className="text-[11px] text-slate-400">
-                  ~{TIME_SLOT_LABELS[slot].range}
-                </div>
+                <div className="text-[11px] text-slate-400">~{TIME_SLOT_LABELS[slot].range}</div>
               </th>
 
               {THU_TU_NGAY.map((day) => {
@@ -238,7 +236,10 @@ export function LuoiKhungGio({
                          * tốt, không nên làm nó nhạt đi.
                          */
                         phu && !on && 'border-dashed border-brand-400 bg-brand-50/60',
-                        !khoaTuongTac && !ngoaiPhamVi && !on && 'hover:border-brand-300 hover:bg-brand-50',
+                        !khoaTuongTac &&
+                          !ngoaiPhamVi &&
+                          !on &&
+                          'hover:border-brand-300 hover:bg-brand-50',
                         khoaTuongTac && 'opacity-60',
                         // Ô ngoài phạm vi mờ hẳn và gạch chéo nhẹ, để mắt thấy
                         // ngay là cả cột đó không dùng được — khác với ô trống

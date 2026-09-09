@@ -298,9 +298,7 @@ export async function updateJob(
   const { job: cu } = await layTinCuaToi(userId, jobId)
 
   if (cu.status === 'CLOSED') {
-    throw conflict(
-      'Tin đã đóng thì không sửa được nữa. Hãy đăng một tin mới nếu muốn tuyển tiếp.',
-    )
+    throw conflict('Tin đã đóng thì không sửa được nữa. Hãy đăng một tin mới nếu muốn tuyển tiếp.')
   }
 
   await kiemSkillIds(input.skillIds)
@@ -547,7 +545,10 @@ async function kiemSkillIds(skillIds: string[]): Promise<void> {
  * được, gửi duyệt thì 403". Chặn ngay từ bước soạn thảo chỉ khiến họ không có
  * gì để làm trong lúc chờ admin duyệt giấy tờ.
  */
-export async function createJob(userId: string, input: CreateJobData): Promise<EmployerJobResponse> {
+export async function createJob(
+  userId: string,
+  input: CreateJobData,
+): Promise<EmployerJobResponse> {
   const ntd = await layHoSoNtd(userId)
   await kiemSkillIds(input.skillIds)
 
@@ -671,10 +672,7 @@ export async function listJobsForAdmin(status: JobStatus = 'PENDING'): Promise<A
  * Ghi đè mỗi lần duyệt sẽ khiến một tin đăng ba tháng trước trông như vừa mới
  * đăng, và người tìm việc mất luôn cách phân biệt tin cũ với tin mới.
  */
-export async function reviewJob(
-  jobId: string,
-  input: ReviewJobData,
-): Promise<AdminJobResponse> {
+export async function reviewJob(jobId: string, input: ReviewJobData): Promise<AdminJobResponse> {
   const job = await prisma.job.findUnique({
     where: { id: jobId },
     select: { status: true, publishedAt: true },
@@ -1099,8 +1097,7 @@ export async function listPublicJobs(
 
   // Chỉ chạy câu SQL đếm ca khi thật sự cần lọc — nó không phục vụ việc chấm
   // điểm, mà chấm điểm thì làm bằng JS trên dữ liệu đã lấy về.
-  const idDuDieuKien =
-    query.matchAvailability && lichRanh ? await layIdDuDieuKien(lichRanh) : null
+  const idDuDieuKien = query.matchAvailability && lichRanh ? await layIdDuDieuKien(lichRanh) : null
 
   // `trim()` rồi mới kiểm rỗng: ô tìm kiếm gửi lên " " khi người dùng gõ nhầm
   // dấu cách, và một câu `ILIKE '% %'` khớp mọi tin có khoảng trắng — tức là

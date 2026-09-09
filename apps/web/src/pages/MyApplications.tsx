@@ -41,7 +41,9 @@ function Timeline({ application }: { application: StudentApplicationItem }) {
         <li key={`${event.createdAt}-${index}`} className="relative">
           <span className="absolute -left-[25px] top-1 h-2.5 w-2.5 rounded-full bg-brand-500 ring-4 ring-white" />
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusTone[event.status]}`}>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusTone[event.status]}`}
+            >
               {APPLICATION_STATUS_LABELS[event.status]}
             </span>
             <time className="text-xs text-slate-400">
@@ -76,7 +78,9 @@ function ApplicationCard({ application }: { application: StudentApplicationItem 
             {application.jobTitle}
           </Link>
           <p className="mt-1 text-sm text-slate-500">{application.companyName}</p>
-          <span className={`mt-3 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${statusTone[application.status]}`}>
+          <span
+            className={`mt-3 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${statusTone[application.status]}`}
+          >
             {APPLICATION_STATUS_LABELS[application.status]}
           </span>
         </div>
@@ -150,7 +154,11 @@ function ApplicationCard({ application }: { application: StudentApplicationItem 
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setMoXacNhan(false)} disabled={withdraw.isPending}>
+            <Button
+              variant="outline"
+              onClick={() => setMoXacNhan(false)}
+              disabled={withdraw.isPending}
+            >
               Giữ đơn
             </Button>
             <Button

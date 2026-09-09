@@ -215,7 +215,9 @@ describe('PUT /api/toi/ky-nang (T54)', () => {
       .send({ skillIds: [] })
 
     expect(res.status).toBe(200)
-    expect(prisma.studentSkill.deleteMany).toHaveBeenCalledWith({ where: { studentProfileId: 'sp-1' } })
+    expect(prisma.studentSkill.deleteMany).toHaveBeenCalledWith({
+      where: { studentProfileId: 'sp-1' },
+    })
     expect(prisma.studentSkill.createMany).not.toHaveBeenCalled()
   })
 
@@ -340,7 +342,10 @@ describe('POST /api/toi/cv (T56)', () => {
 })
 
 describe('POST /api/toi/giay-to (T57)', () => {
-  const JPEG_BYTES = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff]), Buffer.from('gia lap anh CCCD')])
+  const JPEG_BYTES = Buffer.concat([
+    Buffer.from([0xff, 0xd8, 0xff]),
+    Buffer.from('gia lap anh CCCD'),
+  ])
 
   it('nộp giấy tờ hợp lệ thì lưu (upsert theo employerProfileId + type)', async () => {
     employerProfileFindUnique.mockResolvedValue({ id: 'ep-1' })

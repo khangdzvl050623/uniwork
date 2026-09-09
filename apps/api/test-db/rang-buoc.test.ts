@@ -148,9 +148,9 @@ describe('jobs_salary_check — lương thoả thuận và lương có số lo�
   it('thoả thuận nhưng vẫn ghi số thì bị từ chối', async () => {
     // Trạng thái nửa vời này chính là thứ làm bộ lọc lương trả về kết quả không
     // ai giải thích được.
-    await expect(
-      prisma.job.create({ data: tinHopLe({ salaryNegotiable: true }) }),
-    ).rejects.toThrow(/jobs_salary_check/)
+    await expect(prisma.job.create({ data: tinHopLe({ salaryNegotiable: true }) })).rejects.toThrow(
+      /jobs_salary_check/,
+    )
   })
 
   it('không thoả thuận nhưng thiếu số thì bị từ chối', async () => {
