@@ -391,7 +391,11 @@ export const jobShiftSchema = availabilitySlotSchema
  * Invalid Date và bị chặn ngay, không lọt xuống Prisma thành một lỗi khó đoán.
  */
 const baseJobSchema = z.object({
-  title: z.string().trim().min(10, 'Tiêu đề cần ít nhất 10 ký tự').max(150, 'Tiêu đề tối đa 150 ký tự'),
+  title: z
+    .string()
+    .trim()
+    .min(10, 'Tiêu đề cần ít nhất 10 ký tự')
+    .max(150, 'Tiêu đề tối đa 150 ký tự'),
   description: z
     .string()
     .trim()
@@ -695,7 +699,10 @@ const danhSachIdTuyChon = z
   .optional()
   .transform((v) => {
     if (!v) return undefined
-    const ids = v.split(',').map((s) => s.trim()).filter(Boolean)
+    const ids = v
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
     return ids.length > 0 ? ids : undefined
   })
 
@@ -718,60 +725,58 @@ const danhSachIdTuyChon = z
  * chỉ đang muốn xem việc làm chứ không muốn xem một màn hình lỗi.
  */
 export const publicJobQueryShape = {
-    q: z
-      .string()
-      .trim()
-      .optional()
-      .transform((v) => (v === '' ? undefined : v)),
+  q: z
+    .string()
+    .trim()
+    .optional()
+    .transform((v) => (v === '' ? undefined : v)),
 
-    city: locTuyChon,
-    district: locTuyChon,
-    scheduleType: z.enum(SCHEDULE_TYPES).optional(),
+  city: locTuyChon,
+  district: locTuyChon,
+  scheduleType: z.enum(SCHEDULE_TYPES).optional(),
 
-    matchAvailability: coTuyChon,
+  matchAvailability: coTuyChon,
 
-    salaryUnit: z.enum(SALARY_UNITS).optional(),
-    // Trần 100 triệu: đủ rộng cho mọi đơn vị (kể cả lương tháng) mà vẫn chặn
-    // được giá trị vô lý gõ tay vào URL.
-    salaryFrom: soDuongTuyChon(100_000_000),
-    includeNegotiable: coTuyChon,
+  salaryUnit: z.enum(SALARY_UNITS).optional(),
+  // Trần 100 triệu: đủ rộng cho mọi đơn vị (kể cả lương tháng) mà vẫn chặn
+  // được giá trị vô lý gõ tay vào URL.
+  salaryFrom: soDuongTuyChon(100_000_000),
+  includeNegotiable: coTuyChon,
 
-    skillIds: danhSachIdTuyChon,
+  skillIds: danhSachIdTuyChon,
 
-    // Trần là số ô tối đa một tuần chứa được, suy ra từ `TIME_SLOTS`.
-    maxShiftsPerWeek: soDuongTuyChon(SO_O_MOI_TUAN),
-    maxCommitmentMonths: soDuongTuyChon(60),
+  // Trần là số ô tối đa một tuần chứa được, suy ra từ `TIME_SLOTS`.
+  maxShiftsPerWeek: soDuongTuyChon(SO_O_MOI_TUAN),
+  maxCommitmentMonths: soDuongTuyChon(60),
 
-    page: z.preprocess(
-      (v) => (v === '' || v === undefined || v === null ? 1 : Number(v)),
-      z.number().int().min(1).default(1),
-    ),
-    limit: z.preprocess(
-      (v) => (v === '' || v === undefined || v === null ? 100 : Number(v)),
-      z.number().int().min(1).default(100),
-    ),
+  page: z.preprocess(
+    (v) => (v === '' || v === undefined || v === null ? 1 : Number(v)),
+    z.number().int().min(1).default(1),
+  ),
+  limit: z.preprocess(
+    (v) => (v === '' || v === undefined || v === null ? 100 : Number(v)),
+    z.number().int().min(1).default(100),
+  ),
 
-    sort: z.enum(PUBLIC_JOB_SORTS).optional(),
+  sort: z.enum(PUBLIC_JOB_SORTS).optional(),
 } as const
 
-export const publicJobQuerySchema = z
-  .object(publicJobQueryShape)
-  .superRefine((val, ctx) => {
-    /*
-     * `salaryFrom` không có nghĩa nếu thiếu `salaryUnit`.
-     *
-     * "Từ 25.000đ" là 25 nghìn một GIỜ, một CA hay một THÁNG? Ba câu trả lời
-     * khác nhau hoàn toàn. Không chặn ở đây thì phải chọn bừa một đơn vị mặc
-     * định, và người lọc nhận về kết quả của một câu hỏi họ không hề đặt.
-     */
-    if (val.salaryFrom !== undefined && !val.salaryUnit) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['salaryUnit'],
-        message: 'Chọn đơn vị lương (giờ, ca hay tháng) trước khi lọc theo mức lương',
-      })
-    }
-  })
+export const publicJobQuerySchema = z.object(publicJobQueryShape).superRefine((val, ctx) => {
+  /*
+   * `salaryFrom` không có nghĩa nếu thiếu `salaryUnit`.
+   *
+   * "Từ 25.000đ" là 25 nghìn một GIỜ, một CA hay một THÁNG? Ba câu trả lời
+   * khác nhau hoàn toàn. Không chặn ở đây thì phải chọn bừa một đơn vị mặc
+   * định, và người lọc nhận về kết quả của một câu hỏi họ không hề đặt.
+   */
+  if (val.salaryFrom !== undefined && !val.salaryUnit) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['salaryUnit'],
+      message: 'Chọn đơn vị lương (giờ, ca hay tháng) trước khi lọc theo mức lương',
+    })
+  }
+})
 
 /* ------------------------------------------------- Ứng tuyển (Sprint 4) -- */
 

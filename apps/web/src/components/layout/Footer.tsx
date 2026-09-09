@@ -45,19 +45,14 @@ export function Footer() {
         <div className="grid gap-10 lg:grid-cols-[1.35fr_1fr_1fr_1fr] lg:gap-12">
           {/* Brand */}
           <div className="max-w-sm">
-            <Link
-              to="/"
-              className="group inline-flex items-center gap-3"
-            >
-
+            <Link to="/" className="group inline-flex items-center gap-3">
               <span className="text-xl font-extrabold tracking-tight text-slate-900">
                 Uni<span className="text-brand-600">Work</span>
               </span>
             </Link>
 
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              Nền tảng việc giúp sinh viên tìm kiếm công việc
-              phù hợp với lịch rảnh thực tế.
+              Nền tảng việc giúp sinh viên tìm kiếm công việc phù hợp với lịch rảnh thực tế.
             </p>
 
             {/* Contact */}
@@ -67,9 +62,7 @@ export function Footer() {
                   <MapPin size={14} />
                 </span>
 
-                <span className="leading-7">
-                  TP. Hồ Chí Minh
-                </span>
+                <span className="leading-7">TP. Hồ Chí Minh</span>
               </li>
 
               <li className="flex items-center gap-3">
@@ -90,23 +83,17 @@ export function Footer() {
                   <Phone size={14} />
                 </span>
 
-                <a
-                  href="tel:02812345678"
-                  className="transition-colors hover:text-brand-600"
-                >
+                <a href="tel:02812345678" className="transition-colors hover:text-brand-600">
                   (028) 1234 5678
                 </a>
               </li>
             </ul>
-
           </div>
 
           {/* Columns */}
           {COLUMNS.map((col) => (
             <div key={col.title}>
-              <h3 className="text-sm font-bold text-slate-900">
-                {col.title}
-              </h3>
+              <h3 className="text-sm font-bold text-slate-900">{col.title}</h3>
 
               <div className="mt-3 h-0.5 w-7 rounded-full bg-brand-500" />
 
@@ -130,15 +117,12 @@ export function Footer() {
             </div>
           ))}
         </div>
-
       </div>
 
       {/* Bottom */}
       <div className="relative border-t border-slate-100 bg-slate-50/80">
         <div className="mx-auto flex max-w-[1180px] flex-col gap-3 px-4 py-5 text-center sm:flex-row sm:items-center sm:justify-between sm:text-left">
-          <span className="text-xs leading-5 text-slate-400">
-            © 2026 UniWork 
-          </span>
+          <span className="text-xs leading-5 text-slate-400">© 2026 UniWork</span>
 
           <div className="flex items-center justify-center sm:justify-end">
             <ApiStatus />

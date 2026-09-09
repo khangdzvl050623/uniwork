@@ -18,12 +18,7 @@ import {
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
 import { LuoiKhungGio } from '@/components/LuoiKhungGio'
-import {
-  useCreateJob,
-  useMyJob,
-  useSubmitJob,
-  useUpdateJob,
-} from '@/hooks/useEmployerJobs'
+import { useCreateJob, useMyJob, useSubmitJob, useUpdateJob } from '@/hooks/useEmployerJobs'
 import { useMe, useSkills } from '@/hooks/useProfile'
 import { useZodForm } from '@/hooks/useZodForm'
 import { ApiClientError } from '@/lib/api'
@@ -506,9 +501,7 @@ export function PostJob() {
                 className="h-4 w-4 rounded border-slate-300 accent-brand-600"
               />
               <span className="text-sm font-medium text-slate-700">Lương thoả thuận</span>
-              <span className="text-xs text-slate-400">
-                Chọn khi chưa chốt được con số cụ thể
-              </span>
+              <span className="text-xs text-slate-400">Chọn khi chưa chốt được con số cụ thể</span>
             </label>
 
             <div className="grid gap-4 sm:grid-cols-3">
@@ -612,8 +605,8 @@ export function PostJob() {
           <div className="flex items-start gap-3 rounded-xl border border-accent-500/30 bg-accent-50 p-4">
             <ShieldAlert size={18} className="mt-0.5 shrink-0 text-accent-600" />
             <p className="text-sm text-amber-900">
-              Hồ sơ doanh nghiệp chưa được xác minh. Bạn vẫn lưu nháp được, nhưng phải nộp giấy
-              phép kinh doanh hoặc mã số thuế và chờ duyệt trước khi gửi tin đi.
+              Hồ sơ doanh nghiệp chưa được xác minh. Bạn vẫn lưu nháp được, nhưng phải nộp giấy phép
+              kinh doanh hoặc mã số thuế và chờ duyệt trước khi gửi tin đi.
             </p>
           </div>
         )}

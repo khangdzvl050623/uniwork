@@ -240,7 +240,10 @@ export async function updateEmployerProfile(
   userId: string,
   input: UpdateEmployerProfileInput,
 ): Promise<EmployerProfileResponse> {
-  const profile = await prisma.employerProfile.findUnique({ where: { userId }, select: { id: true } })
+  const profile = await prisma.employerProfile.findUnique({
+    where: { userId },
+    select: { id: true },
+  })
   if (!profile) throw notFound('Không tìm thấy hồ sơ nhà tuyển dụng')
 
   const updated = await prisma.employerProfile.update({
@@ -352,7 +355,10 @@ export async function getDocumentViewUrl(
  * Thay TOÀN BỘ danh sách kỹ năng trong một transaction — không phải thêm/bớt
  * từng cái. Gửi mảng rỗng thì xoá sạch, đúng yêu cầu của T54.
  */
-export async function replaceSkills(userId: string, skillIds: string[]): Promise<StudentProfileResponse> {
+export async function replaceSkills(
+  userId: string,
+  skillIds: string[],
+): Promise<StudentProfileResponse> {
   const studentProfileId = await requireStudentProfileId(userId)
 
   const unique = [...new Set(skillIds)]
@@ -419,7 +425,10 @@ export async function getAvailability(userId: string): Promise<AvailabilitySlot[
     select: { dayOfWeek: true, slot: true },
   })
 
-  return rows.map((r) => ({ dayOfWeek: r.dayOfWeek as AvailabilitySlot['dayOfWeek'], slot: r.slot }))
+  return rows.map((r) => ({
+    dayOfWeek: r.dayOfWeek as AvailabilitySlot['dayOfWeek'],
+    slot: r.slot,
+  }))
 }
 
 /**

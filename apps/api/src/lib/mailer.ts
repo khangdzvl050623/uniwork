@@ -177,7 +177,11 @@ export function applicationNotificationEmail(
   message: string,
 ): Pick<Mail, 'subject' | 'html'> {
   const escapeHtml = (value: string) =>
-    value.replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!)
+    value.replace(
+      /[&<>"']/g,
+      (character) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!,
+    )
   const safeTitle = escapeHtml(title)
   const safeMessage = escapeHtml(message)
   return {

@@ -127,7 +127,9 @@ export function CvUpload({ cvUrl }: { cvUrl: string | null }) {
                 chọn từ máy
               </button>
             </p>
-            <p className="mt-1 text-xs text-slate-400">Chỉ nhận PDF, tối đa {MAX_FILE_SIZE_LABEL}</p>
+            <p className="mt-1 text-xs text-slate-400">
+              Chỉ nhận PDF, tối đa {MAX_FILE_SIZE_LABEL}
+            </p>
           </>
         )}
 

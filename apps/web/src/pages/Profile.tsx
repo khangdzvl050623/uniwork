@@ -119,9 +119,9 @@ export function Profile() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:py-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Hồ sơ của tôi</h1>
+        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Hồ sơ của tôi</h1>
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500">
           <span>{hoSo.fullName}</span>
           <span aria-hidden>·</span>

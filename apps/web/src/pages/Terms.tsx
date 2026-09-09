@@ -25,10 +25,9 @@ export function Terms() {
 
       <Muc title="1. UniWork là gì">
         <p>
-          UniWork là nền tảng kết nối sinh viên với công việc bán thời gian phù hợp lịch học.
-          Chúng tôi là <strong>bên trung gian</strong>: chúng tôi không phải người sử dụng lao
-          động, không tham gia vào hợp đồng lao động giữa bạn và nhà tuyển dụng, và không trả
-          lương.
+          UniWork là nền tảng kết nối sinh viên với công việc bán thời gian phù hợp lịch học. Chúng
+          tôi là <strong>bên trung gian</strong>: chúng tôi không phải người sử dụng lao động, không
+          tham gia vào hợp đồng lao động giữa bạn và nhà tuyển dụng, và không trả lương.
         </p>
       </Muc>
 
@@ -36,8 +35,8 @@ export function Terms() {
         <ul>
           <li>Bạn chịu trách nhiệm giữ mật khẩu và mọi hoạt động diễn ra trong tài khoản mình.</li>
           <li>
-            Thông tin khai trong hồ sơ phải <strong>trung thực</strong>. Khai khống trường lớp,
-            kỹ năng hay giấy tờ doanh nghiệp là lý do để khoá tài khoản.
+            Thông tin khai trong hồ sơ phải <strong>trung thực</strong>. Khai khống trường lớp, kỹ
+            năng hay giấy tờ doanh nghiệp là lý do để khoá tài khoản.
           </li>
           <li>Mỗi người chỉ tạo một tài khoản cho mỗi vai trò.</li>
         </ul>
@@ -59,16 +58,16 @@ export function Terms() {
       <Muc title="4. Dành cho nhà tuyển dụng">
         <ul>
           <li>
-            Tin tuyển dụng phải mô tả đúng công việc, mức lương và thời gian làm. Không đăng tin
-            mồi để thu hút hồ sơ.
+            Tin tuyển dụng phải mô tả đúng công việc, mức lương và thời gian làm. Không đăng tin mồi
+            để thu hút hồ sơ.
           </li>
           <li>
-            Giấy tờ xác minh phải là giấy tờ thật của doanh nghiệp bạn. Tin chỉ hiển thị công
-            khai sau khi được duyệt.
+            Giấy tờ xác minh phải là giấy tờ thật của doanh nghiệp bạn. Tin chỉ hiển thị công khai
+            sau khi được duyệt.
           </li>
           <li>
-            Hồ sơ và CV ứng viên chỉ dùng cho mục đích tuyển dụng của chính bạn — không chuyển
-            cho bên thứ ba, không dùng để gửi quảng cáo.
+            Hồ sơ và CV ứng viên chỉ dùng cho mục đích tuyển dụng của chính bạn — không chuyển cho
+            bên thứ ba, không dùng để gửi quảng cáo.
           </li>
           <li>
             <strong>Nghiêm cấm</strong> yêu cầu sinh viên đặt cọc, nộp phí, hay giao giấy tờ gốc
@@ -88,21 +87,21 @@ export function Terms() {
 
       <Muc title="6. Chúng tôi không bảo đảm điều gì">
         <p>
-          UniWork cung cấp dịch vụ <em>“nguyên trạng”</em>. Chúng tôi không bảo đảm bạn sẽ tìm
-          được việc, không bảo đảm nhà tuyển dụng sẽ trả lương đúng hẹn, và không chịu trách
-          nhiệm về tranh chấp phát sinh giữa hai bên.
+          UniWork cung cấp dịch vụ <em>“nguyên trạng”</em>. Chúng tôi không bảo đảm bạn sẽ tìm được
+          việc, không bảo đảm nhà tuyển dụng sẽ trả lương đúng hẹn, và không chịu trách nhiệm về
+          tranh chấp phát sinh giữa hai bên.
         </p>
         <p>
           Hãy tự kiểm chứng trước khi nhận việc: gặp trực tiếp tại địa chỉ công ty, đọc kỹ thoả
-          thuận, và <strong>không bao giờ chuyển tiền đặt cọc</strong>. Gặp trường hợp khả nghi,
-          báo cho chúng tôi qua email bên dưới.
+          thuận, và <strong>không bao giờ chuyển tiền đặt cọc</strong>. Gặp trường hợp khả nghi, báo
+          cho chúng tôi qua email bên dưới.
         </p>
       </Muc>
 
       <Muc title="7. Ngừng dịch vụ">
         <p>
-          Chúng tôi có thể khoá tài khoản vi phạm những điều trên. Bạn có thể yêu cầu xoá tài
-          khoản bất cứ lúc nào — xem mục Quyền của bạn trong{' '}
+          Chúng tôi có thể khoá tài khoản vi phạm những điều trên. Bạn có thể yêu cầu xoá tài khoản
+          bất cứ lúc nào — xem mục Quyền của bạn trong{' '}
           <Link to="/chinh-sach-bao-mat" className="text-brand-600 hover:underline">
             Chính sách bảo mật
           </Link>
@@ -112,8 +111,8 @@ export function Terms() {
 
       <Muc title="8. Đây là đồ án học tập">
         <p>
-          UniWork là đồ án môn học của sinh viên, không phải một doanh nghiệp đã đăng ký. Dịch vụ
-          có thể tạm ngừng hoặc thay đổi mà không báo trước.
+          UniWork là đồ án môn học của sinh viên, không phải một doanh nghiệp đã đăng ký. Dịch vụ có
+          thể tạm ngừng hoặc thay đổi mà không báo trước.
         </p>
       </Muc>
 

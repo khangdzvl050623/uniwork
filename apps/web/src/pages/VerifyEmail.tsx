@@ -75,9 +75,7 @@ export function VerifyEmail() {
         navigate(u.role === 'EMPLOYER' ? '/ntd/ho-so' : '/ho-so', { replace: true })
       },
       onError: (err) => {
-        setLoi(
-          err instanceof ApiClientError ? err.message : 'Không xác thực được, thử lại sau.',
-        )
+        setLoi(err instanceof ApiClientError ? err.message : 'Không xác thực được, thử lại sau.')
         // CỐ Ý giữ nguyên mã đã gõ. Xoá sạch bắt người dùng gõ lại cả 6 chữ số
         // chỉ vì sai một chữ — trong khi thứ họ cần là sửa đúng chữ đó.
       },

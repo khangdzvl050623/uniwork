@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BriefcaseBusiness, Clock3, Loader2, RotateCcw } from 'lucide-react'
+import { BriefcaseBusiness, Clock3, Lock, Loader2, Mail, Phone, RotateCcw } from 'lucide-react'
 import {
   APPLICATION_STATUS_LABELS,
   TRANG_THAI_KET_THUC,
@@ -41,7 +41,9 @@ function Timeline({ application }: { application: StudentApplicationItem }) {
         <li key={`${event.createdAt}-${index}`} className="relative">
           <span className="absolute -left-[25px] top-1 h-2.5 w-2.5 rounded-full bg-brand-500 ring-4 ring-white" />
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusTone[event.status]}`}>
+            <span
+              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusTone[event.status]}`}
+            >
               {APPLICATION_STATUS_LABELS[event.status]}
             </span>
             <time className="text-xs text-slate-400">
@@ -63,8 +65,8 @@ function ApplicationCard({ application }: { application: StudentApplicationItem 
   const [moXacNhan, setMoXacNhan] = useState(false)
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3">
+    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:flex-wrap">
         <div>
           {/* `duongDanTin` để URL mang cả slug tiêu đề lẫn id, giống mọi thẻ tin
               khác. Dùng id trần vẫn vào được (route giữ cả hai dạng) nhưng người
@@ -76,7 +78,9 @@ function ApplicationCard({ application }: { application: StudentApplicationItem 
             {application.jobTitle}
           </Link>
           <p className="mt-1 text-sm text-slate-500">{application.companyName}</p>
-          <span className={`mt-3 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${statusTone[application.status]}`}>
+          <span
+            className={`mt-3 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${statusTone[application.status]}`}
+          >
             {APPLICATION_STATUS_LABELS[application.status]}
           </span>
         </div>
@@ -111,6 +115,35 @@ function ApplicationCard({ application }: { application: StudentApplicationItem 
       )}
       <Timeline application={application} />
 
+      <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4">
+        <p className="text-sm font-semibold text-slate-800">Liên hệ nhà tuyển dụng</p>
+        {application.employerContact ? (
+          <div className="mt-2 flex flex-col gap-2 text-sm text-slate-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
+            {application.employerContact.phone && (
+              <a
+                href={`tel:${application.employerContact.phone}`}
+                className="flex min-w-0 items-center gap-1.5 hover:text-brand-700 hover:underline"
+              >
+                <Phone size={14} className="shrink-0" />
+                <span className="break-all">{application.employerContact.phone}</span>
+              </a>
+            )}
+            <a
+              href={`mailto:${application.employerContact.email}`}
+              className="flex min-w-0 items-center gap-1.5 hover:text-brand-700 hover:underline"
+            >
+              <Mail size={14} className="shrink-0" />
+              <span className="break-all">{application.employerContact.email}</span>
+            </a>
+          </div>
+        ) : (
+          <p className="mt-2 flex items-start gap-1.5 text-xs text-slate-500">
+            <Lock size={13} className="mt-0.5 shrink-0" />
+            Thông tin liên hệ sẽ mở khi nhà tuyển dụng mời bạn phỏng vấn.
+          </p>
+        )}
+      </div>
+
       <Dialog open={moXacNhan} onOpenChange={setMoXacNhan}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -121,7 +154,11 @@ function ApplicationCard({ application }: { application: StudentApplicationItem 
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setMoXacNhan(false)} disabled={withdraw.isPending}>
+            <Button
+              variant="outline"
+              onClick={() => setMoXacNhan(false)}
+              disabled={withdraw.isPending}
+            >
               Giữ đơn
             </Button>
             <Button
@@ -145,8 +182,8 @@ export function MyApplications() {
   const applications = data?.applications ?? []
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="text-2xl font-bold text-slate-900">Đơn của tôi</h1>
+    <main className="mx-auto max-w-3xl px-4 py-6 sm:py-8">
+      <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Đơn của tôi</h1>
       <p className="mt-1 text-sm text-slate-500">
         {isPending ? 'Đang tải…' : `${applications.length} đơn ứng tuyển`}
       </p>

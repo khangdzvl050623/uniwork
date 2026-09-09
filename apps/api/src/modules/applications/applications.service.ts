@@ -320,7 +320,14 @@ const CHON_DON_SINH_VIEN = {
     select: {
       id: true,
       title: true,
-      employerProfile: { select: { companyName: true, verifiedAt: true } },
+      employerProfile: {
+        select: {
+          companyName: true,
+          verifiedAt: true,
+          phone: true,
+          user: { select: { email: true } },
+        },
+      },
     },
   },
   events: {
@@ -345,6 +352,12 @@ function toStudentApplicationItem(don: HangDonSinhVien): StudentApplicationItem 
         verified: don.job.employerProfile.verifiedAt !== null,
       },
     },
+    employerContact: TRANG_THAI_MO_LIEN_HE.includes(don.status)
+      ? {
+          phone: don.job.employerProfile.phone,
+          email: don.job.employerProfile.user.email,
+        }
+      : null,
     events: don.events.map((event) => ({
       status: event.status,
       note: event.note,
@@ -615,7 +628,9 @@ function sapXep(ds: ApplicantItem[], sort: 'match' | 'newest'): void {
 }
 
 /** Đếm đủ 6 trạng thái, kể cả trạng thái không có đơn nào — để tab hiện số 0. */
-function demTheoTrangThai(rows: { status: ApplicationStatus }[]): Record<ApplicationStatus, number> {
+function demTheoTrangThai(
+  rows: { status: ApplicationStatus }[],
+): Record<ApplicationStatus, number> {
   const dem = {
     PENDING: 0,
     VIEWED: 0,
@@ -691,7 +706,11 @@ export async function updateApplicationStatus(
       note: input.note,
     })
 
-    if (input.status === 'SHORTLISTED' || input.status === 'ACCEPTED' || input.status === 'REJECTED') {
+    if (
+      input.status === 'SHORTLISTED' ||
+      input.status === 'ACCEPTED' ||
+      input.status === 'REJECTED'
+    ) {
       await createNotification(tx, {
         userId: capNhat.studentProfile.userId,
         type: 'APPLICATION_STATUS_CHANGED',

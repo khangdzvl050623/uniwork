@@ -66,7 +66,9 @@ export function uploadFile<T>(
       }
 
       if (!body.ok) {
-        reject(new ApiClientError(body.error.code, body.error.message, xhr.status, body.error.details))
+        reject(
+          new ApiClientError(body.error.code, body.error.message, xhr.status, body.error.details),
+        )
         return
       }
 

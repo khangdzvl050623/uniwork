@@ -482,7 +482,11 @@ describe('GET /api/ntd/tin-tuyen-dung/:id/ung-vien', () => {
           studentProfile: hoSoUngVien(),
         },
         {
-          ...hangDon({ id: 'app-du-dieu-kien', matchScore: 60, matchBreakdown: { eligible: true } }),
+          ...hangDon({
+            id: 'app-du-dieu-kien',
+            matchScore: 60,
+            matchBreakdown: { eligible: true },
+          }),
           studentProfile: hoSoUngVien(),
         },
       ],
@@ -508,11 +512,11 @@ describe('GET /api/ntd/tin-tuyen-dung/:id/ung-vien', () => {
       title: 'Phục vụ quán cà phê',
       employerProfile: { userId: 'u-ntd' },
     })
-    mocKetQua([{ ...hangDon(), studentProfile: hoSoUngVien() }], [], [
-      'PENDING',
-      'PENDING',
-      'REJECTED',
-    ])
+    mocKetQua(
+      [{ ...hangDon(), studentProfile: hoSoUngVien() }],
+      [],
+      ['PENDING', 'PENDING', 'REJECTED'],
+    )
 
     const res = await request(app)
       .get('/api/ntd/tin-tuyen-dung/job-1/ung-vien')

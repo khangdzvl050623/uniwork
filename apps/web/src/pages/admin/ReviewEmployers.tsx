@@ -72,7 +72,9 @@ function trangThaiCua(e: AdminEmployerResponse): TrangThaiDuyet {
 }
 
 function daDuyetDu(e: AdminEmployerResponse): boolean {
-  return DOCUMENT_TYPES.every((t) => e.documents.some((d) => d.type === t && d.status === 'APPROVED'))
+  return DOCUMENT_TYPES.every((t) =>
+    e.documents.some((d) => d.type === t && d.status === 'APPROVED'),
+  )
 }
 
 export function ReviewEmployers() {
@@ -126,7 +128,11 @@ export function ReviewEmployers() {
       />
 
       <TableShell>
-        <Toolbar placeholder="Tìm theo tên, email, người liên hệ…" value={query} onChange={setQuery}>
+        <Toolbar
+          placeholder="Tìm theo tên, email, người liên hệ…"
+          value={query}
+          onChange={setQuery}
+        >
           <FilterChips options={FILTERS} value={filter} onChange={setFilter} counts={counts} />
         </Toolbar>
 

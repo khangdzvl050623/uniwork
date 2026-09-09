@@ -294,7 +294,11 @@ const DEMO_EMPLOYERS: DemoEmployer[] = [
         type: DocumentType.BUSINESS_LICENSE,
         status: ReviewStatus.APPROVED,
       },
-      { id: 'demo-giayto-suongmai-mst', type: DocumentType.TAX_CODE, status: ReviewStatus.APPROVED },
+      {
+        id: 'demo-giayto-suongmai-mst',
+        type: DocumentType.TAX_CODE,
+        status: ReviewStatus.APPROVED,
+      },
     ],
   },
   {
@@ -553,7 +557,10 @@ const DEMO_JOBS: DemoJob[] = [
     title: 'Nhân viên hỗ trợ sự kiện âm nhạc',
     description:
       'Cần 20 bạn hỗ trợ sự kiện âm nhạc ngoài trời: soát vé, hướng dẫn khách, hỗ trợ hậu cần. Thanh toán ngay sau khi kết thúc sự kiện.',
-    requirements: ['Có mặt đúng giờ, làm việc liên tục 6 tiếng', 'Ưu tiên bạn có kinh nghiệm sự kiện'],
+    requirements: [
+      'Có mặt đúng giờ, làm việc liên tục 6 tiếng',
+      'Ưu tiên bạn có kinh nghiệm sự kiện',
+    ],
     benefits: ['Thanh toán ngay trong ngày', 'Có áo đồng phục và nước uống'],
     city: 'TP.HCM',
     district: 'Quận 7',
@@ -578,7 +585,11 @@ const DEMO_JOBS: DemoJob[] = [
     title: 'Cộng tác viên nhập liệu online',
     description:
       'Nhập liệu hồ sơ học viên vào hệ thống nội bộ. Làm online hoàn toàn, giao việc theo tuần, tự sắp xếp giờ miễn hoàn thành đúng hạn.',
-    requirements: ['Có laptop và mạng ổn định', 'Thành thạo Excel cơ bản', 'Cam kết tối thiểu 2 tháng'],
+    requirements: [
+      'Có laptop và mạng ổn định',
+      'Thành thạo Excel cơ bản',
+      'Cam kết tối thiểu 2 tháng',
+    ],
     benefits: ['Làm từ xa 100%', 'Thanh toán theo tháng'],
     city: 'Toàn quốc',
     district: 'Làm từ xa',

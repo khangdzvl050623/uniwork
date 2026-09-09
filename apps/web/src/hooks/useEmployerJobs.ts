@@ -1,9 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import type {
-  CreateJobInput,
-  EmployerJobListResponse,
-  EmployerJobResponse,
-} from '@uniwork/shared'
+import type { CreateJobInput, EmployerJobListResponse, EmployerJobResponse } from '@uniwork/shared'
 import { apiFetch } from '@/lib/api'
 
 const KHOA_TIN = ['ntd', 'tin-tuyen-dung'] as const

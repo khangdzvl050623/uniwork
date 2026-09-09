@@ -46,9 +46,7 @@ export function SkillPicker({ daChon }: { daChon: SkillRef[] }) {
   }, [danhMuc, tuKhoa])
 
   function batTat(id: string) {
-    setChon((truoc) =>
-      truoc.includes(id) ? truoc.filter((x) => x !== id) : [...truoc, id],
-    )
+    setChon((truoc) => (truoc.includes(id) ? truoc.filter((x) => x !== id) : [...truoc, id]))
   }
 
   if (isLoading) {
