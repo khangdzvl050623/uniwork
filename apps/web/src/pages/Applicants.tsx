@@ -73,7 +73,7 @@ export function Applicants() {
 
   if (isError) {
     return (
-      <div className="mx-auto max-w-6xl px-4 py-16 text-center">
+      <div className="mx-auto max-w-6xl px-4 py-10 text-center sm:py-16">
         <p className="text-sm text-rose-600">
           {error instanceof Error ? error.message : 'Không tải được danh sách ứng viên'}
         </p>
@@ -92,8 +92,8 @@ export function Applicants() {
   const dangXuLy = TRANG_THAI_DANG_XU_LY.reduce((s, t) => s + demTheoTrangThai[t], 0)
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
-      <h1 className="text-2xl font-bold text-slate-900">Ứng viên</h1>
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
+      <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Ứng viên</h1>
       <p className="mt-1 text-sm text-slate-500">
         Tin: <strong className="text-slate-700">{jobTitle}</strong> · {tong} hồ sơ
         {dangXuLy > 0 && <> · {dangXuLy} đang chờ bạn xử lý</>} ·{' '}
@@ -102,7 +102,7 @@ export function Applicants() {
         </button>
       </p>
 
-      <div className="mt-6 flex flex-wrap items-center gap-2">
+      <div className="mt-5 flex flex-wrap items-center gap-2 sm:mt-6">
         {TABS.map((t) => {
           const so = t.key === 'ALL' ? tong : demTheoTrangThai[t.key]
           // Ẩn tab rỗng, TRỪ các tab đang xử lý — chúng phải hiện số 0 để nhà

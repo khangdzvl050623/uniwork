@@ -72,7 +72,7 @@ export function JobDetail() {
 
   if (isError || !job) {
     return (
-      <div className="mx-auto max-w-2xl px-4 py-16 text-center">
+      <div className="mx-auto max-w-2xl px-4 py-10 text-center sm:py-16">
         <h1 className="text-xl font-bold text-slate-900">Không tìm thấy tin này</h1>
         <p className="mt-2 text-sm text-slate-500">
           Tin có thể đã được gỡ xuống, đã đóng, hoặc đường dẫn không đúng.
@@ -96,7 +96,7 @@ export function JobDetail() {
   ).length
 
   return (
-    <div className="mx-auto max-w-6xl px-4 py-8">
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
       <nav className="mb-4 text-sm text-slate-500">
         <Link to="/viec-lam" className="transition-colors hover:text-brand-600">
           Việc làm
@@ -105,7 +105,7 @@ export function JobDetail() {
         <span className="text-slate-700">{job.title}</span>
       </nav>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+      <div className="grid gap-5 sm:gap-6 lg:grid-cols-[1fr_320px]">
         <div className="space-y-4">
           <Card className="p-5">
             <div className="flex gap-4">

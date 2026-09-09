@@ -320,7 +320,14 @@ const CHON_DON_SINH_VIEN = {
     select: {
       id: true,
       title: true,
-      employerProfile: { select: { companyName: true, verifiedAt: true } },
+      employerProfile: {
+        select: {
+          companyName: true,
+          verifiedAt: true,
+          phone: true,
+          user: { select: { email: true } },
+        },
+      },
     },
   },
   events: {
@@ -345,6 +352,12 @@ function toStudentApplicationItem(don: HangDonSinhVien): StudentApplicationItem 
         verified: don.job.employerProfile.verifiedAt !== null,
       },
     },
+    employerContact: TRANG_THAI_MO_LIEN_HE.includes(don.status)
+      ? {
+          phone: don.job.employerProfile.phone,
+          email: don.job.employerProfile.user.email,
+        }
+      : null,
     events: don.events.map((event) => ({
       status: event.status,
       note: event.note,

@@ -957,6 +957,8 @@ export interface StudentApplicationItem extends ApplicationBase {
     title: string
     employer: { companyName: string; verified: boolean }
   }
+  /** Chỉ mở khi đơn đã được mời phỏng vấn hoặc nhận. */
+  employerContact: ThongTinLienHe | null
   events: ApplicationEventItem[]
 }
 
