@@ -17,6 +17,7 @@ import {
 } from '@uniwork/shared'
 import { Button } from '@/components/ui/Button'
 import { Card, CardHeader } from '@/components/ui/Card'
+import { Field } from '@/components/ui/Field'
 import { LuoiKhungGio } from '@/components/LuoiKhungGio'
 import { useCreateJob, useMyJob, useSubmitJob, useUpdateJob } from '@/hooks/useEmployerJobs'
 import { useMe, useSkills } from '@/hooks/useProfile'
@@ -78,8 +79,8 @@ function Row({
   )
 }
 
-/** Giá trị form — đúng hình dạng `CreateJobInput` để `createJobSchema` kiểm thẳng. */
-type GiaTriForm = CreateJobInput
+/** Cho phép xoá ô số lượng khi đang sửa; schema vẫn đòi số hợp lệ khi gửi. */
+type GiaTriForm = Omit<CreateJobInput, 'quantity'> & { quantity: number | '' }
 
 const MAC_DINH: GiaTriForm = {
   title: '',
@@ -130,6 +131,12 @@ export function PostJob() {
 
   const form = useZodForm(createJobSchema, MAC_DINH)
   const { setValue, reset } = form
+  const [daChamSoLuong, setDaChamSoLuong] = useState(false)
+  const soLuongHopLe = createJobSchema.shape.quantity.safeParse(form.values.quantity)
+  const loiSoLuong =
+    daChamSoLuong && !soLuongHopLe.success
+      ? soLuongHopLe.error.issues[0]?.message
+      : form.errors.quantity
 
   /*
    * Đổ dữ liệu tin cũ vào form một lần khi tải xong.
@@ -141,6 +148,7 @@ export function PostJob() {
   useEffect(() => {
     if (!tinCu) return
 
+    setDaChamSoLuong(false)
     reset({
       title: tinCu.title,
       description: tinCu.description,
@@ -336,15 +344,27 @@ export function PostJob() {
                   ))}
                 </select>
               </Row>
-              <Row label="Số lượng cần tuyển" error={form.errors.quantity}>
-                <input
-                  type="number"
-                  min={1}
-                  value={form.values.quantity}
-                  onChange={(e) => setValue('quantity', Number(e.target.value))}
-                  className={inputClass}
-                />
-              </Row>
+              <Field
+                label="Số lượng cần tuyển"
+                hint="Nhập số nguyên từ 1 đến 999 người. Ví dụ: 2."
+                error={loiSoLuong}
+                type="number"
+                inputMode="numeric"
+                min={1}
+                max={999}
+                step={1}
+                required
+                value={form.values.quantity}
+                onChange={(e) =>
+                  setValue('quantity', e.target.value === '' ? '' : Number(e.target.value))
+                }
+                onBlur={(e) => {
+                  // React giữ "0002" trong input number khi giá trị số vẫn bằng 2.
+                  // Chỉ chuẩn hoá lúc rời ô để không làm gián đoạn việc gõ/xoá.
+                  e.currentTarget.value = String(form.values.quantity)
+                  setDaChamSoLuong(true)
+                }}
+              />
             </div>
           </div>
         </Card>

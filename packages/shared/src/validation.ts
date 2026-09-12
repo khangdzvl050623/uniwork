@@ -111,6 +111,33 @@ const chuoiTuyChon = (max: number, thongDiep?: string) =>
     .optional()
     .transform((v) => (v === '' ? null : v))
 
+/**
+ * URL hợp lệ VÀ chỉ dùng giao thức http/https.
+ *
+ * ---------------------------------------------------------------------------
+ * VÌ SAO PHẢI CHẶN GIAO THỨC, KHÔNG CHỈ `.url()`
+ * ---------------------------------------------------------------------------
+ * `z.string().url()` nhận MỌI giao thức. Đo thật 2026-09-12: nó cho qua cả
+ * `javascript:alert(1)`, `data:text/html,<script>…`, `vbscript:` và
+ * `JaVaScRiPt:` viết hoa lẫn lộn.
+ *
+ * Website của nhà tuyển dụng được render thẳng thành link trên trang tin công
+ * khai (`JobDetail.tsx`, `href={job.employerWebsite}`). Nên một giao thức
+ * `javascript:` lọt vào đây là XSS: nhà tuyển dụng nhập một lần, mọi sinh viên
+ * bấm vào "Website doanh nghiệp" đều dính. React không chặn hộ — nó chỉ cảnh
+ * báo trong console lúc phát triển.
+ *
+ * Đây cũng là lúc thông điệp lỗi trở thành SỰ THẬT: trước đây nó ghi "phải bắt
+ * đầu bằng http:// hoặc https://" trong khi vẫn nhận `ftp://`.
+ *
+ * Dựng một lần ở ngoài chứ không gọi trong hàm `refine`: viết trong đó thì mỗi
+ * lần kiểm một giá trị lại dựng một schema mới.
+ */
+const laUrlHopLe = z
+  .string()
+  .url()
+  .refine((v) => /^https?:\/\//i.test(v))
+
 const ngay = z.coerce.date()
 
 /**
@@ -220,14 +247,34 @@ export const employerProfileSchema = z.object({
     .trim()
     .min(2, 'Tên công ty cần ít nhất 2 ký tự')
     .max(200, 'Tên công ty quá dài'),
+  contactName: chuoiTuyChon(120, 'Tên người phụ trách tối đa 120 ký tự'),
+  phone: soDienThoai,
   description: chuoiTuyChon(2000, 'Mô tả tối đa 2000 ký tự'),
   address: chuoiTuyChon(300),
+  /*
+   * Cùng khuôn với `soDienThoai` và `chuoiTuyChon`: trim TRƯỚC, rồi `refine` cho
+   * chuỗi rỗng đi qua, rồi mới đổi rỗng thành `null`.
+   *
+   * Bản trước viết `.url(...).or(z.literal(''))` và lệch đúng một ca: `.url()`
+   * nhận giá trị ĐÃ trim nên `'   '` thành `''` rồi trượt, còn `z.literal('')`
+   * so với chuỗi GỐC nên `'   '` cũng trượt nốt — cả hai nhánh cùng hỏng. Nhà
+   * tuyển dụng lỡ gõ một dấu cách vào ô website là không lưu nổi hồ sơ, mà nhìn
+   * ô thì thấy trống nên không đoán ra vì sao.
+   *
+   * Đáng nói hơn: `phone` ngay bên trên KHÔNG dính lỗi này vì nó theo đúng khuôn
+   * dưới đây. Hai ô cạnh nhau trong cùng một form mà hành xử khác nhau.
+   */
   website: z
     .string()
     .trim()
-    .url('Website phải bắt đầu bằng http:// hoặc https://')
     .nullable()
     .optional()
+    // `v == null` giữ nguyên cả `undefined` lẫn `null` — xem chú thích dài ở
+    // `soDienThoai`: gộp hai thứ đó lại sẽ xoá trắng dữ liệu cũ khi client gửi
+    // thiếu trường.
+    .refine((v) => v == null || v === '' || laUrlHopLe.safeParse(v).success, {
+      message: 'Website phải bắt đầu bằng http:// hoặc https://',
+    })
     .transform((v) => (v === '' ? null : v)),
 })
 
@@ -408,7 +455,11 @@ const baseJobSchema = z.object({
 
   city: z.string().trim().min(1, 'Chưa chọn tỉnh/thành'),
   district: z.string().trim().min(1, 'Chưa chọn quận/huyện'),
-  quantity: z.number().int().min(1, 'Số lượng tuyển tối thiểu là 1').max(999, 'Số lượng quá lớn'),
+  quantity: z
+    .number({ error: 'Vui lòng nhập số lượng cần tuyển' })
+    .int('Số lượng cần tuyển phải là số nguyên')
+    .min(1, 'Số lượng tuyển tối thiểu là 1')
+    .max(999, 'Số lượng tuyển tối đa là 999'),
 
   salaryNegotiable: z.boolean(),
   salaryMin: z.number().int().min(0, 'Lương không được âm').nullish(),

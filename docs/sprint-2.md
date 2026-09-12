@@ -56,6 +56,8 @@ Mã tiếp nối Sprint 1 (kết thúc ở T66).
 | T75 | 1–3 | BA | Viết test case cho luồng đăng tin — tạo, sửa, xoá, gửi duyệt, cả hai nhánh duyệt/từ chối | Bảng test case đủ ca, kể cả ca âm (sửa tin người khác, xoá tin đã mở) |
 | T76 | 3–5 | BA | Tiếp tục Figma Sprint 3–4: bộ lọc tìm kiếm, trang kết quả, luồng ứng tuyển | Giao **trước khi Sprint 3 bắt đầu** |
 
+**Bổ sung trải nghiệm nhập liệu T73 (2026-09-11):** ô "Số lượng cần tuyển" cho phép xoá hết khi đang sửa, không tự điền `0`. Khi rời ô, `0002` được chuẩn hoá thành `2`; số lượng hợp lệ vẫn là số nguyên từ 1 đến 999 theo schema dùng chung. Ô có hướng dẫn và báo lỗi tiếng Việt khi bỏ trống, nhập số lẻ hoặc ngoài giới hạn; không tự làm tròn hay ép giá trị về giới hạn. Áp dụng cho cả tạo và sửa tin.
+
 ### Tuần 5 — Duyệt tin và xem việc công khai
 
 | Mã | Ngày | Người | Công việc | Kết quả cần đạt |

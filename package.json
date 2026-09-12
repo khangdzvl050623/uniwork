@@ -8,7 +8,7 @@
   },
   "prettier": "@uniwork/config/prettier",
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "turbo run dev --concurrency=3",
     "dev:local": "pnpm db:wait && pnpm dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
