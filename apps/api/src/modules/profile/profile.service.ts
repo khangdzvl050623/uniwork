@@ -250,6 +250,8 @@ export async function updateEmployerProfile(
     where: { userId },
     data: {
       companyName: input.companyName.trim(),
+      contactName: input.contactName,
+      phone: input.phone,
       description: input.description,
       address: input.address,
       website: input.website,

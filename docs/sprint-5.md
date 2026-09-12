@@ -340,6 +340,16 @@ Chọn hướng hai, và giảm chi phí bằng cách **tách phần trình bày
 
 ## Tính năng 3 — Liên hệ hai chiều
 
+### Cập nhật triển khai 2026-09-11
+
+- Hồ sơ NTD nhận và lưu `phone` / `contactName` qua Zod → service → kiểu input dùng chung → form. Hai cột đã có trong migration `20260815062244_schema_day_du`; không cần migration mới.
+- Hai trường vẫn **tùy chọn**. Nên nhập số sẽ gọi cho ứng viên; thiếu số không chặn mời phỏng vấn vì vẫn có email tài khoản. Chuỗi rỗng thành `null` để xoá, không gửi trường thì giữ giá trị cũ. Website trống cũng được chấp nhận như hướng dẫn của form.
+- Liên hệ nằm tại `StudentApplicationItem.job.employer.contact: LienHeNhaTuyenDung | null`, thay cho trường `employerContact` trước đây. API và web cần được phát hành cùng phiên bản contract này.
+- Danh sách dùng hai `select` kín/mở trong transaction `RepeatableRead`, ghép và sắp theo ngày mới nhất. Chi tiết vẫn hai `findUnique`: kiểm chủ sở hữu và trạng thái trước, chọn `select` ở lần đọc sau trong cùng snapshot. Mapper chỉ dựa vào hình dạng dữ liệu. Response rút đơn dùng `select` kín; email phục vụ thông báo rút đơn vẫn được đọc nội bộ cho đúng mục đích đó.
+- Khối liên hệ hiện tên người phụ trách, số gọi/email, lời nhắc nhận diện cuộc gọi; thiếu số hiện “chưa cập nhật”. Đơn đã rút/từ chối giải thích liên hệ đã đóng.
+- Các mục hiện trạng phía dưới mô tả lúc lập kế hoạch. Checklist nghiệm thu vẫn cần bằng chứng thực thi, không tự đánh dấu xong từ việc đã có code.
+- Kiểm chứng local: 375 test API, 174 test web; lint và typecheck đạt. Chạy hai suite tuần tự với `--maxWorkers=2` vì chạy đồng thời theo mặc định bị hết bộ nhớ trên máy kiểm tra. `test-db/lien-he-ntd.test.ts` gọi API với PostgreSQL thật, đọc lại cột để xác nhận lưu/giữ/xoá liên hệ và thử đủ sáu trạng thái ở danh sách + chi tiết, cùng rút từ `SHORTLISTED`; chỉ giả lập gửi email. Đột biến thêm `phone: true` vào nhánh kín làm test kiểm `select` đỏ đúng chỗ, sau đó khôi phục code. Chưa nghiệm thu trên điện thoại thật hoặc deploy.
+
 ### Vòng khép kín của Sprint 4 đang khuyết một nửa
 
 Luồng đã chốt ở Sprint 4:

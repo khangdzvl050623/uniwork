@@ -341,9 +341,11 @@ export interface EmployerProfileResponse {
   documents: EmployerDocumentResponse[]
 }
 
-/** Sửa tên công ty, mô tả, địa chỉ, website (T53). */
+/** Sửa thông tin công ty và liên hệ người phụ trách (T53, Sprint 5). */
 export interface UpdateEmployerProfileInput {
   companyName: string
+  contactName?: string | null
+  phone?: string | null
   description?: string | null
   address?: string | null
   website?: string | null
@@ -955,10 +957,13 @@ export interface StudentApplicationItem extends ApplicationBase {
   job: {
     id: string
     title: string
-    employer: { companyName: string; verified: boolean }
+    employer: {
+      companyName: string
+      verified: boolean
+      /** Chỉ mở khi đơn đã được mời phỏng vấn hoặc nhận. */
+      contact: LienHeNhaTuyenDung | null
+    }
   }
-  /** Chỉ mở khi đơn đã được mời phỏng vấn hoặc nhận. */
-  employerContact: ThongTinLienHe | null
   events: ApplicationEventItem[]
 }
 
@@ -1020,6 +1025,11 @@ export interface MarkAllNotificationsReadResponse {
 export interface ThongTinLienHe {
   phone: string | null
   email: string
+}
+
+/** Liên hệ phía nhà tuyển dụng — có thêm tên người phụ trách. */
+export interface LienHeNhaTuyenDung extends ThongTinLienHe {
+  contactName: string | null
 }
 
 /** Một ứng viên trong danh sách của nhà tuyển dụng. */

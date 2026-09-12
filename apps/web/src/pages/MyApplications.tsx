@@ -117,29 +117,42 @@ function ApplicationCard({ application }: { application: StudentApplicationItem 
 
       <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4">
         <p className="text-sm font-semibold text-slate-800">Liên hệ nhà tuyển dụng</p>
-        {application.employerContact ? (
-          <div className="mt-2 flex flex-col gap-2 text-sm text-slate-600 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
-            {application.employerContact.phone && (
+        {application.job.employer.contact ? (
+          <div className="mt-2 space-y-2 text-sm text-slate-600">
+            <p className="font-medium text-slate-800">Nhà tuyển dụng sẽ liên hệ với bạn</p>
+            <p>
+              {application.companyName}
+              {application.job.employer.contact.contactName &&
+                ` · ${application.job.employer.contact.contactName}`}
+            </p>
+            {application.job.employer.contact.phone ? (
               <a
-                href={`tel:${application.employerContact.phone}`}
+                href={`tel:${application.job.employer.contact.phone}`}
                 className="flex min-w-0 items-center gap-1.5 hover:text-brand-700 hover:underline"
               >
                 <Phone size={14} className="shrink-0" />
-                <span className="break-all">{application.employerContact.phone}</span>
+                <span className="break-all">{application.job.employer.contact.phone}</span>
               </a>
+            ) : (
+              <p>Số điện thoại: chưa cập nhật. Bạn có thể liên hệ qua email bên dưới.</p>
             )}
             <a
-              href={`mailto:${application.employerContact.email}`}
+              href={`mailto:${application.job.employer.contact.email}`}
               className="flex min-w-0 items-center gap-1.5 hover:text-brand-700 hover:underline"
             >
               <Mail size={14} className="shrink-0" />
-              <span className="break-all">{application.employerContact.email}</span>
+              <span className="break-all">{application.job.employer.contact.email}</span>
             </a>
+            {application.job.employer.contact.phone && (
+              <p>Số này có thể gọi tới bạn trong vài ngày tới.</p>
+            )}
           </div>
         ) : (
-          <p className="mt-2 flex items-start gap-1.5 text-xs text-slate-500">
+          <p className="mt-2 flex items-start gap-1.5 text-sm text-slate-500">
             <Lock size={13} className="mt-0.5 shrink-0" />
-            Thông tin liên hệ sẽ mở khi nhà tuyển dụng mời bạn phỏng vấn.
+            {TRANG_THAI_KET_THUC.includes(application.status)
+              ? 'Đơn đã kết thúc. Thông tin liên hệ nhà tuyển dụng đã đóng.'
+              : 'Thông tin liên hệ sẽ mở khi nhà tuyển dụng mời bạn phỏng vấn.'}
           </p>
         )}
       </div>

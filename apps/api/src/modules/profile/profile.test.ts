@@ -170,6 +170,103 @@ describe('PUT /api/toi/ho-so-sinh-vien (T52)', () => {
 })
 
 describe('PUT /api/toi/ho-so-ntd (T53)', () => {
+  it.each([
+    [
+      { contactName: '  Lê Thị Sương  ', phone: '0901 234 567' },
+      { contactName: 'Lê Thị Sương', phone: '0901234567' },
+    ],
+    [
+      { contactName: '', phone: '' },
+      { contactName: null, phone: null },
+    ],
+    [
+      { contactName: null, phone: null },
+      { contactName: null, phone: null },
+    ],
+    [{}, { contactName: undefined, phone: undefined }],
+  ])(
+    'ghi liên hệ đã chuẩn hoá xuống data; bỏ trường không xoá số cũ (%j)',
+    async (input, expected) => {
+      employerProfileFindUnique.mockResolvedValue({ id: 'ep-1' })
+      employerProfileUpdate.mockResolvedValue(NTD_FULL.employerProfile)
+      const res = await request(createApp())
+        .put('/api/toi/ho-so-ntd')
+        .set('Authorization', `Bearer ${employerToken}`)
+        .send({ companyName: 'The Corner Coffee', website: '', ...input })
+      expect(res.status).toBe(200)
+      expect(employerProfileUpdate.mock.calls[0][0].data).toMatchObject({
+        ...expected,
+        website: null,
+      })
+    },
+  )
+
+  it.each([{ phone: 'gọi cho tôi' }, { phone: '123' }, { contactName: 'a'.repeat(121) }])(
+    'từ chối liên hệ không hợp lệ (%j)',
+    async (input) => {
+      const res = await request(createApp())
+        .put('/api/toi/ho-so-ntd')
+        .set('Authorization', `Bearer ${employerToken}`)
+        .send({ companyName: 'The Corner Coffee', ...input })
+      expect(res.status).toBe(400)
+      expect(employerProfileUpdate).not.toHaveBeenCalled()
+    },
+  )
+
+  it.each([
+    ['', null],
+    ['   ', null],
+    ['  https://corner.coffee  ', 'https://corner.coffee'],
+    ['https://corner.coffee', 'https://corner.coffee'],
+    ['http://corner.coffee', 'http://corner.coffee'],
+  ])('website %j được chuẩn hoá thành %j', async (website, mongDoi) => {
+    /*
+     * Ca `'   '` là một lỗi ĐÃ XẢY RA THẬT. Bản trước viết
+     * `.url(...).or(z.literal(''))`: nhánh `.url()` nhận giá trị đã trim nên
+     * `'   '` thành `''` rồi trượt, còn `z.literal('')` so với chuỗi GỐC nên
+     * `'   '` cũng trượt — cả hai nhánh cùng hỏng, NTD không lưu nổi hồ sơ.
+     *
+     * `phone` ngay bên cạnh không dính vì nó trim TRƯỚC rồi mới refine. Nay
+     * website theo đúng khuôn đó.
+     */
+    employerProfileFindUnique.mockResolvedValue({ id: 'ep-1' })
+    employerProfileUpdate.mockResolvedValue(NTD_FULL.employerProfile)
+
+    const res = await request(createApp())
+      .put('/api/toi/ho-so-ntd')
+      .set('Authorization', `Bearer ${employerToken}`)
+      .send({ companyName: 'The Corner Coffee', website })
+
+    expect(res.status).toBe(200)
+    expect(employerProfileUpdate.mock.calls[0][0].data).toMatchObject({ website: mongDoi })
+  })
+
+  it.each([
+    'javascript:alert(1)',
+    'JaVaScRiPt:alert(1)',
+    'data:text/html,<script>alert(1)</script>',
+    'vbscript:msgbox(1)',
+    'ftp://corner.coffee',
+    'khong-phai-url',
+  ])('⚠ website %j bị chặn — không để lọt giao thức nguy hiểm', async (website) => {
+    /*
+     * `z.string().url()` một mình KHÔNG đủ: nó nhận mọi giao thức, kể cả
+     * `javascript:`. Mà website NTD được render thẳng thành link trên trang tin
+     * công khai (`JobDetail.tsx`, `href={job.employerWebsite}`) — lọt một lần là
+     * mọi sinh viên bấm vào đều dính XSS. React chỉ cảnh báo chứ không chặn hộ.
+     *
+     * `ftp://` cũng phải chặn, không vì nguy hiểm mà vì thông điệp lỗi ghi "phải
+     * bắt đầu bằng http:// hoặc https://" — nhận ftp là thông điệp nói dối.
+     */
+    const res = await request(createApp())
+      .put('/api/toi/ho-so-ntd')
+      .set('Authorization', `Bearer ${employerToken}`)
+      .send({ companyName: 'The Corner Coffee', website })
+
+    expect(res.status).toBe(400)
+    expect(employerProfileUpdate).not.toHaveBeenCalled()
+  })
+
   it('NTD ở trạng thái PENDING vẫn sửa được hồ sơ', async () => {
     employerProfileFindUnique.mockResolvedValue({ id: 'ep-1' })
     employerProfileUpdate.mockResolvedValue({

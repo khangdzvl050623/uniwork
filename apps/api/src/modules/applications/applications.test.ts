@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import request from 'supertest'
 import { Prisma } from '@prisma/client'
+import { APPLICATION_STATUSES, TRANG_THAI_MO_LIEN_HE } from '@uniwork/shared'
 import { createApp } from '../../app.js'
 import { prisma } from '../../lib/prisma.js'
 import { sendMail } from '../../lib/mailer.js'
@@ -26,6 +27,7 @@ vi.mock('../../lib/prisma.js', () => ({
     job: { findUnique: vi.fn() },
     application: {
       create: vi.fn(),
+      findUnique: vi.fn(),
       findFirst: vi.fn(),
       findMany: vi.fn(),
       update: vi.fn(),
@@ -39,6 +41,7 @@ vi.mock('../../lib/prisma.js', () => ({
 const svFindUnique = prisma.studentProfile.findUnique as unknown as Mock
 const jobFindUnique = prisma.job.findUnique as unknown as Mock
 const donCreate = prisma.application.create as unknown as Mock
+const donFindUnique = prisma.application.findUnique as unknown as Mock
 const donFindFirst = prisma.application.findFirst as unknown as Mock
 const donFindMany = prisma.application.findMany as unknown as Mock
 const donUpdate = prisma.application.update as unknown as Mock
@@ -118,6 +121,116 @@ function hoSoUngVien(ghiDe: Record<string, unknown> = {}) {
     ...ghiDe,
   }
 }
+
+describe('Sprint 5 — sinh viên đọc liên hệ NTD', () => {
+  const lienHe = {
+    contactName: 'Lê Thị Sương',
+    phone: '0901234567',
+    user: { email: 'ntd@uniwork.dev' },
+  }
+
+  function donSinhVien(status: string, mo: boolean, createdAt = '2026-08-20T10:00:00Z') {
+    return {
+      ...hangDon({ id: status, status, createdAt: new Date(createdAt) }),
+      job: {
+        id: 'job-1',
+        title: 'Phục vụ quán cà phê',
+        employerProfile: {
+          companyName: 'Cà phê Sương Mai',
+          verifiedAt: null,
+          ...(mo ? lienHe : {}),
+        },
+      },
+      events: [],
+    }
+  }
+
+  function kiemSelect(select: Record<string, unknown>, mo: boolean) {
+    for (const key of ['phone', 'contactName', 'user']) {
+      if (mo) expect(select[key]).toBeTruthy()
+      else expect(select[key]).toBeUndefined()
+    }
+  }
+
+  it('danh sách chia hai truy vấn theo quyền, ghép lại theo ngày và chỉ mở đúng liên hệ', async () => {
+    donFindMany
+      .mockResolvedValueOnce([
+        donSinhVien('PENDING', false, '2026-08-22T00:00:00Z'),
+        donSinhVien('WITHDRAWN', false, '2026-08-20T00:00:00Z'),
+      ])
+      .mockResolvedValueOnce([donSinhVien('SHORTLISTED', true, '2026-08-21T00:00:00Z')])
+    const res = await request(app)
+      .get('/api/toi/don-ung-tuyen')
+      .set('Authorization', `Bearer ${svToken}`)
+    expect(res.status).toBe(200)
+    expect(res.body.data.total).toBe(3)
+    expect(res.body.data.applications.map((a: { id: string }) => a.id)).toEqual([
+      'PENDING',
+      'SHORTLISTED',
+      'WITHDRAWN',
+    ])
+    const contacts = res.body.data.applications.map(
+      (a: { job: { employer: { contact: unknown } } }) => a.job.employer.contact,
+    )
+    expect(contacts).toEqual([
+      null,
+      { contactName: 'Lê Thị Sương', phone: '0901234567', email: 'ntd@uniwork.dev' },
+      null,
+    ])
+    expect(donFindMany).toHaveBeenCalledTimes(2)
+    expect(donFindMany.mock.calls[0][0].where).toEqual({
+      studentProfile: { userId: 'u-sv' },
+      status: { notIn: TRANG_THAI_MO_LIEN_HE },
+    })
+    expect(donFindMany.mock.calls[1][0].where).toEqual({
+      studentProfile: { userId: 'u-sv' },
+      status: { in: TRANG_THAI_MO_LIEN_HE },
+    })
+    kiemSelect(donFindMany.mock.calls[0][0].select.job.select.employerProfile.select, false)
+    kiemSelect(donFindMany.mock.calls[1][0].select.job.select.employerProfile.select, true)
+    expect(transaction.mock.calls[0][1]).toEqual({ isolationLevel: 'RepeatableRead' })
+  })
+
+  it.each(APPLICATION_STATUSES)(
+    'chi tiết %s: kiểm chủ sở hữu một lần và select theo quyền',
+    async (status) => {
+      const mo = ['SHORTLISTED', 'ACCEPTED'].includes(status)
+      donFindUnique
+        .mockResolvedValueOnce({ status, studentProfile: { userId: 'u-sv' } })
+        .mockResolvedValueOnce(donSinhVien(status, mo))
+      const res = await request(app)
+        .get('/api/toi/don-ung-tuyen/app-1')
+        .set('Authorization', `Bearer ${svToken}`)
+      expect(res.status).toBe(200)
+      expect(donFindUnique).toHaveBeenCalledTimes(2)
+      expect(donFindUnique.mock.calls[0][0]).toEqual({
+        where: { id: 'app-1' },
+        select: { status: true, studentProfile: { select: { userId: true } } },
+      })
+      expect(donFindUnique.mock.calls[1][0].where).toEqual({ id: 'app-1' })
+      kiemSelect(donFindUnique.mock.calls[1][0].select.job.select.employerProfile.select, mo)
+      expect(res.body.data.job.employer.contact).toEqual(
+        mo ? { contactName: 'Lê Thị Sương', phone: '0901234567', email: 'ntd@uniwork.dev' } : null,
+      )
+      expect(transaction.mock.calls[0][1]).toEqual({ isolationLevel: 'RepeatableRead' })
+    },
+  )
+
+  it.each([
+    [null, 404],
+    [{ status: 'SHORTLISTED', studentProfile: { userId: 'sv-khac' } }, 403],
+  ])(
+    'đơn không tồn tại hoặc của người khác: không truy vấn liên hệ (%j)',
+    async (ownership, code) => {
+      donFindUnique.mockResolvedValueOnce(ownership)
+      const res = await request(app)
+        .get('/api/toi/don-ung-tuyen/app-1')
+        .set('Authorization', `Bearer ${svToken}`)
+      expect(res.status).toBe(code)
+      expect(donFindUnique).toHaveBeenCalledTimes(1)
+    },
+  )
+})
 
 /**
  * `$transaction` nhận CẢ HAI dạng trong module này: dạng callback (nộp đơn, đổi
@@ -818,7 +931,13 @@ describe('GET/DELETE /api/toi/don-ung-tuyen', () => {
       events: [],
     })
     donCuaAi('u-sv', 'SHORTLISTED')
-    await rut()
+    const res = await rut()
+    expect(res.status).toBe(200)
+    expect(res.body.data.application.job.employer.contact).toBeNull()
+    const select = donUpdate.mock.calls[0][0].select.job.select.employerProfile.select
+    expect(select.phone).toBeUndefined()
+    expect(select.contactName).toBeUndefined()
+    expect(select.user).toBeUndefined()
     // Đã đọc hồ sơ, đã mở liên hệ, có thể đang xếp lịch quanh người này.
     expect(guiMail).toHaveBeenCalledTimes(1)
   })

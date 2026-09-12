@@ -314,7 +314,7 @@ function toApplicationBase(don: HangDon) {
   }
 }
 
-const CHON_DON_SINH_VIEN = {
+const CHON_DON_SINH_VIEN_KIN = {
   ...CHON_DON,
   job: {
     select: {
@@ -324,8 +324,6 @@ const CHON_DON_SINH_VIEN = {
         select: {
           companyName: true,
           verifiedAt: true,
-          phone: true,
-          user: { select: { email: true } },
         },
       },
     },
@@ -336,9 +334,34 @@ const CHON_DON_SINH_VIEN = {
   },
 } satisfies Prisma.ApplicationSelect
 
-type HangDonSinhVien = Prisma.ApplicationGetPayload<{ select: typeof CHON_DON_SINH_VIEN }>
+/**
+ * Liên hệ NTD là thông tin doanh nghiệp, khác dữ liệu cá nhân của sinh viên.
+ * Vẫn khoá bằng cùng một luật để hai chiều không lệch nhau. Nhánh kín không
+ * xin các cột liên hệ; mapper chỉ dựa vào hình dạng dữ liệu đã được phép đọc.
+ */
+const CHON_DON_SINH_VIEN_MO = {
+  ...CHON_DON_SINH_VIEN_KIN,
+  job: {
+    select: {
+      ...CHON_DON_SINH_VIEN_KIN.job.select,
+      employerProfile: {
+        select: {
+          ...CHON_DON_SINH_VIEN_KIN.job.select.employerProfile.select,
+          contactName: true,
+          phone: true,
+          user: { select: { email: true } },
+        },
+      },
+    },
+  },
+} satisfies Prisma.ApplicationSelect
+
+type HangDonSinhVien =
+  | Prisma.ApplicationGetPayload<{ select: typeof CHON_DON_SINH_VIEN_KIN }>
+  | Prisma.ApplicationGetPayload<{ select: typeof CHON_DON_SINH_VIEN_MO }>
 
 function toStudentApplicationItem(don: HangDonSinhVien): StudentApplicationItem {
+  const ntd = don.job.employerProfile
   return {
     ...toApplicationBase(don),
     jobId: don.job.id,
@@ -350,14 +373,12 @@ function toStudentApplicationItem(don: HangDonSinhVien): StudentApplicationItem 
       employer: {
         companyName: don.job.employerProfile.companyName,
         verified: don.job.employerProfile.verifiedAt !== null,
+        contact:
+          'user' in ntd
+            ? { contactName: ntd.contactName, phone: ntd.phone, email: ntd.user.email }
+            : null,
       },
     },
-    employerContact: TRANG_THAI_MO_LIEN_HE.includes(don.status)
-      ? {
-          phone: don.job.employerProfile.phone,
-          email: don.job.employerProfile.user.email,
-        }
-      : null,
     events: don.events.map((event) => ({
       status: event.status,
       note: event.note,
@@ -369,12 +390,23 @@ function toStudentApplicationItem(don: HangDonSinhVien): StudentApplicationItem 
 export async function listStudentApplications(
   userId: string,
 ): Promise<StudentApplicationListResponse> {
-  const rows = await prisma.application.findMany({
-    where: { studentProfile: { userId } },
-    orderBy: { createdAt: 'desc' },
-    select: CHON_DON_SINH_VIEN,
-  })
-  const applications = rows.map(toStudentApplicationItem)
+  // RepeatableRead giữ cùng ảnh chụp cho hai lượt đọc khi đơn đổi trạng thái.
+  const [kin, mo] = await prisma.$transaction(
+    [
+      prisma.application.findMany({
+        where: { studentProfile: { userId }, status: { notIn: TRANG_THAI_MO_LIEN_HE } },
+        select: CHON_DON_SINH_VIEN_KIN,
+      }),
+      prisma.application.findMany({
+        where: { studentProfile: { userId }, status: { in: TRANG_THAI_MO_LIEN_HE } },
+        select: CHON_DON_SINH_VIEN_MO,
+      }),
+    ],
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+  )
+  const applications = [...kin, ...mo]
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime() || a.id.localeCompare(b.id))
+    .map(toStudentApplicationItem)
   return { applications, total: applications.length }
 }
 
@@ -382,21 +414,30 @@ export async function getStudentApplication(
   userId: string,
   applicationId: string,
 ): Promise<StudentApplicationItem> {
-  const ownership = await prisma.application.findUnique({
-    where: { id: applicationId },
-    select: { studentProfile: { select: { userId: true } } },
-  })
-  if (!ownership) throw notFound('Không tìm thấy đơn ứng tuyển')
-  if (ownership.studentProfile.userId !== userId) {
-    throw forbidden('Bạn không có quyền xem đơn ứng tuyển này')
-  }
+  return prisma.$transaction(
+    async (tx) => {
+      const ownership = await tx.application.findUnique({
+        where: { id: applicationId },
+        select: { status: true, studentProfile: { select: { userId: true } } },
+      })
+      if (!ownership) throw notFound('Không tìm thấy đơn ứng tuyển')
+      if (ownership.studentProfile.userId !== userId) {
+        throw forbidden('Bạn không có quyền xem đơn ứng tuyển này')
+      }
 
-  const application = await prisma.application.findUnique({
-    where: { id: applicationId },
-    select: CHON_DON_SINH_VIEN,
-  })
-  if (!application) throw notFound('Không tìm thấy đơn ứng tuyển')
-  return toStudentApplicationItem(application)
+      // Chỉ câu thứ hai xin liên hệ, sau khi đã kiểm chủ sở hữu. Cùng snapshot
+      // bảo đảm trạng thái dùng để chọn select không đổi giữa hai câu truy vấn.
+      const application = await tx.application.findUnique({
+        where: { id: applicationId },
+        select: TRANG_THAI_MO_LIEN_HE.includes(ownership.status)
+          ? CHON_DON_SINH_VIEN_MO
+          : CHON_DON_SINH_VIEN_KIN,
+      })
+      if (!application) throw notFound('Không tìm thấy đơn ứng tuyển')
+      return toStudentApplicationItem(application)
+    },
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+  )
 }
 
 export async function withdrawApplication(
@@ -432,7 +473,7 @@ export async function withdrawApplication(
     const updated = await tx.application.update({
       where: { id: applicationId },
       data: { status: 'WITHDRAWN', statusChangedAt: new Date() },
-      select: CHON_DON_SINH_VIEN,
+      select: CHON_DON_SINH_VIEN_KIN,
     })
     const ev = await ghiSuKien(tx, {
       applicationId,
