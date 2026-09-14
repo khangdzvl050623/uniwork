@@ -153,10 +153,12 @@ erDiagram
     User ||--o| StudentProfile   : has
     User ||--o| EmployerProfile  : has
     User ||--o{ Notification     : receives
+    User ||--o{ UserAccount      : links
+    User ||--o{ RefreshToken     : sessions
+    User ||--o{ OneTimeToken     : verifies
 
     StudentProfile ||--o{ StudentSkill           : declares
-    StudentProfile ||--o{ StudentAvailability    : "rảnh vào"
-    StudentProfile ||--o{ AvailabilityException  : "bận/rảnh đột xuất"
+    StudentProfile ||--o{ Availability            : "rảnh vào"
     StudentProfile ||--o{ Application            : submits
     StudentProfile ||--o{ SavedJob               : saves
 
@@ -166,7 +168,6 @@ erDiagram
     Job ||--o{ JobShift    : "cần làm ca"
     Job ||--o{ Application : receives
     Job ||--o{ SavedJob    : "được lưu"
-    Job ||--o{ Report      : "bị báo cáo"
 
     Application ||--o{ ApplicationEvent : "lịch sử trạng thái"
 
@@ -179,22 +180,19 @@ erDiagram
 | Bảng | Trường đáng chú ý |
 |---|---|
 | `User` | `email`, `passwordHash`, `role` (STUDENT / EMPLOYER / ADMIN), `emailVerifiedAt`, `status` |
+| `Notification` | `userId`, `type`, `title`, `body`, `link`, `readAt`, `createdAt` |
+| `RefreshToken` | `userId`, `tokenHash`, `expiresAt`, `revokedAt`, `userAgent`, `ipAddress` |
+| `OneTimeToken` | `userId`, `tokenHash`, `type`, `expiresAt`, `usedAt`, `failedAttempts` |
 | `StudentProfile` | `fullName`, `university`, `major`, `year`, `bio`, `cvUrl`, `expectedHourlyRate`, `availableFrom`, `availableUntil` |
 | `EmployerProfile` | `companyName`, `logoUrl`, `website`, `address`, `verifiedAt` |
 | `Skill` | `name`, `slug` — danh mục do admin quản lý, tránh tag rác |
-| `StudentSkill` | `level` (BEGINNER / INTERMEDIATE / ADVANCED) |
+| `StudentSkill` | Khoá ghép `studentProfileId` + `skillId` |
 | `Job` | `title`, `description`, `jobType`, `scheduleType`, `startDate`, `endDate`, `eventDate`, `commitmentMonths`, `minShiftsPerWeek`, `salaryMin/Max`, `salaryType`, `district`, `city`, `isRemote`, `quantity`, `deadline`, `status` (DRAFT / PENDING / OPEN / CLOSED) |
-| `JobShift` | `dayOfWeek` (0–6), `startTime`, `endTime` |
-| `StudentAvailability` | `dayOfWeek`, `startTime`, `endTime`, `validFrom`, `validTo` |
-| `AvailabilityException` | `date`, `type` (BUSY / FREE), `reason` |
-| `Application` | `coverLetter`, `cvUrl`, `status` (PENDING / VIEWED / SHORTLISTED / ACCEPTED / REJECTED / WITHDRAWN), unique `(jobId, studentId)` |
-| `ApplicationEvent` | `fromStatus`, `toStatus`, `actorId`, `createdAt` |
-| `Report` | `reason`, `handledBy`, `handledAt` |
-
-**Lịch rảnh có hai tầng.** Khai một lần rồi để đó là không đủ — lịch học đổi theo học kỳ, và sinh viên vẫn có buổi bận đột xuất. Nên tách:
-
-- `StudentAvailability` — **mẫu lặp hàng tuần**, có `validFrom`/`validTo` gắn với học kỳ. Sang kỳ mới thì tạo bộ mới, bộ cũ tự hết hiệu lực chứ không xoá đè, nên vẫn tra ngược được lịch của kỳ trước.
-- `AvailabilityException` — **ngoại lệ theo ngày cụ thể**: ốm, thi, hoặc rảnh thêm ngoài lịch thường. Đây là cách Google Calendar xử lý sự kiện lặp, tránh được cái bẫy "sửa lịch tuần này thì hỏng luôn các tuần sau".
+| `Availability` | `dayOfWeek` (0–6), `slot` (MORNING / AFTERNOON / EVENING) |
+| `JobShift` | `dayOfWeek` (0–6), `slot` (MORNING / AFTERNOON / EVENING) |
+| `Application` | `coverLetter`, `cvUrl`, `matchScore`, `status` (PENDING / VIEWED / SHORTLISTED / ACCEPTED / REJECTED / WITHDRAWN), unique `(jobId, studentProfileId)` |
+| `ApplicationEvent` | `status`, `actorUserId`, `note`, `createdAt` |
+| `SavedJob` | Khoá ghép `studentProfileId` + `jobId`, `createdAt` |
 
 **Ba kiểu bố trí thời gian.** Cột `Job.scheduleType` tách riêng khỏi `jobType` — `jobType` mô tả *tính chất công việc* (part-time / thực tập / freelance), còn cái này mô tả *cách bố trí thời gian*. Một việc vừa là part-time vừa là thời vụ ngắn hạn là chuyện bình thường, gộp một cột sẽ vướng.
 
@@ -204,13 +202,13 @@ erDiagram
 | `SEASONAL` | Bán hàng Tết, phụ kho mùa sale | `startDate`, `endDate` | Mẫu tuần, giới hạn trong khoảng ngày |
 | `ONE_TIME` | Chạy bàn tiệc cưới, phát tờ rơi, coi thi | `eventDate` | Ngày cụ thể, **có** tính ngoại lệ |
 
-**Thuật toán ghép lịch.** Một sinh viên khớp ca làm nếu tồn tại khoảng rảnh cùng `dayOfWeek` và `[avail.start, avail.end]` **bao trọn** `[shift.start, shift.end]`, với khoảng rảnh đó còn hiệu lực (`validFrom`/`validTo` phủ thời điểm xét). Truy vấn bằng `EXISTS` trên Postgres, index `(studentId, dayOfWeek, startTime)`.
+**Thuật toán ghép lịch.** Một sinh viên khớp ca làm nếu có bản ghi `Availability` trùng `dayOfWeek` và `slot` với `JobShift`. Hai bảng có ràng buộc duy nhất theo cặp hồ sơ/ngày/khung giờ và index theo `(dayOfWeek, slot)`, nên truy vấn ghép lịch không cần xử lý khoảng thời gian tự do.
 
 Với việc `RECURRING`, chỉ nhận sinh viên còn làm đủ lâu: `availableUntil - job.startDate >= commitmentMonths`. Nhà tuyển dụng thật cần người ổn định vài tháng, nên đây là điều kiện lọc quan trọng chứ không phải tuỳ chọn — sinh viên sắp đi thực tập hay sắp về quê nghỉ hè sẽ không thấy các tin đòi cam kết dài, đỡ mất thời gian cả hai bên.
 
 Điểm phù hợp = `w₁ ×` tỉ lệ kỹ năng khớp `+ w₂ ×` tỉ lệ ca khớp `+ w₃ ×` mức đáp ứng cam kết.
 
-⚠️ **Ngoại lệ không ảnh hưởng tới tìm việc định kỳ.** Nếu sinh viên báo bận ngày 12/09 mà hệ thống loại luôn mọi tin có ca hôm đó thì kết quả tìm kiếm sẽ nhiễu vô lý — part-time là cam kết vài tháng, nghỉ một buổi không liên quan gì đến chuyện có hợp việc hay không. `AvailabilityException` chỉ tham gia vào việc `ONE_TIME`, và vào giai đoạn **sau khi đã đi làm**.
+⚠️ **Lịch rảnh được chuẩn hoá theo các khung giờ.** `Availability` và `JobShift` dùng chung `dayOfWeek` và `slot`, nên việc ghép lịch chỉ cần đối chiếu các ô thời gian trùng nhau thay vì xử lý khoảng giờ tự do.
 
 **Lịch sử trạng thái đơn.** Cột `Application.status` chỉ cho biết trạng thái *hiện tại*. Để vẽ được timeline "Đã ứng tuyển → NTD đã xem → Kết quả" kèm ngày tháng ở từng bước, cần `ApplicationEvent` ghi lại mỗi lần chuyển trạng thái. Bảng này nhỏ, thêm sớm thì rẻ; để đến lúc làm màn hình theo dõi mới thêm thì phải sửa ngược cả luồng ứng tuyển. Tiện thể có luôn dữ liệu thống kê cho admin: trung bình bao lâu nhà tuyển dụng xem đơn, tỉ lệ đơn bị bỏ quên.
 
