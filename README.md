@@ -163,6 +163,7 @@ erDiagram
     StudentProfile ||--o{ SavedJob               : saves
 
     EmployerProfile ||--o{ Job : posts
+    EmployerProfile ||--o{ EmployerDocument : submits
 
     Job ||--o{ JobSkill    : requires
     Job ||--o{ JobShift    : "cần làm ca"
@@ -175,24 +176,28 @@ erDiagram
     Skill ||--o{ JobSkill     : "được yêu cầu bởi"
 ```
 
-**Các bảng chính**
+**18 bảng trong database** *(17 bảng nghiệp vụ và 1 bảng metadata migration)*
 
 | Bảng | Trường đáng chú ý |
 |---|---|
 | `User` | `email`, `passwordHash`, `role` (STUDENT / EMPLOYER / ADMIN), `emailVerifiedAt`, `status` |
 | `Notification` | `userId`, `type`, `title`, `body`, `link`, `readAt`, `createdAt` |
+| `UserAccount` | `userId`, `provider` (GOOGLE), `providerAccountId` |
 | `RefreshToken` | `userId`, `tokenHash`, `expiresAt`, `revokedAt`, `userAgent`, `ipAddress` |
 | `OneTimeToken` | `userId`, `tokenHash`, `type`, `expiresAt`, `usedAt`, `failedAttempts` |
 | `StudentProfile` | `fullName`, `university`, `major`, `year`, `bio`, `cvUrl`, `expectedHourlyRate`, `availableFrom`, `availableUntil` |
 | `EmployerProfile` | `companyName`, `logoUrl`, `website`, `address`, `verifiedAt` |
+| `EmployerDocument` | `type`, `cloudinaryPublicId`, `fileFormat`, `status`, `reviewNote`, `reviewedAt` |
 | `Skill` | `name`, `slug` — danh mục do admin quản lý, tránh tag rác |
 | `StudentSkill` | Khoá ghép `studentProfileId` + `skillId` |
+| `JobSkill` | Khoá ghép `jobId` + `skillId` |
 | `Job` | `title`, `description`, `jobType`, `scheduleType`, `startDate`, `endDate`, `eventDate`, `commitmentMonths`, `minShiftsPerWeek`, `salaryMin/Max`, `salaryType`, `district`, `city`, `isRemote`, `quantity`, `deadline`, `status` (DRAFT / PENDING / OPEN / CLOSED) |
 | `Availability` | `dayOfWeek` (0–6), `slot` (MORNING / AFTERNOON / EVENING) |
 | `JobShift` | `dayOfWeek` (0–6), `slot` (MORNING / AFTERNOON / EVENING) |
 | `Application` | `coverLetter`, `cvUrl`, `matchScore`, `status` (PENDING / VIEWED / SHORTLISTED / ACCEPTED / REJECTED / WITHDRAWN), unique `(jobId, studentProfileId)` |
 | `ApplicationEvent` | `status`, `actorUserId`, `note`, `createdAt` |
 | `SavedJob` | Khoá ghép `studentProfileId` + `jobId`, `createdAt` |
+| `_prisma_migrations` | Metadata lịch sử migration do Prisma quản lý; không phải bảng nghiệp vụ |
 
 **Ba kiểu bố trí thời gian.** Cột `Job.scheduleType` tách riêng khỏi `jobType` — `jobType` mô tả *tính chất công việc* (part-time / thực tập / freelance), còn cái này mô tả *cách bố trí thời gian*. Một việc vừa là part-time vừa là thời vụ ngắn hạn là chuyện bình thường, gộp một cột sẽ vướng.
 
