@@ -88,8 +88,7 @@ export function BadgePhuHop({ job, to }: Props) {
       ) : (
         <>
           <CalendarCheck size={to ? 15 : 12} aria-hidden />
-          {matchScore}%
-          {to && ` khớp lịch — ${soCa}`}
+          {matchScore}%{to && ` khớp lịch — ${soCa}`}
         </>
       )}
     </span>

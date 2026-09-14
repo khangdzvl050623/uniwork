@@ -69,7 +69,9 @@ export function AdminUsers() {
   const rows = users.filter((u) => {
     if (filter !== 'ALL' && u.role !== filter) return false
     if (!query) return true
-    return `${u.displayName} ${u.email} ${u.school ?? ''}`.toLowerCase().includes(query.toLowerCase())
+    return `${u.displayName} ${u.email} ${u.school ?? ''}`
+      .toLowerCase()
+      .includes(query.toLowerCase())
   })
 
   function doiKhoa(user: AdminUserResponse) {

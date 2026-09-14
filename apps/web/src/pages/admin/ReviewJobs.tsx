@@ -164,7 +164,10 @@ export function ReviewJobs() {
 
               return (
                 <Fragment key={job.id}>
-                  <tr className="dash-row dash-in" style={{ animationDelay: `${Math.min(i, 12) * 26}ms` }}>
+                  <tr
+                    className="dash-row dash-in"
+                    style={{ animationDelay: `${Math.min(i, 12) * 26}ms` }}
+                  >
                     <Td>
                       <div className="flex items-center gap-3">
                         <Avatar name={job.employer.companyName} />

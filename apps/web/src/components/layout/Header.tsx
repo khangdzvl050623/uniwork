@@ -21,7 +21,6 @@ export function Header() {
     <header className="sticky top-0 z-40 bg-brand-900">
       <div className="mx-auto flex h-14 max-w-[1180px] items-center gap-6 px-4">
         <Link to="/" className="flex shrink-0 items-center gap-2">
-
           <span className="text-lg font-extrabold tracking-tight text-white">
             Uni<span className="text-brand-300">Work</span>
           </span>
@@ -40,7 +39,6 @@ export function Header() {
                     : 'text-brand-50/90 hover:bg-white/10 hover:text-white',
                 )
               }
-
             >
               {item.label}
               {item.caret && <ChevronDown size={14} className="opacity-70" />}
@@ -146,7 +144,9 @@ export function Header() {
                     type="button"
                     onClick={() => {
                       setOpen(false)
-                      logout.mutate(undefined, { onSettled: () => navigate('/', { replace: true }) })
+                      logout.mutate(undefined, {
+                        onSettled: () => navigate('/', { replace: true }),
+                      })
                     }}
                     disabled={logout.isPending}
                     className="rounded-md px-3 py-2 text-left text-sm font-medium text-red-200 hover:bg-white/10 disabled:opacity-50"

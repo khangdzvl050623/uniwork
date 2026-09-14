@@ -17,8 +17,7 @@ const KHOA_UNG_VIEN = ['ntd', 'ung-vien'] as const
 export function useMyApplications() {
   return useQuery({
     queryKey: KHOA_DON,
-    queryFn: () =>
-      apiFetch<StudentApplicationListResponse>('/api/toi/don-ung-tuyen'),
+    queryFn: () => apiFetch<StudentApplicationListResponse>('/api/toi/don-ung-tuyen'),
     staleTime: 0,
   })
 }

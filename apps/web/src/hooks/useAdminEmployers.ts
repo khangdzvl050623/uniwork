@@ -38,11 +38,7 @@ export function useReviewDocument() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: ({
-      id,
-      type,
-      ...body
-    }: ReviewDocumentInput & { id: string; type: DocumentType }) =>
+    mutationFn: ({ id, type, ...body }: ReviewDocumentInput & { id: string; type: DocumentType }) =>
       apiFetch<AdminEmployerResponse>(`/api/admin/nha-tuyen-dung/${id}/giay-to/${type}`, {
         method: 'PUT',
         body: JSON.stringify(body),
@@ -75,9 +71,7 @@ export function useVerifyEmployer() {
 export function useXemGiayTo() {
   return useMutation({
     mutationFn: ({ id, type }: { id: string; type: DocumentType }) =>
-      apiFetch<DocumentViewUrlResponse>(
-        `/api/admin/nha-tuyen-dung/${id}/giay-to/${type}/xem`,
-      ),
+      apiFetch<DocumentViewUrlResponse>(`/api/admin/nha-tuyen-dung/${id}/giay-to/${type}/xem`),
     onSuccess: ({ url }) => {
       // noopener: tab mới không giữ được tham chiếu ngược tới trang quản trị.
       window.open(url, '_blank', 'noopener,noreferrer')

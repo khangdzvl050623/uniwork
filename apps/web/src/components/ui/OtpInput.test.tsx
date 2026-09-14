@@ -65,7 +65,11 @@ describe('OtpInput', () => {
     // Người dùng hay quét dư khoảng trắng hoặc dấu gạch khi bôi đen trong email.
     await user.paste(' 48-39 20 ')
 
-    expect(layOO().map((x) => x.value).join('')).toBe('483920')
+    expect(
+      layOO()
+        .map((x) => x.value)
+        .join(''),
+    ).toBe('483920')
   })
 
   it('Backspace ở ô rỗng thì lùi về ô trước VÀ xoá chữ ở đó', async () => {

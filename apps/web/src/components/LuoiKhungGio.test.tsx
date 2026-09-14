@@ -280,7 +280,10 @@ describe('LuoiKhungGio — lớp phủ đối chiếu hai lịch', () => {
     // Trang chi tiết tin vẽ ca làm của TIN ở `value`, lịch rảnh của SINH VIÊN
     // đang xem ở `overlay` — nhìn phát biết mình có làm được ca nào không.
     render(
-      <LuoiKhungGio value={[{ dayOfWeek: 2, slot: 'EVENING' }]} overlay={[{ dayOfWeek: 4, slot: 'MORNING' }]} />,
+      <LuoiKhungGio
+        value={[{ dayOfWeek: 2, slot: 'EVENING' }]}
+        overlay={[{ dayOfWeek: 4, slot: 'MORNING' }]}
+      />,
     )
 
     expect(screen.getByRole('button', { name: 'T5 buổi sáng (bạn rảnh)' })).toBeTruthy()
@@ -289,7 +292,10 @@ describe('LuoiKhungGio — lớp phủ đối chiếu hai lịch', () => {
   it('ô vừa là ca làm vừa nằm trong lịch rảnh vẫn giữ trạng thái đã chọn', () => {
     // Trùng nhau mới là tin tốt — không được làm nó nhạt đi thành "chỉ là overlay".
     render(
-      <LuoiKhungGio value={[{ dayOfWeek: 2, slot: 'EVENING' }]} overlay={[{ dayOfWeek: 2, slot: 'EVENING' }]} />,
+      <LuoiKhungGio
+        value={[{ dayOfWeek: 2, slot: 'EVENING' }]}
+        overlay={[{ dayOfWeek: 2, slot: 'EVENING' }]}
+      />,
     )
 
     const nut = screen.getByRole('button', { name: 'T3 buổi tối (bạn rảnh)' })
@@ -307,7 +313,6 @@ describe('LuoiKhungGio — lớp phủ đối chiếu hai lịch', () => {
     expect(onChange).toHaveBeenCalledWith([{ dayOfWeek: 4, slot: 'MORNING' }])
   })
 })
-
 
 /*
  * Giới hạn thứ được chọn — sinh ra cho tin "một buổi".

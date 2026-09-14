@@ -60,6 +60,8 @@ export function EmployerProfile() {
 
   const form = useZodForm(employerProfileSchema, {
     companyName: '',
+    contactName: '',
+    phone: '',
     description: '',
     address: '',
     website: '',
@@ -70,6 +72,8 @@ export function EmployerProfile() {
     if (!me?.employerProfile) return
     const p = me.employerProfile
     form.setValue('companyName', p.companyName)
+    form.setValue('contactName', p.contactName ?? '')
+    form.setValue('phone', p.phone ?? '')
     form.setValue('description', p.description ?? '')
     form.setValue('address', p.address ?? '')
     form.setValue('website', p.website ?? '')
@@ -104,9 +108,9 @@ export function EmployerProfile() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-8">
+    <div className="mx-auto max-w-3xl px-4 py-6 sm:py-8">
       <header className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Hồ sơ doanh nghiệp</h1>
+        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Hồ sơ doanh nghiệp</h1>
         <p className="mt-1 text-sm text-slate-500">{me.email}</p>
       </header>
 
@@ -178,7 +182,36 @@ export function EmployerProfile() {
               )}
             </div>
 
-            <div className="flex items-center gap-3">
+            <fieldset className="space-y-4 border-t border-slate-200 pt-4">
+              <legend className="text-sm font-semibold text-slate-800">Liên hệ tuyển dụng</legend>
+              <p className="text-sm text-slate-500">
+                Sinh viên thấy tên người phụ trách, số điện thoại và email tài khoản sau khi bạn mời
+                phỏng vấn. Nên điền số sẽ gọi cho ứng viên để họ nhận ra bạn.
+              </p>
+              <Field
+                label="Người phụ trách"
+                autoComplete="name"
+                placeholder="Lê Thị Sương"
+                hint="Không bắt buộc"
+                value={String(form.values.contactName ?? '')}
+                onChange={(e) => form.setValue('contactName', e.target.value)}
+                error={form.errors.contactName}
+                disabled={luu.isPending}
+              />
+              <Field
+                label="Số điện thoại liên hệ"
+                type="tel"
+                autoComplete="tel"
+                placeholder="0901 234 567"
+                hint="Không bắt buộc. Nếu chưa điền, sinh viên vẫn có thể liên hệ qua email."
+                value={String(form.values.phone ?? '')}
+                onChange={(e) => form.setValue('phone', e.target.value)}
+                error={form.errors.phone}
+                disabled={luu.isPending}
+              />
+            </fieldset>
+
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
               <Button disabled={luu.isPending}>
                 {luu.isPending && <Loader2 size={15} className="animate-spin" />}
                 {luu.isPending ? 'Đang lưu…' : 'Lưu thông tin'}

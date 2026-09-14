@@ -16,7 +16,7 @@
  * Đang dùng chính địa chỉ đứng tên gửi email của hệ thống — người dùng vốn đã
  * thấy nó trong mọi thư xác thực nhận được, nên không lộ thêm gì.
  * muon doi chi doi dung 1 dong o duoi
- */ 
+ */
 export const LIEN_HE = 'n23dvcn027@student.ptithcm.edu.vn'
 
 /** Ngày sửa nội dung văn bản gần nhất. Nhớ cập nhật khi sửa nội dung. */

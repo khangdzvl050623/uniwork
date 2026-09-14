@@ -34,9 +34,7 @@ export function VanBan({
         một phụ thuộc để tạo kiểu cho vài thẻ p/ul là không đáng. Mấy quy tắc
         dưới đây đủ dùng và đọc ra ngay được đang áp cho thẻ nào.
       */}
-      <div
-        className="space-y-6 text-[15px] leading-7 text-slate-600 [&_code]:rounded [&_code]:bg-slate-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-[13px] [&_code]:text-slate-700 [&_li]:pl-1 [&_strong]:font-semibold [&_strong]:text-slate-800 [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5"
-      >
+      <div className="space-y-6 text-[15px] leading-7 text-slate-600 [&_code]:rounded [&_code]:bg-slate-100 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:text-[13px] [&_code]:text-slate-700 [&_li]:pl-1 [&_strong]:font-semibold [&_strong]:text-slate-800 [&_ul]:list-disc [&_ul]:space-y-2 [&_ul]:pl-5">
         {children}
       </div>
     </div>

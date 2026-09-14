@@ -189,9 +189,7 @@ export function FilterSidebar({ gaTri, onDoi, kyNang, dungDuocLichRanh }: Props)
         <h2 className="font-semibold text-slate-900">
           Bộ lọc
           {soBoLocDangBat > 0 && (
-            <span className="ml-1.5 text-sm font-normal text-slate-500">
-              ({soBoLocDangBat})
-            </span>
+            <span className="ml-1.5 text-sm font-normal text-slate-500">({soBoLocDangBat})</span>
           )}
         </h2>
 
@@ -278,9 +276,7 @@ export function FilterSidebar({ gaTri, onDoi, kyNang, dungDuocLichRanh }: Props)
               ten="scheduleType"
               nhan={SCHEDULE_TYPE_LABELS[key]}
               chon={gaTri.scheduleType === key}
-              onChon={() =>
-                dat({ scheduleType: gaTri.scheduleType === key ? undefined : key })
-              }
+              onChon={() => dat({ scheduleType: gaTri.scheduleType === key ? undefined : key })}
             />
           ))}
         </div>
@@ -368,9 +364,7 @@ export function FilterSidebar({ gaTri, onDoi, kyNang, dungDuocLichRanh }: Props)
                 <input
                   type="checkbox"
                   checked={gaTri.includeNegotiable !== false}
-                  onChange={(e) =>
-                    dat({ includeNegotiable: e.target.checked ? undefined : false })
-                  }
+                  onChange={(e) => dat({ includeNegotiable: e.target.checked ? undefined : false })}
                   className="mt-0.5 h-3.5 w-3.5 shrink-0 accent-brand-600"
                 />
                 <span>
@@ -434,23 +428,17 @@ export function FilterSidebar({ gaTri, onDoi, kyNang, dungDuocLichRanh }: Props)
               key={n}
               nhan={`${n} ca`}
               chon={gaTri.maxShiftsPerWeek === n}
-              onChon={() =>
-                dat({ maxShiftsPerWeek: gaTri.maxShiftsPerWeek === n ? undefined : n })
-              }
+              onChon={() => dat({ maxShiftsPerWeek: gaTri.maxShiftsPerWeek === n ? undefined : n })}
             />
           ))}
         </div>
-        <p className="mt-2 text-[11px] text-slate-500">
-          Tin không quy định số ca vẫn hiện.
-        </p>
+        <p className="mt-2 text-[11px] text-slate-500">Tin không quy định số ca vẫn hiện.</p>
       </Nhom>
 
       {/* ------------------------------------------------ tháng cam kết -- */}
       <Nhom
         tieuDe="Thời gian cam kết"
-        tomTat={
-          gaTri.maxCommitmentMonths ? `tối đa ${gaTri.maxCommitmentMonths} tháng` : undefined
-        }
+        tomTat={gaTri.maxCommitmentMonths ? `tối đa ${gaTri.maxCommitmentMonths} tháng` : undefined}
       >
         <p className="mb-2 text-xs text-slate-500">Bạn gắn bó được tối đa bao lâu?</p>
         <div className="flex flex-wrap gap-1.5">
@@ -467,24 +455,14 @@ export function FilterSidebar({ gaTri, onDoi, kyNang, dungDuocLichRanh }: Props)
             />
           ))}
         </div>
-        <p className="mt-2 text-[11px] text-slate-500">
-          Tin không quy định thời gian vẫn hiện.
-        </p>
+        <p className="mt-2 text-[11px] text-slate-500">Tin không quy định thời gian vẫn hiện.</p>
       </Nhom>
     </aside>
   )
 }
 
 /** Chip số dùng chung cho hai nhóm ngưỡng ở cuối. */
-function ChipSo({
-  nhan,
-  chon,
-  onChon,
-}: {
-  nhan: string
-  chon: boolean
-  onChon: () => void
-}) {
+function ChipSo({ nhan, chon, onChon }: { nhan: string; chon: boolean; onChon: () => void }) {
   return (
     <button
       type="button"

@@ -43,7 +43,7 @@ studentApplicationRoutes.use(requireAuth, requireRole('STUDENT'))
 const nopDonLimit = rateLimit({
   max: 30,
   windowMs: 60 * 60_000,
-  keyOf: (req) => req.user?.id ?? (req.ip ?? 'unknown'),
+  keyOf: (req) => req.user?.id ?? req.ip ?? 'unknown',
 })
 
 studentApplicationRoutes.post('/', nopDonLimit, createApplicationController)

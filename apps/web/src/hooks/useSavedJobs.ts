@@ -54,10 +54,7 @@ export function useSavedJobs() {
 export function useSavedJobIds(): Set<string> {
   const { data } = useSavedJobs()
 
-  return useMemo(
-    () => new Set((data?.savedJobs ?? []).map((m) => m.job.id)),
-    [data],
-  )
+  return useMemo(() => new Set((data?.savedJobs ?? []).map((m) => m.job.id)), [data])
 }
 
 /**

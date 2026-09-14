@@ -8,6 +8,7 @@ import type {
   MeResponse,
   SkillResponse,
   StudentProfileResponse,
+  UpdateEmployerProfileInput,
 } from '@uniwork/shared'
 import { apiFetch } from '@/lib/api'
 import { uploadFile } from '@/lib/upload'
@@ -130,12 +131,7 @@ export function useUpdateAvailability() {
 
 /* --------------------------------------------------------- hồ sơ NTD ----- */
 
-export interface EmployerProfileInput {
-  companyName: string
-  description?: string | null
-  address?: string | null
-  website?: string | null
-}
+export type EmployerProfileInput = UpdateEmployerProfileInput
 
 export function useUpdateEmployerProfile() {
   const queryClient = useQueryClient()

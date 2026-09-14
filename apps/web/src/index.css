@@ -514,7 +514,6 @@ body {
   animation: ken-burns 9s ease-out forwards;
 }
 
-
 /* Giảm chuyển động không có nghĩa là bỏ sạch animation, mà là bỏ phần DI
    CHUYỂN. Thứ gây khó chịu cho người nhạy cảm với chuyển động là khối trượt
    ngang dọc và nền trôi liên tục, chứ không phải chữ mờ dần hiện ra. Nên bên

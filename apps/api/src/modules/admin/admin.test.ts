@@ -111,7 +111,11 @@ describe('GET /api/admin/nguoi-dung', () => {
     })
 
     const ntd = res.body.data.users.find((u: { email: string }) => u.email === NTD_ROW.email)
-    expect(ntd).toMatchObject({ displayName: 'The Corner Coffee', school: null, applicationCount: 0 })
+    expect(ntd).toMatchObject({
+      displayName: 'The Corner Coffee',
+      school: null,
+      applicationCount: 0,
+    })
   })
 
   it('không đăng nhập thì 401', async () => {

@@ -19,12 +19,7 @@ import {
   Th,
   Toolbar,
 } from '@/components/admin/Table'
-import {
-  useCloseJob,
-  useDeleteJob,
-  useMyJobs,
-  useSubmitJob,
-} from '@/hooks/useEmployerJobs'
+import { useCloseJob, useDeleteJob, useMyJobs, useSubmitJob } from '@/hooks/useEmployerJobs'
 import { useMe } from '@/hooks/useProfile'
 import { ApiClientError } from '@/lib/api'
 
@@ -282,7 +277,9 @@ function HangTin({
         {new Date(job.deadline).toLocaleDateString('vi-VN')}
       </Td>
       <Td>
-        <StatusBadge tone={JOB_STATUS_TONE[job.status]}>{JOB_STATUS_LABELS[job.status]}</StatusBadge>
+        <StatusBadge tone={JOB_STATUS_TONE[job.status]}>
+          {JOB_STATUS_LABELS[job.status]}
+        </StatusBadge>
       </Td>
 
       <Td className="text-right">

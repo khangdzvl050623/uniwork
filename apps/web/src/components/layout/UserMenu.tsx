@@ -66,7 +66,10 @@ export function UserMenu() {
           {chuDau(user.displayName)}
         </span>
         <span className="max-w-[10rem] truncate">{user.displayName}</span>
-        <ChevronDown size={14} className={cn('opacity-70 transition-transform', mo && 'rotate-180')} />
+        <ChevronDown
+          size={14}
+          className={cn('opacity-70 transition-transform', mo && 'rotate-180')}
+        />
       </button>
 
       {mo && (

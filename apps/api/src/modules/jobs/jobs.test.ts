@@ -853,11 +853,13 @@ describe('T70 — sửa gì thì tin quay về PENDING', () => {
           { dayOfWeek: 2, slot: 'EVENING' },
         ],
       }),
-      { shifts: [
-        { dayOfWeek: 2, slot: 'EVENING' },
-        { dayOfWeek: 4, slot: 'EVENING' },
-        { dayOfWeek: 6, slot: 'EVENING' },
-      ] },
+      {
+        shifts: [
+          { dayOfWeek: 2, slot: 'EVENING' },
+          { dayOfWeek: 4, slot: 'EVENING' },
+          { dayOfWeek: 6, slot: 'EVENING' },
+        ],
+      },
     )
     expect(statusDaGhi()).toBeUndefined()
   })
@@ -1531,7 +1533,9 @@ describe('GET /api/viec-lam — danh sách công khai', () => {
     jobFindMany.mockResolvedValue([])
     jobCount.mockResolvedValue(0)
 
-    await request(createApp()).get('/api/viec-lam?city=TP.HCM&district=Quận 1&scheduleType=SEASONAL')
+    await request(createApp()).get(
+      '/api/viec-lam?city=TP.HCM&district=Quận 1&scheduleType=SEASONAL',
+    )
 
     expect(jobFindMany.mock.calls[0][0].where).toEqual({
       status: 'OPEN',
@@ -1581,10 +1585,7 @@ describe('GET /api/viec-lam — danh sách công khai', () => {
      * truy vấn riêng, các hàng trùng mốc không có thứ tự đảm bảo giữa hai câu —
      * một tin sẽ hiện ở cả hai trang, hoặc rơi vào khe giữa chúng và mất hẳn.
      */
-    expect(jobFindMany.mock.calls[0][0].orderBy).toEqual([
-      { publishedAt: 'desc' },
-      { id: 'asc' },
-    ])
+    expect(jobFindMany.mock.calls[0][0].orderBy).toEqual([{ publishedAt: 'desc' }, { id: 'asc' }])
   })
 
   it('scheduleType không có thật thì 400', async () => {
@@ -2065,9 +2066,7 @@ describe('GET /api/viec-lam — lọc theo lịch rảnh', () => {
     // Câu đó chỉ phục vụ việc lọc; chấm điểm làm bằng JS trên dữ liệu đã lấy về.
     lichRanhFindMany.mockResolvedValue([{ dayOfWeek: 2, slot: 'EVENING' }])
 
-    await request(createApp())
-      .get('/api/viec-lam')
-      .set('Authorization', `Bearer ${svToken}`)
+    await request(createApp()).get('/api/viec-lam').set('Authorization', `Bearer ${svToken}`)
 
     expect(queryRaw).not.toHaveBeenCalled()
   })
@@ -2218,10 +2217,7 @@ describe('GET /api/viec-lam — lọc lương', () => {
 
     expect(menhDeAND()).toContainEqual({
       salaryUnit: 'HOUR',
-      OR: [
-        { salaryNegotiable: false, salaryMax: { gte: 25000 } },
-        { salaryNegotiable: true },
-      ],
+      OR: [{ salaryNegotiable: false, salaryMax: { gte: 25000 } }, { salaryNegotiable: true }],
     })
   })
 
