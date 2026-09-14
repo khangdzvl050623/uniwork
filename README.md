@@ -52,9 +52,9 @@ Tiêu chí lựa chọn: **miễn phí hoàn toàn ở quy mô đồ án**, mộ
 | **Ngôn ngữ** | TypeScript (strict) | Một ngôn ngữ xuyên suốt FE/BE; type của API dùng chung qua `packages/shared` nên đổi backend là FE báo lỗi compile ngay. |
 | **Frontend** | React 19 + Vite | Vite build nhanh, dev server HMR tức thì. React là stack phổ biến nhất, dễ tìm tài liệu. |
 | **UI** | Tailwind CSS + shadcn/ui | shadcn copy component vào source (không phải dependency) → tự do sửa, không khoá vendor. Có sẵn form, dialog, table. |
-| **State / Data** | TanStack Query + Zustand | Query lo cache/refetch/loading cho dữ liệu server; Zustand chỉ giữ state UI cục bộ (auth, filter). Tránh Redux boilerplate. |
+| **State / Data** | TanStack Query + React state | Query lo cache/refetch/loading cho dữ liệu server; state cục bộ dùng hook của React, không thêm store toàn cục khi chưa cần. |
 | **Routing** | React Router v7 | SPA thuần, đủ dùng, không cần SSR cho đồ án. |
-| **Form** | React Hook Form + Zod | Cùng schema Zod dùng lại ở BE để validate → một nguồn sự thật. |
+| **Form** | React state + Zod | Form được quản lý tại component; dữ liệu gửi lên API được kiểm tra bằng schema dùng chung trong `packages/shared`. |
 | **Backend** | Node.js 22 + Express 5 | Nhẹ, chạy tốt trên Render free (512 MB RAM). Middleware rõ ràng, dễ giải thích trong báo cáo. |
 | **ORM** | Prisma | Migration có version, Prisma Studio để demo dữ liệu, type sinh tự động từ schema. |
 | **Database** | Neon PostgreSQL | Free tier 0.5 GB + branching (tạo DB nhánh cho môi trường test). Quan hệ job–skill–application nhiều-nhiều nên SQL hợp hơn NoSQL. |
@@ -369,10 +369,13 @@ Trên Render, `prisma migrate deploy` và `db:seed` **chạy tự động** tron
 | Biến | Nơi dùng | Mô tả |
 |---|---|---|
 | `DATABASE_URL` | api | Chuỗi kết nối Neon (kèm `?sslmode=require`) |
-| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | api | Khoá ký token, sinh bằng `openssl rand -hex 32` |
+| `JWT_ACCESS_SECRET` | api | Khoá ký access token, ít nhất 32 ký tự; sinh bằng `openssl rand -base64 48` |
+| `ACCESS_TTL` / `REFRESH_TTL_DAYS` | api | Thời hạn access token và refresh token |
+| `DIRECT_URL` | api | Chuỗi Postgres trực tiếp dành cho Prisma migration; local giống `DATABASE_URL` |
 | `CORS_ORIGIN` | api | URL của web app trên Vercel |
-| `CLOUDINARY_URL` | api | Upload ảnh & CV |
+| `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | api | Thông tin Cloudinary để upload ảnh và CV |
 | `BREVO_API_KEY` | api | Gửi email |
+| `MAIL_FROM` / `APP_URL` / `API_URL` | api | Email gửi đi, URL web trong email và URL callback của API |
 | `VITE_API_URL` | web | URL API trên Render |
 
 ## 9. Quy trình làm việc với Git
@@ -530,6 +533,96 @@ git merge --abort
 
 > Nhóm tự cập nhật bảng này khi nhận task. Nhận task nào thì điền tên vào đó để tránh hai người làm trùng.
 
-## 10. Giấy phép
+## 10. Bản đồ repo và quy trình kiểm tra
+
+Phần này phản ánh cấu trúc đang có trong source, giúp thành viên mới biết nên
+đọc và chạy ở đâu trước khi sửa code.
+
+### 10.1. Các khu vực chính
+
+| Khu vực | Nội dung | Điểm bắt đầu |
+|---|---|---|
+| `apps/web` | SPA React/Vite, route giao diện và component | `src/App.tsx`, `src/pages/` |
+| `apps/api` | Express API, xác thực, nghiệp vụ và Prisma | `src/app.ts`, `src/routes.ts` |
+| `apps/api/src/modules` | Module `auth`, `jobs`, `applications`, `profile`, `skills`, `admin`, `notifications`, `health` | Mỗi module có `routes`, `controller`, `service` |
+| `apps/api/prisma` | Schema, migration và dữ liệu seed | `schema.prisma`, `seed.ts` |
+| `packages/shared` | Kiểu dữ liệu, enum, validation và logic dùng chung FE/BE | `src/index.ts` |
+| `packages/config` | Cấu hình TypeScript, ESLint và Prettier dùng chung | `package.json` |
+| `docs` | BRD, kế hoạch sprint, quy trình kiểm thử và Postman collection | `docs/postman/` |
+| `.github/workflows` | CI lint, typecheck, test và build | `ci.yml` |
+
+API có hai lớp khởi động riêng:
+
+- `apps/api/src/app.ts` chỉ tạo Express app để test bằng Supertest.
+- `apps/api/src/index.ts` mới mở cổng, khởi động bootstrap admin và xử lý
+  shutdown. Không import `index.ts` trong unit/integration test.
+
+### 10.2. Cài đặt lần đầu trên Windows
+
+Mở PowerShell tại thư mục repo:
+
+```powershell
+pnpm install
+Copy-Item apps/api/.env.example apps/api/.env
+Copy-Item apps/web/.env.example apps/web/.env
+pnpm --filter @uniwork/api db:generate
+```
+
+Sau đó bật Docker Desktop trước khi dựng database:
+
+```powershell
+pnpm db:wait
+pnpm --filter @uniwork/api exec prisma migrate deploy
+pnpm --filter @uniwork/api db:seed
+pnpm dev
+```
+
+Những lần sau chỉ cần:
+
+```powershell
+pnpm dev:local
+```
+
+Web chạy tại `http://localhost:5173`, API tại
+`http://localhost:4000`, health check tại
+`http://localhost:4000/api/health`.
+
+> Nếu chỉ cần xem giao diện, có thể chạy `pnpm --filter @uniwork/web dev`.
+> Các màn hình gọi API hoặc truy vấn dữ liệu vẫn cần API và PostgreSQL.
+
+### 10.3. Kiểm tra trước khi mở Pull Request
+
+Chạy các lệnh sau từ thư mục gốc:
+
+```powershell
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Khi thay đổi `schema.prisma`, migration hoặc `seed.ts`, cần có database local
+đang chạy và kiểm tra thêm:
+
+```powershell
+pnpm --filter @uniwork/api exec prisma migrate deploy
+pnpm --filter @uniwork/api test:db
+```
+
+### 10.4. Troubleshooting nhanh
+
+| Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
+|---|---|---|
+| `docker is not recognized` | Docker Desktop chưa cài hoặc chưa có trong `PATH` | Mở Docker Desktop, khởi động lại PowerShell, rồi chạy `pnpm db:wait` |
+| `Can't reach database server at localhost:5433` | Container Postgres chưa chạy hoặc chưa healthy | Chạy `pnpm db:wait`; kiểm tra bằng `docker compose ps` |
+| `PrismaClient` không có export | Prisma Client chưa được sinh sau khi cài dependency | Chạy `pnpm --filter @uniwork/api db:generate` |
+| `EADDRINUSE ...:4000` hoặc `...:5173` | Một dev server cũ vẫn đang chạy | Dừng terminal cũ hoặc giải phóng process đang giữ cổng rồi chạy lại |
+| API health trả 200 nhưng tính năng dữ liệu lỗi | API đã nghe cổng nhưng database chưa kết nối | Kiểm tra `DATABASE_URL`, Docker/Postgres và migration |
+
+Không commit `apps/api/.env` hoặc `apps/web/.env`. Các file này đã được
+chặn bởi `.gitignore`; chỉ commit `.env.example` với giá trị mẫu, không chứa
+API key, mật khẩu thật hay chuỗi kết nối production.
+
+## 11. Giấy phép
 
 [MIT](LICENSE) — dự án học tập, dùng lại thoải mái.
