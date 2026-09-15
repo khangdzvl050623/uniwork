@@ -69,3 +69,13 @@ tmp/
 
 # Cấu hình Claude Code riêng của từng người
 .claude/settings.local.json
+
+# Kết quả chạy spike AI — CHỨA DỮ LIỆU CV THẬT
+#
+# plans/ai/spike/thu-workers-ai.mjs ghi nguyên response của model vào đây, và
+# response đó chứa họ tên, số điện thoại, trường học lấy từ CV thật. Vào git một
+# lần là nằm trong lịch sử vĩnh viễn, kể cả sau khi xoá file.
+#
+# Bản thân script thì ĐƯỢC commit — nó không chứa dữ liệu nào.
+plans/ai/spike/ket-qua/
+plans/ai/spike/cv/
