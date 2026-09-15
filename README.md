@@ -52,9 +52,9 @@ Tiêu chí lựa chọn: **miễn phí hoàn toàn ở quy mô đồ án**, mộ
 | **Ngôn ngữ** | TypeScript (strict) | Một ngôn ngữ xuyên suốt FE/BE; type của API dùng chung qua `packages/shared` nên đổi backend là FE báo lỗi compile ngay. |
 | **Frontend** | React 19 + Vite | Vite build nhanh, dev server HMR tức thì. React là stack phổ biến nhất, dễ tìm tài liệu. |
 | **UI** | Tailwind CSS + shadcn/ui | shadcn copy component vào source (không phải dependency) → tự do sửa, không khoá vendor. Có sẵn form, dialog, table. |
-| **State / Data** | TanStack Query + Zustand | Query lo cache/refetch/loading cho dữ liệu server; Zustand chỉ giữ state UI cục bộ (auth, filter). Tránh Redux boilerplate. |
+| **State / Data** | TanStack Query + React state | Query lo cache/refetch/loading cho dữ liệu server; state cục bộ dùng hook của React, không thêm store toàn cục khi chưa cần. |
 | **Routing** | React Router v7 | SPA thuần, đủ dùng, không cần SSR cho đồ án. |
-| **Form** | React Hook Form + Zod | Cùng schema Zod dùng lại ở BE để validate → một nguồn sự thật. |
+| **Form** | React state + Zod | Form được quản lý tại component; dữ liệu gửi lên API được kiểm tra bằng schema dùng chung trong `packages/shared`. |
 | **Backend** | Node.js 22 + Express 5 | Nhẹ, chạy tốt trên Render free (512 MB RAM). Middleware rõ ràng, dễ giải thích trong báo cáo. |
 | **ORM** | Prisma | Migration có version, Prisma Studio để demo dữ liệu, type sinh tự động từ schema. |
 | **Database** | Neon PostgreSQL | Free tier 0.5 GB + branching (tạo DB nhánh cho môi trường test). Quan hệ job–skill–application nhiều-nhiều nên SQL hợp hơn NoSQL. |
@@ -153,20 +153,22 @@ erDiagram
     User ||--o| StudentProfile   : has
     User ||--o| EmployerProfile  : has
     User ||--o{ Notification     : receives
+    User ||--o{ UserAccount      : links
+    User ||--o{ RefreshToken     : sessions
+    User ||--o{ OneTimeToken     : verifies
 
     StudentProfile ||--o{ StudentSkill           : declares
-    StudentProfile ||--o{ StudentAvailability    : "rảnh vào"
-    StudentProfile ||--o{ AvailabilityException  : "bận/rảnh đột xuất"
+    StudentProfile ||--o{ Availability            : "rảnh vào"
     StudentProfile ||--o{ Application            : submits
     StudentProfile ||--o{ SavedJob               : saves
 
     EmployerProfile ||--o{ Job : posts
+    EmployerProfile ||--o{ EmployerDocument : submits
 
     Job ||--o{ JobSkill    : requires
     Job ||--o{ JobShift    : "cần làm ca"
     Job ||--o{ Application : receives
     Job ||--o{ SavedJob    : "được lưu"
-    Job ||--o{ Report      : "bị báo cáo"
 
     Application ||--o{ ApplicationEvent : "lịch sử trạng thái"
 
@@ -174,27 +176,28 @@ erDiagram
     Skill ||--o{ JobSkill     : "được yêu cầu bởi"
 ```
 
-**Các bảng chính**
+**18 bảng trong database** *(17 bảng nghiệp vụ và 1 bảng metadata migration)*
 
 | Bảng | Trường đáng chú ý |
 |---|---|
 | `User` | `email`, `passwordHash`, `role` (STUDENT / EMPLOYER / ADMIN), `emailVerifiedAt`, `status` |
+| `Notification` | `userId`, `type`, `title`, `body`, `link`, `readAt`, `createdAt` |
+| `UserAccount` | `userId`, `provider` (GOOGLE), `providerAccountId` |
+| `RefreshToken` | `userId`, `tokenHash`, `expiresAt`, `revokedAt`, `userAgent`, `ipAddress` |
+| `OneTimeToken` | `userId`, `tokenHash`, `type`, `expiresAt`, `usedAt`, `failedAttempts` |
 | `StudentProfile` | `fullName`, `university`, `major`, `year`, `bio`, `cvUrl`, `expectedHourlyRate`, `availableFrom`, `availableUntil` |
 | `EmployerProfile` | `companyName`, `logoUrl`, `website`, `address`, `verifiedAt` |
+| `EmployerDocument` | `type`, `cloudinaryPublicId`, `fileFormat`, `status`, `reviewNote`, `reviewedAt` |
 | `Skill` | `name`, `slug` — danh mục do admin quản lý, tránh tag rác |
-| `StudentSkill` | `level` (BEGINNER / INTERMEDIATE / ADVANCED) |
+| `StudentSkill` | Khoá ghép `studentProfileId` + `skillId` |
+| `JobSkill` | Khoá ghép `jobId` + `skillId` |
 | `Job` | `title`, `description`, `jobType`, `scheduleType`, `startDate`, `endDate`, `eventDate`, `commitmentMonths`, `minShiftsPerWeek`, `salaryMin/Max`, `salaryType`, `district`, `city`, `isRemote`, `quantity`, `deadline`, `status` (DRAFT / PENDING / OPEN / CLOSED) |
-| `JobShift` | `dayOfWeek` (0–6), `startTime`, `endTime` |
-| `StudentAvailability` | `dayOfWeek`, `startTime`, `endTime`, `validFrom`, `validTo` |
-| `AvailabilityException` | `date`, `type` (BUSY / FREE), `reason` |
-| `Application` | `coverLetter`, `cvUrl`, `status` (PENDING / VIEWED / SHORTLISTED / ACCEPTED / REJECTED / WITHDRAWN), unique `(jobId, studentId)` |
-| `ApplicationEvent` | `fromStatus`, `toStatus`, `actorId`, `createdAt` |
-| `Report` | `reason`, `handledBy`, `handledAt` |
-
-**Lịch rảnh có hai tầng.** Khai một lần rồi để đó là không đủ — lịch học đổi theo học kỳ, và sinh viên vẫn có buổi bận đột xuất. Nên tách:
-
-- `StudentAvailability` — **mẫu lặp hàng tuần**, có `validFrom`/`validTo` gắn với học kỳ. Sang kỳ mới thì tạo bộ mới, bộ cũ tự hết hiệu lực chứ không xoá đè, nên vẫn tra ngược được lịch của kỳ trước.
-- `AvailabilityException` — **ngoại lệ theo ngày cụ thể**: ốm, thi, hoặc rảnh thêm ngoài lịch thường. Đây là cách Google Calendar xử lý sự kiện lặp, tránh được cái bẫy "sửa lịch tuần này thì hỏng luôn các tuần sau".
+| `Availability` | `dayOfWeek` (0–6), `slot` (MORNING / AFTERNOON / EVENING) |
+| `JobShift` | `dayOfWeek` (0–6), `slot` (MORNING / AFTERNOON / EVENING) |
+| `Application` | `coverLetter`, `cvUrl`, `matchScore`, `status` (PENDING / VIEWED / SHORTLISTED / ACCEPTED / REJECTED / WITHDRAWN), unique `(jobId, studentProfileId)` |
+| `ApplicationEvent` | `status`, `actorUserId`, `note`, `createdAt` |
+| `SavedJob` | Khoá ghép `studentProfileId` + `jobId`, `createdAt` |
+| `_prisma_migrations` | Metadata lịch sử migration do Prisma quản lý; không phải bảng nghiệp vụ |
 
 **Ba kiểu bố trí thời gian.** Cột `Job.scheduleType` tách riêng khỏi `jobType` — `jobType` mô tả *tính chất công việc* (part-time / thực tập / freelance), còn cái này mô tả *cách bố trí thời gian*. Một việc vừa là part-time vừa là thời vụ ngắn hạn là chuyện bình thường, gộp một cột sẽ vướng.
 
@@ -204,13 +207,13 @@ erDiagram
 | `SEASONAL` | Bán hàng Tết, phụ kho mùa sale | `startDate`, `endDate` | Mẫu tuần, giới hạn trong khoảng ngày |
 | `ONE_TIME` | Chạy bàn tiệc cưới, phát tờ rơi, coi thi | `eventDate` | Ngày cụ thể, **có** tính ngoại lệ |
 
-**Thuật toán ghép lịch.** Một sinh viên khớp ca làm nếu tồn tại khoảng rảnh cùng `dayOfWeek` và `[avail.start, avail.end]` **bao trọn** `[shift.start, shift.end]`, với khoảng rảnh đó còn hiệu lực (`validFrom`/`validTo` phủ thời điểm xét). Truy vấn bằng `EXISTS` trên Postgres, index `(studentId, dayOfWeek, startTime)`.
+**Thuật toán ghép lịch.** Một sinh viên khớp ca làm nếu có bản ghi `Availability` trùng `dayOfWeek` và `slot` với `JobShift`. Hai bảng có ràng buộc duy nhất theo cặp hồ sơ/ngày/khung giờ và index theo `(dayOfWeek, slot)`, nên truy vấn ghép lịch không cần xử lý khoảng thời gian tự do.
 
 Với việc `RECURRING`, chỉ nhận sinh viên còn làm đủ lâu: `availableUntil - job.startDate >= commitmentMonths`. Nhà tuyển dụng thật cần người ổn định vài tháng, nên đây là điều kiện lọc quan trọng chứ không phải tuỳ chọn — sinh viên sắp đi thực tập hay sắp về quê nghỉ hè sẽ không thấy các tin đòi cam kết dài, đỡ mất thời gian cả hai bên.
 
 Điểm phù hợp = `w₁ ×` tỉ lệ kỹ năng khớp `+ w₂ ×` tỉ lệ ca khớp `+ w₃ ×` mức đáp ứng cam kết.
 
-⚠️ **Ngoại lệ không ảnh hưởng tới tìm việc định kỳ.** Nếu sinh viên báo bận ngày 12/09 mà hệ thống loại luôn mọi tin có ca hôm đó thì kết quả tìm kiếm sẽ nhiễu vô lý — part-time là cam kết vài tháng, nghỉ một buổi không liên quan gì đến chuyện có hợp việc hay không. `AvailabilityException` chỉ tham gia vào việc `ONE_TIME`, và vào giai đoạn **sau khi đã đi làm**.
+⚠️ **Lịch rảnh được chuẩn hoá theo các khung giờ.** `Availability` và `JobShift` dùng chung `dayOfWeek` và `slot`, nên việc ghép lịch chỉ cần đối chiếu các ô thời gian trùng nhau thay vì xử lý khoảng giờ tự do.
 
 **Lịch sử trạng thái đơn.** Cột `Application.status` chỉ cho biết trạng thái *hiện tại*. Để vẽ được timeline "Đã ứng tuyển → NTD đã xem → Kết quả" kèm ngày tháng ở từng bước, cần `ApplicationEvent` ghi lại mỗi lần chuyển trạng thái. Bảng này nhỏ, thêm sớm thì rẻ; để đến lúc làm màn hình theo dõi mới thêm thì phải sửa ngược cả luồng ứng tuyển. Tiện thể có luôn dữ liệu thống kê cho admin: trung bình bao lâu nhà tuyển dụng xem đơn, tỉ lệ đơn bị bỏ quên.
 
@@ -369,10 +372,13 @@ Trên Render, `prisma migrate deploy` và `db:seed` **chạy tự động** tron
 | Biến | Nơi dùng | Mô tả |
 |---|---|---|
 | `DATABASE_URL` | api | Chuỗi kết nối Neon (kèm `?sslmode=require`) |
-| `JWT_ACCESS_SECRET` / `JWT_REFRESH_SECRET` | api | Khoá ký token, sinh bằng `openssl rand -hex 32` |
+| `JWT_ACCESS_SECRET` | api | Khoá ký access token, ít nhất 32 ký tự; sinh bằng `openssl rand -base64 48` |
+| `ACCESS_TTL` / `REFRESH_TTL_DAYS` | api | Thời hạn access token và refresh token |
+| `DIRECT_URL` | api | Chuỗi Postgres trực tiếp dành cho Prisma migration; local giống `DATABASE_URL` |
 | `CORS_ORIGIN` | api | URL của web app trên Vercel |
-| `CLOUDINARY_URL` | api | Upload ảnh & CV |
+| `CLOUDINARY_CLOUD_NAME` / `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | api | Thông tin Cloudinary để upload ảnh và CV |
 | `BREVO_API_KEY` | api | Gửi email |
+| `MAIL_FROM` / `APP_URL` / `API_URL` | api | Email gửi đi, URL web trong email và URL callback của API |
 | `VITE_API_URL` | web | URL API trên Render |
 
 ## 9. Quy trình làm việc với Git
@@ -530,6 +536,96 @@ git merge --abort
 
 > Nhóm tự cập nhật bảng này khi nhận task. Nhận task nào thì điền tên vào đó để tránh hai người làm trùng.
 
-## 10. Giấy phép
+## 10. Bản đồ repo và quy trình kiểm tra
+
+Phần này phản ánh cấu trúc đang có trong source, giúp thành viên mới biết nên
+đọc và chạy ở đâu trước khi sửa code.
+
+### 10.1. Các khu vực chính
+
+| Khu vực | Nội dung | Điểm bắt đầu |
+|---|---|---|
+| `apps/web` | SPA React/Vite, route giao diện và component | `src/App.tsx`, `src/pages/` |
+| `apps/api` | Express API, xác thực, nghiệp vụ và Prisma | `src/app.ts`, `src/routes.ts` |
+| `apps/api/src/modules` | Module `auth`, `jobs`, `applications`, `profile`, `skills`, `admin`, `notifications`, `health` | Mỗi module có `routes`, `controller`, `service` |
+| `apps/api/prisma` | Schema, migration và dữ liệu seed | `schema.prisma`, `seed.ts` |
+| `packages/shared` | Kiểu dữ liệu, enum, validation và logic dùng chung FE/BE | `src/index.ts` |
+| `packages/config` | Cấu hình TypeScript, ESLint và Prettier dùng chung | `package.json` |
+| `docs` | BRD, kế hoạch sprint, quy trình kiểm thử và Postman collection | `docs/postman/` |
+| `.github/workflows` | CI lint, typecheck, test và build | `ci.yml` |
+
+API có hai lớp khởi động riêng:
+
+- `apps/api/src/app.ts` chỉ tạo Express app để test bằng Supertest.
+- `apps/api/src/index.ts` mới mở cổng, khởi động bootstrap admin và xử lý
+  shutdown. Không import `index.ts` trong unit/integration test.
+
+### 10.2. Cài đặt lần đầu trên Windows
+
+Mở PowerShell tại thư mục repo:
+
+```powershell
+pnpm install
+Copy-Item apps/api/.env.example apps/api/.env
+Copy-Item apps/web/.env.example apps/web/.env
+pnpm --filter @uniwork/api db:generate
+```
+
+Sau đó bật Docker Desktop trước khi dựng database:
+
+```powershell
+pnpm db:wait
+pnpm --filter @uniwork/api exec prisma migrate deploy
+pnpm --filter @uniwork/api db:seed
+pnpm dev
+```
+
+Những lần sau chỉ cần:
+
+```powershell
+pnpm dev:local
+```
+
+Web chạy tại `http://localhost:5173`, API tại
+`http://localhost:4000`, health check tại
+`http://localhost:4000/api/health`.
+
+> Nếu chỉ cần xem giao diện, có thể chạy `pnpm --filter @uniwork/web dev`.
+> Các màn hình gọi API hoặc truy vấn dữ liệu vẫn cần API và PostgreSQL.
+
+### 10.3. Kiểm tra trước khi mở Pull Request
+
+Chạy các lệnh sau từ thư mục gốc:
+
+```powershell
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Khi thay đổi `schema.prisma`, migration hoặc `seed.ts`, cần có database local
+đang chạy và kiểm tra thêm:
+
+```powershell
+pnpm --filter @uniwork/api exec prisma migrate deploy
+pnpm --filter @uniwork/api test:db
+```
+
+### 10.4. Troubleshooting nhanh
+
+| Triệu chứng | Nguyên nhân thường gặp | Cách xử lý |
+|---|---|---|
+| `docker is not recognized` | Docker Desktop chưa cài hoặc chưa có trong `PATH` | Mở Docker Desktop, khởi động lại PowerShell, rồi chạy `pnpm db:wait` |
+| `Can't reach database server at localhost:5433` | Container Postgres chưa chạy hoặc chưa healthy | Chạy `pnpm db:wait`; kiểm tra bằng `docker compose ps` |
+| `PrismaClient` không có export | Prisma Client chưa được sinh sau khi cài dependency | Chạy `pnpm --filter @uniwork/api db:generate` |
+| `EADDRINUSE ...:4000` hoặc `...:5173` | Một dev server cũ vẫn đang chạy | Dừng terminal cũ hoặc giải phóng process đang giữ cổng rồi chạy lại |
+| API health trả 200 nhưng tính năng dữ liệu lỗi | API đã nghe cổng nhưng database chưa kết nối | Kiểm tra `DATABASE_URL`, Docker/Postgres và migration |
+
+Không commit `apps/api/.env` hoặc `apps/web/.env`. Các file này đã được
+chặn bởi `.gitignore`; chỉ commit `.env.example` với giá trị mẫu, không chứa
+API key, mật khẩu thật hay chuỗi kết nối production.
+
+## 11. Giấy phép
 
 [MIT](LICENSE) — dự án học tập, dùng lại thoải mái.
