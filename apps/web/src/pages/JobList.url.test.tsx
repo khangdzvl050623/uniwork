@@ -121,6 +121,22 @@ function ve(duongDan: string) {
   return render(cay(duongDan))
 }
 
+/**
+ * Ngủ thật theo đồng hồ tường.
+ *
+ * ---------------------------------------------------------------------------
+ * CHỈ DÙNG ĐỂ KHẲNG ĐỊNH "KHÔNG CÓ GÌ ĐỔI" — KHÔNG DÙNG ĐỂ CHỜ MỘT THAY ĐỔI
+ * ---------------------------------------------------------------------------
+ * Không `waitFor` được một sự-KHÔNG-xảy-ra: muốn chứng minh bộ lọc không bị gỡ,
+ * bắt buộc phải để trôi qua một quãng rồi mới xem. Đó là chỗ hàm này đúng.
+ *
+ * Ngược lại, chờ một thay đổi ĐẾN bằng cách ngủ 50ms là đặt cược vào tốc độ
+ * máy. Máy dev thắng cược, runner CI đang tải nặng thì thua. Đã thua thật ngày
+ * 2026-09-15: ca "Xoá bộ lọc" xanh ở local, đỏ trên CI của PR dev → main, và
+ * giá trị nhận được là URL Y NGUYÊN — tức là cú bấm chưa kịp ăn, không phải
+ * logic sai. Chờ một thay đổi thì dùng `waitFor`: nó hỏi lại tới khi đúng,
+ * nhanh thì xong sớm, chậm thì vẫn kịp.
+ */
 const nghi = (ms = 50) => new Promise((r) => setTimeout(r, ms))
 
 const url = () => screen.getByTestId('url').textContent ?? ''
@@ -144,7 +160,7 @@ describe('JobList — bộ lọc trên URL', () => {
     const { getByText } = ve('/viec-lam?skillIds=c1')
     await waitFor(() => expect(url()).toContain('skillIds=c1'))
 
-    getByText('di-chuyen').click()
+    fireEvent.click(getByText('di-chuyen'))
 
     await waitFor(() => expect(url()).toBe(''))
     // Chờ thêm một nhịp: lỗi cũ không xảy ra ngay, nó xảy ra ở effect kế tiếp.
@@ -190,8 +206,7 @@ describe('JobList — bộ lọc trên URL', () => {
   it('bộ lọc đọc từ URL lúc vào thẳng bằng link chia sẻ', async () => {
     ve('/viec-lam?district=Qu%E1%BA%ADn%201&maxShiftsPerWeek=3')
 
-    await nghi()
-    expect(url()).toContain('district=')
+    await waitFor(() => expect(url()).toContain('district='))
     expect(url()).toContain('maxShiftsPerWeek=3')
   })
 })
@@ -202,8 +217,16 @@ describe('JobList — ô tìm kiếm không được bắn request mỗi phím',
     const o = screen.getByLabelText('Tìm việc làm') as HTMLInputElement
     for (let i = 1; i <= chu.length; i++) {
       fireEvent.change(o, { target: { value: chu.slice(0, i) } })
-      // Ngắn hơn 300ms rất nhiều: mô phỏng người gõ liên tục.
-      await nghi(10)
+      /*
+       * Chỉ 1ms — vừa đủ nhường một nhịp cho React xả, không hơn.
+       *
+       * Trước là 10ms. Ca "gõ 6 ký tự KHÔNG tạo 6 truy vấn" khẳng định debounce
+       * 300ms CHƯA kịp bắn, nên toàn bộ quãng từ phím đầu tới lúc kiểm phải nằm
+       * dưới 300ms. 6 phím × 10ms đã ăn 60ms chỉ để ngủ, cộng thời gian render
+       * thì trên CI đo được 366ms cho cả ca — biên còn lại quá mỏng. Hạ xuống
+       * 1ms lấy lại ~54ms mà vẫn mô phỏng đúng người gõ liên tục.
+       */
+      await nghi(1)
     }
   }
 
@@ -230,9 +253,10 @@ describe('JobList — ô tìm kiếm không được bắn request mỗi phím',
     await nghi()
 
     await go('gia su')
-    await nghi(400)
 
-    expect(tuKhoaDaGuiDi()).toEqual(['', 'gia su'])
+    // Chờ debounce 300ms lắng. `waitFor` thay cho `nghi(400)`: 400 chỉ hơn 300
+    // đúng 100ms, trên runner đang tải nặng thì biên đó không đủ.
+    await waitFor(() => expect(tuKhoaDaGuiDi()).toEqual(['', 'gia su']))
   })
 
   it('⚠ nút "Xoá bộ lọc" xoá LUÔN ô tìm kiếm, không chỉ cột lọc', async () => {
@@ -243,12 +267,15 @@ describe('JobList — ô tìm kiếm không được bắn request mỗi phím',
      * nhìn màn hình trống y như cũ.
      */
     ve('/viec-lam?q=khongcogi&district=Qu%E1%BA%ADn%201')
-    await nghi()
+    await waitFor(() => expect(url()).toContain('q=khongcogi'))
 
-    screen.getByText('Xoá bộ lọc').click()
-    await nghi()
+    // `fireEvent.click` chứ không phải `.click()` trần: fireEvent bọc sẵn trong
+    // `act()`, nên React đã xả xong cập nhật trước khi lệnh trả về. `.click()`
+    // trần để cập nhật rơi ra ngoài act — vừa in cảnh báo, vừa khiến kết quả
+    // phụ thuộc vào việc máy có kịp xả trong quãng ngủ hay không.
+    fireEvent.click(screen.getByText('Xoá bộ lọc'))
 
-    expect(url()).toBe('')
+    await waitFor(() => expect(url()).toBe(''))
     expect((screen.getByLabelText('Tìm việc làm') as HTMLInputElement).value).toBe('')
     expect(tuKhoaDaGuiDi().at(-1)).toBe('')
   })
