@@ -35,10 +35,28 @@ export function GoogleCallback() {
   useEffect(() => {
     if (status === 'dang-kiem-tra') return
 
+    /*
+     * Tới được trang này nghĩa là Google đã xác thực xong, api đã tạo phiên và
+     * đặt cookie refresh — nếu hỏng trước đó thì api tự chuyển hướng kèm câu
+     * báo lỗi của riêng nó, không đi qua đây.
+     *
+     * Nên `chua-dang-nhap` ở đúng chỗ này chỉ có MỘT nghĩa: cookie vừa đặt
+     * không quay về được với lời gọi /refresh. Gần như luôn là do trình duyệt
+     * chặn cookie bên thứ ba — web ở vercel.app còn api ở onrender.com, hai
+     * site khác nhau, nên `SameSite=None` chỉ là xin phép chứ không phải được
+     * phép. Đo thật 2026-09-15: InPrivate của Edge tái hiện 100%; Safari và
+     * Brave chặn mặc định.
+     *
+     * Vì vậy câu báo lỗi phải nói ra lối thoát. "Vui lòng thử lại" là ngõ cụt:
+     * nguyên nhân nằm ở thiết lập trình duyệt, nên bấm lại bao nhiêu lần cũng
+     * hỏng y hệt.
+     */
     if (status === 'chua-dang-nhap') {
-      navigate('/dang-nhap?loi=' + encodeURIComponent('Không đăng nhập được, vui lòng thử lại'), {
-        replace: true,
-      })
+      const loi =
+        'Trình duyệt đang chặn cookie đăng nhập, thường gặp ở chế độ ẩn danh. ' +
+        'Hãy dùng cửa sổ thường, hoặc đăng nhập bằng email và mật khẩu.'
+
+      navigate('/dang-nhap?loi=' + encodeURIComponent(loi), { replace: true })
       return
     }
 
