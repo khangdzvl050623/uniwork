@@ -187,6 +187,41 @@ const schema = z.object({
    */
   ADMIN_EMAIL: chuoiCoMacDinh(z.string().email(), 'AdminUniWork@gmail.com'),
   ADMIN_PASSWORD: chuoiCoMacDinh(z.string().min(1), 'admin@123'),
+
+  /* ------------------------------------------------------------- AI ------ */
+
+  /*
+   * Khoá Gemini cho trợ lý AI.
+   *
+   * CÓ mặc định rỗng — cùng nhóm GOOGLE_CLIENT_ID, KHÔNG cùng nhóm
+   * JWT_ACCESS_SECRET. Trợ lý là tính năng THÊM: thiếu khoá thì nút trợ lý biến
+   * mất, còn đăng nhập / tìm việc / ứng tuyển vẫn chạy nguyên vẹn. Bắt buộc phải
+   * có sẽ khiến cả nhóm không chạy được dự án chỉ vì chưa ai tạo API key.
+   *
+   * Tên biến theo đúng mặc định của `@ai-sdk/google` để provider tự nhận.
+   * Lấy khoá: https://aistudio.google.com/apikey
+   */
+  GOOGLE_GENERATIVE_AI_API_KEY: z.string().default(''),
+
+  /* Đổi model mà không sửa code. Xem plans/ai/thiet-ke.md mục 8. */
+  AI_CHAT_MODEL: z.string().default('gemini-2.5-flash-lite'),
+
+  /* Lượt hỏi mỗi tài khoản mỗi ngày, reset lúc 00:00 giờ Việt Nam. */
+  AI_CHAT_TURNS_PER_DAY: z.coerce.number().int().min(0).default(5),
+  AI_SCAN_JOBS_PER_DAY: z.coerce.number().int().min(0).default(3),
+
+  AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(1024),
+  AI_REQUEST_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+
+  /*
+   * Số vòng tool tối đa trong một lượt. Mặc định của AI SDK là 20 — quá rộng
+   * cho hạn mức free, và mỗi vòng gửi lại TOÀN BỘ ngữ cảnh nên chi phí tăng
+   * nhanh hơn tuyến tính. Đây là nút chỉnh chi phí trực tiếp nhất.
+   */
+  AI_MAX_TOOL_ROUNDS: z.coerce.number().int().positive().default(4),
+
+  /* Số tin nhắn gần nhất đưa vào ngữ cảnh. */
+  AI_HISTORY_MESSAGES: z.coerce.number().int().positive().default(12),
 })
 
 const parsed = schema.safeParse(process.env)

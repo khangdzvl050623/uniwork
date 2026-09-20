@@ -4,6 +4,7 @@
 
 | Bạn đang | Mở |
 | --- | --- |
+| **Vừa xong planning, bắt đầu code** | **[bat-dau.md](bat-dau.md)** — chuẩn bị local, kiểm provider, PR đầu tiên và thứ tự triển khai |
 | **Xây** | **[thiet-ke.md](thiet-ke.md)** — sơ đồ, bảng, hợp đồng, 17 luật. Không lý lẽ. |
 | **Debug** | [thiet-ke.md §12](thiet-ke.md) — bảng triệu chứng → chỗ tra |
 | **Muốn đổi một quyết định** | `00`–`09` bên dưới. Mỗi file có lý do và các phương án đã loại |
