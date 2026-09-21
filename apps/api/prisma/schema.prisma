@@ -170,6 +170,7 @@ model User {
   notifications  Notification[]
   aiUsageDays    AiUsageDay[]
   aiTurns        AiTurn[]
+  chatSessions   ChatSession[]  @relation("ChatOwner")
 
   @@map("users")
 }
@@ -335,6 +336,7 @@ model StudentProfile {
   skills         StudentSkill[]
   availabilities Availability[]
   applications   Application[]
+  chatSessions   ChatSession[]
   savedJobs      SavedJob[]
 
   @@map("student_profiles")
@@ -363,8 +365,9 @@ model EmployerProfile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  jobs      Job[]
-  documents EmployerDocument[]
+  jobs         Job[]
+  documents    EmployerDocument[]
+  chatHandoffs ChatSession[]
 
   @@map("employer_profiles")
 }
@@ -652,6 +655,7 @@ model Job {
   shifts       JobShift[]
   skills       JobSkill[]
   applications Application[]
+  chatSessions ChatSession[]
   savedBy      SavedJob[]
 
   /// Truy vấn xương sống của trang danh sách: lọc status OPEN, sắp theo ngày
@@ -902,4 +906,153 @@ model AiTurn {
   ///   CREATE UNIQUE INDEX ... ON ai_turns ("userId") WHERE state = 'RESERVED'
   /// Prisma không khai được partial index, nên nó nằm trong migration viết tay.
   @@map("ai_turns")
+}
+
+// ---------------------------------------------------------------------------
+// Hội thoại
+//
+// MỘT bảng cho cả chat với AI lẫn chat với người thật, phân biệt bằng `state`.
+// Không phải hai bảng: sinh viên nhìn thấy MỘT dòng thời gian liên tục, và
+// chuyển giữa hai chế độ phải là đổi một cột chứ không phải chép dữ liệu sang
+// bảng khác — chép là lúc mất tin nhắn.
+// ---------------------------------------------------------------------------
+
+/// Loại phiên. Quyết định ai là chủ, và có handoff được không.
+enum ChatKind {
+  /// Sinh viên hỏi trợ lý. CÓ THỂ chuyển sang nhà tuyển dụng.
+  AI_STUDENT
+  /// Nhà tuyển dụng hỏi trợ lý về dữ liệu tuyển dụng của mình.
+  /// KHÔNG có handoff — không có ai để chuyển tới.
+  AI_EMPLOYER
+}
+
+enum ChatSessionState {
+  AI_ACTIVE
+  WAITING_EMPLOYER
+  HUMAN_ACTIVE
+  CLOSED
+}
+
+enum ChatSenderType {
+  STUDENT
+  EMPLOYER
+  AI
+  /// Tin của hệ thống: "Nhà tuyển dụng đã tiếp nhận", "Hội thoại đã kết thúc".
+  /// Tách khỏi AI vì nó không tốn lượt và không do model sinh ra.
+  SYSTEM
+}
+
+model ChatSession {
+  id String @id @default(cuid())
+
+  kind ChatKind
+
+  /// CHỦ PHIÊN — người tạo và sở hữu hội thoại. Luôn có, với cả hai vai.
+  ///
+  /// Phân biệt tuyệt đối với `handoffEmployerProfileId` bên dưới: một NTD có thể
+  /// vừa là CHỦ phiên trợ lý của mình, vừa là NGƯỜI NHẬN handoff ở một phiên
+  /// khác của sinh viên. Hai vai, hai quyền, hai cột.
+  ownerUserId String
+  owner       User   @relation("ChatOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  /// Id do client sinh, để tạo phiên KHÔNG bị trùng khi bấm hai lần.
+  ///
+  /// Thiếu nó thì hai request tạo phiên song song ra hai phiên, và khoá chống
+  /// trùng trên tin nhắn không cứu được vì sessionId đã khác nhau.
+  clientSessionId String
+
+  /// Chỉ có khi kind = AI_STUDENT. CHECK constraint ép đúng.
+  studentProfileId String?
+  studentProfile   StudentProfile? @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+
+  /// Tin đang bàn tới. Bắt buộc có trước khi chuyển sang NTD.
+  /// Sau lần chuyển đầu thì ĐÓNG BĂNG — đổi tin nghĩa là tạo phiên mới.
+  jobId String?
+  job   Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  /// NGƯỜI NHẬN HANDOFF. Đặt MỘT LẦN ở lần chuyển đầu, KHÔNG BAO GIỜ đổi.
+  ///
+  /// Đổi sang NTD khác sẽ khiến người mới đọc được những gì đã chia sẻ với
+  /// người cũ. Muốn hỏi NTD khác thì tạo phiên mới.
+  handoffEmployerProfileId String?
+  handoffEmployer          EmployerProfile? @relation(fields: [handoffEmployerProfileId], references: [id], onDelete: SetNull)
+
+  state ChatSessionState @default(AI_ACTIVE)
+
+  /// Bộ đếm thứ tự tin nhắn TRONG phiên này, tăng trong cùng transaction với
+  /// việc chèn tin.
+  ///
+  /// Vì sao không dùng createdAt: hai tin cùng mili-giây thì không sắp được, và
+  /// đồng hồ server có thể lùi. Vì sao không dùng sequence toàn cục: client cần
+  /// một dãy liên tục để biết mình có thiếu tin không.
+  messageSeq Int @default(0)
+
+  /// NTD chỉ đọc được tin có seq >= mốc này. Đặt lúc chuyển, và CHỈ khi đang null.
+  /// null = chưa chuyển bao giờ, NTD không đọc được gì.
+  employerVisibleFromSeq Int?
+
+  /// Lượt AI đang chạy. Dùng để BỎ câu trả lời nếu hội thoại đã chuyển sang
+  /// người thật giữa lúc model đang sinh chữ.
+  activeAiRunId String?
+
+  handoffRequestedAt DateTime?
+  handoffAcceptedAt  DateTime?
+  closedAt           DateTime?
+  closedByUserId     String?
+
+  /// Phiên trước, khi người dùng mở lại sau khi đã CLOSED.
+  previousSessionId String? @unique
+
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  messages ChatMessage[]
+
+  /// Chống tạo phiên trùng khi bấm hai lần.
+  @@unique([ownerUserId, clientSessionId])
+  /// Danh sách phiên của CHỦ — dùng cho cả sinh viên lẫn NTD tự dùng trợ lý.
+  @@index([ownerUserId, kind, lastMessageAt])
+  /// Hộp thư handoff của NTD lọc đúng theo bộ ba này.
+  @@index([handoffEmployerProfileId, state, lastMessageAt])
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id String @id @default(cuid())
+
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  /// Thứ tự trong phiên, bắt đầu từ 1, KHÔNG THỦNG.
+  seq Int
+
+  senderType   ChatSenderType
+  /// null với AI và SYSTEM.
+  senderUserId String?
+
+  /// Id do client sinh (uuid), giữ nguyên qua mọi lần thử lại.
+  ///
+  /// Unique GỘP với sessionId chứ không unique một mình: hai phiên của hai người
+  /// khác nhau có thể trùng uuid, và unique toàn cục sẽ khiến người thứ hai
+  /// không gửi được tin — một lỗi rất khó đoán.
+  clientMessageId String?
+
+  body String @db.Text
+
+  /// NTD có được thấy tin này không. Mặc định FALSE.
+  ///
+  /// Mặc định false chứ không true là quyết định bảo mật: quên đặt cờ thì hậu
+  /// quả là NTD thiếu một tin (thấy được, sửa được), chứ không phải NTD đọc
+  /// được toàn bộ hội thoại riêng tư với AI (không thấy được, không lấy lại được).
+  visibleToEmployer Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  /// Chốt chặn thật cho việc cấp seq: logic sai ở đâu đó thì P2002 bắn ra ngay,
+  /// thay vì hai tin cùng số và client sắp xếp loạn.
+  @@unique([sessionId, seq])
+  @@unique([sessionId, clientMessageId])
+  @@index([sessionId, seq])
+  @@map("chat_messages")
 }
