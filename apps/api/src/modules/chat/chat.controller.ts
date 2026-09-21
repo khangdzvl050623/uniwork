@@ -1,11 +1,11 @@
 import type { RequestHandler } from 'express'
 import { z } from 'zod'
-import { hoiTroLySchema, taoPhienChatSchema } from '@uniwork/shared'
+import { guiTinNhanSchema, hoiTroLySchema, taoPhienChatSchema } from '@uniwork/shared'
 import { CO_KHOA_THAT, demLuotConLai } from '@uniwork/ai-runtime'
 import { prisma } from '../../lib/prisma.js'
 import { ok } from '../../lib/respond.js'
 import { AppError, badRequest, unauthorized } from '../../lib/errors.js'
-import { batDauLuot, layTinNhan, taoPhien } from './chat.service.js'
+import { batDauLuot, guiTinNhan, layTinNhan, taoPhien } from './chat.service.js'
 import { KenhSSE } from './sse.js'
 import { chayLuot, RUNNER_ID } from './tro-ly.service.js'
 
@@ -36,10 +36,27 @@ export const taoPhienController: RequestHandler = async (req, res) => {
 
 const thamSoId = z.object({ id: z.string().min(1) })
 
+const thamSoCursor = z.object({ cursor: z.string().max(200).optional() })
+
 export const layTinNhanController: RequestHandler = async (req, res) => {
   const u = nguoiGoi(req)
   const { id } = parse(thamSoId, req.params)
-  ok(res, await layTinNhan(u.id, id))
+  const { cursor } = parse(thamSoCursor, req.query)
+  ok(res, await layTinNhan(u, id, cursor))
+}
+
+/**
+ * Đường REST để gửi tin, song song với Socket.IO.
+ *
+ * Không phải dự phòng cho vui: WebSocket bị chặn ở nhiều mạng trường học và
+ * wifi có proxy, và không có đường này thì không test được bằng Supertest.
+ */
+export const guiTinNhanController: RequestHandler = async (req, res) => {
+  const u = nguoiGoi(req)
+  const { id } = parse(thamSoId, req.params)
+  const v = parse(guiTinNhanSchema, req.body)
+  const kq = await guiTinNhan(u, id, v.clientMessageId, v.noiDung)
+  ok(res, kq, kq.daCo ? 200 : 201)
 }
 
 export const luotConLaiController: RequestHandler = async (req, res) => {

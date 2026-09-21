@@ -18,8 +18,18 @@ import { env } from './config/env.js'
 import { taoAdminMacDinhNeuChua } from './lib/bootstrap-admin.js'
 import { logger } from './lib/logger.js'
 import { prisma } from './lib/prisma.js'
+import { ganSocketIO, goSocketIO } from './modules/chat/socket.gateway.js'
 
 const server = createServer(createApp())
+
+/*
+ * Socket.IO dùng CHUNG cổng với HTTP.
+ *
+ * Bắt buộc trên Render gói free: một Web Service chỉ mở được đúng một cổng. Và
+ * nó cũng đúng cho local — cùng một origin thì không phải nới thêm CORS, và
+ * không phải nhớ hai số cổng.
+ */
+const io = ganSocketIO(server)
 
 server.listen(env.PORT, env.HOST, () => {
   logger.info('API đã khởi động', {
@@ -53,6 +63,19 @@ void taoAdminMacDinhNeuChua().catch((err: unknown) => {
  */
 function shutdown(signal: NodeJS.Signals) {
   logger.info('Nhận tín hiệu dừng, đang đóng server', { signal })
+
+  /*
+   * Đóng Socket.IO TRƯỚC `server.close()`.
+   *
+   * `server.close()` chờ mọi kết nối đóng, mà WebSocket là kết nối SỐNG MÃI —
+   * không đóng chúng thì nó chờ tới khi hết 10 giây rồi bị `process.exit(1)`.
+   * Deploy nào cũng thoát bằng mã lỗi, và log đầy "Hết thời gian chờ".
+   *
+   * `goSocketIO()` gỡ bộ phát trước, để một tin nhắn đang commit dở không bắn
+   * vào một `io` vừa đóng.
+   */
+  goSocketIO()
+  void io.close()
 
   server.close(() => {
     // Trả kết nối database về trước khi thoát. Không làm bước này thì mỗi lần

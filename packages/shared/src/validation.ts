@@ -933,3 +933,13 @@ export const hoiTroLySchema = z.object({
   /** Tin người dùng đang mở, để trợ lý hiểu "việc này" mà không phải hỏi lại. */
   jobIdDangXem: z.string().trim().min(1).max(40).optional(),
 })
+
+/** Tin của NGƯỜI trong hội thoại đã chuyển sang nhắn trực tiếp. */
+export const guiTinNhanSchema = z.object({
+  clientMessageId: idDoClientSinh,
+  noiDung: z
+    .string()
+    .trim()
+    .min(1, 'Nhập nội dung trước đã')
+    .max(2000, 'Tin nhắn tối đa 2000 ký tự'),
+})

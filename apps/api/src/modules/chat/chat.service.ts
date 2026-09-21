@@ -3,6 +3,9 @@ import type { ModelMessage } from '@uniwork/ai-runtime'
 import { aiConfig, DangBanError, giuLuot } from '@uniwork/ai-runtime'
 import { prisma } from '../../lib/prisma.js'
 import { conflict, forbidden, notFound, AppError } from '../../lib/errors.js'
+import { phongChu, phongNTD, quyenTruyCapPhien, type QuyenTruyCap } from './chat.access.js'
+import { dongCursor, moCursor } from './cursor.js'
+import { phatToiPhong } from './phat-su-kien.js'
 import { PROMPT_VERSION } from './prompts/he-thong-sinh-vien.js'
 
 /* ================================================================ phiên -- */
@@ -100,16 +103,58 @@ export interface TinNhanItem {
   createdAt: string
 }
 
-/** Tải lại hội thoại khi người dùng mở lại trang. Chỉ CHỦ phiên đọc được ở đây. */
-export async function layTinNhan(userId: string, sessionId: string): Promise<{ tinNhan: TinNhanItem[] }> {
-  await layPhienCuaChu(userId, sessionId)
+export interface TraTinNhan {
+  tinNhan: TinNhanItem[]
+  cursor: string
+  conNua: boolean
+  duocGui: boolean
+}
+
+/** Trần mỗi lần tải bù. Vượt thì client gọi tiếp với cursor mới. */
+const TRAN_TAI_BU = 50
+
+/**
+ * Tải bù từ một cursor. Dùng cho cả REST lẫn sự kiện `hoi-thoai:tai-bu`.
+ *
+ * ---------------------------------------------------------------------------
+ * CURSOR TRẢ VỀ LÀ SEQ SERVER **ĐÃ XÉT**, KHÔNG PHẢI SEQ ĐÃ TRẢ
+ * ---------------------------------------------------------------------------
+ * Đây là toàn bộ điểm của cursor. Nếu trả seq lớn nhất trong `tinNhan`, thì một
+ * NTD có 5 tin riêng tư của sinh viên ở phía trước sẽ nhận mảng rỗng kèm cursor
+ * ĐỨNG YÊN — và gọi lại mãi đúng khoảng đó, mỗi lần một truy vấn, vĩnh viễn.
+ *
+ * Chưa chạm trần ⇒ đã xét hết tới `seqHienTai`. Chạm trần ⇒ chỉ chắc chắn đã
+ * xét tới tin cuối cùng trả về.
+ */
+export async function layTinNhan(
+  user: { id: string; role: Role },
+  sessionId: string,
+  cursor?: string,
+): Promise<TraTinNhan> {
+  const quyen = await quyenTruyCapPhien(user, sessionId)
+  if (!quyen) throw notFound('Không tìm thấy hội thoại')
+
+  const tu = Math.max(quyen.docTuSeq, moCursor(cursor) + 1)
+
   const ds = await prisma.chatMessage.findMany({
-    where: { sessionId },
+    where: {
+      sessionId,
+      seq: { gte: tu },
+      ...(quyen.chiTinChiaSe ? { visibleToEmployer: true } : {}),
+    },
     orderBy: { seq: 'asc' },
+    take: TRAN_TAI_BU,
     select: { id: true, seq: true, senderType: true, body: true, createdAt: true },
   })
+
+  const conNua = ds.length === TRAN_TAI_BU
+  const daXet = conNua ? ds[ds.length - 1]!.seq : quyen.seqHienTai
+
   return {
     tinNhan: ds.map((t) => ({ ...t, createdAt: t.createdAt.toISOString() })),
+    cursor: dongCursor(Math.max(daXet, moCursor(cursor))),
+    conNua,
+    duocGui: quyen.duocGui,
   }
 }
 
@@ -341,4 +386,133 @@ export async function layLichSu(sessionId: string): Promise<ModelMessage[]> {
 
 function laTrungKhoa(e: unknown): e is Prisma.PrismaClientKnownRequestError {
   return typeof e === 'object' && e !== null && 'code' in e && e.code === 'P2002'
+}
+
+/* ======================================================= tin của người -- */
+
+export interface GuiTinNhanKetQua {
+  message: TinNhanItem
+  cursor: string
+  /** Tin này đã gửi rồi, đây là bản cũ. Client đánh dấu đã gửi, không vẽ thêm. */
+  daCo: boolean
+}
+
+/**
+ * Gửi một tin của NGƯỜI (không phải AI).
+ *
+ * ===========================================================================
+ * SOCKET.IO KHÔNG PHẢI ĐƯỜNG DUY NHẤT — VÀ ĐÓ LÀ QUYẾT ĐỊNH, KHÔNG PHẢI DƯ
+ * ===========================================================================
+ * `POST /api/hoi-thoai/:id/tin-nhan` làm được y hệt, vì:
+ *
+ *   WebSocket bị chặn ở nhiều mạng trường học và wifi công cộng có proxy. Không
+ *   có đường REST thì ở đó chat chết hẳn, không phải chậm.
+ *
+ *   Không có REST thì không test được bằng Supertest, mà repo đang dựa nặng vào
+ *   Supertest — xem `docs/nep-kiem-thu.md` mục 4.
+ *
+ * Cả hai đường gọi đúng hàm này. Handler socket là lớp vỏ mỏng, không chứa
+ * nghiệp vụ. Nghiệp vụ nằm ở đây, một bản.
+ */
+export async function guiTinNhan(
+  user: { id: string; role: Role },
+  sessionId: string,
+  clientMessageId: string,
+  noiDung: string,
+): Promise<GuiTinNhanKetQua> {
+  const quyen = await quyenTruyCapPhien(user, sessionId)
+  if (!quyen) throw notFound('Không tìm thấy hội thoại')
+  if (!quyen.duocGui) {
+    throw conflict('Hội thoại chưa ở trạng thái nhắn trực tiếp')
+  }
+
+  try {
+    const { tin, seqHienTai } = await prisma.$transaction(async (tx) => {
+      const sau = await tx.chatSession.update({
+        where: { id: sessionId },
+        data: { messageSeq: { increment: 1 }, lastMessageAt: new Date() },
+        select: { messageSeq: true },
+      })
+      const tin = await tx.chatMessage.create({
+        data: {
+          sessionId,
+          seq: sau.messageSeq,
+          senderType: user.role === 'EMPLOYER' ? 'EMPLOYER' : 'STUDENT',
+          senderUserId: user.id,
+          clientMessageId,
+          body: noiDung,
+          /*
+           * `true` — và đây là chỗ DUY NHẤT trong dự án đặt cờ này thành true.
+           *
+           * `duocGui` chỉ đúng khi state = HUMAN_ACTIVE, tức hai người đang nói
+           * trực tiếp với nhau. Tin nói trực tiếp thì cả hai bên phải thấy.
+           * Mọi tin khác — hỏi trợ lý, trả lời của AI — giữ mặc định `false`.
+           */
+          visibleToEmployer: true,
+        },
+        select: { id: true, seq: true, senderType: true, body: true, createdAt: true },
+      })
+      return { tin, seqHienTai: sau.messageSeq }
+    })
+
+    const message: TinNhanItem = { ...tin, createdAt: tin.createdAt.toISOString() }
+
+    /*
+     * Phát SAU khi transaction commit, không phải trong.
+     *
+     * Phát bên trong thì một rollback ở dòng cuối vẫn để lại một tin nhắn đã
+     * hiện trên màn hình người kia — và nó biến mất ở lần tải lại tiếp theo.
+     */
+    phatTinMoi(sessionId, message, true)
+
+    return { message, cursor: dongCursor(seqHienTai), daCo: false }
+  } catch (e) {
+    /*
+     * Mạng chập chờn, client gửi lại cùng `clientMessageId`. Không phải lỗi:
+     * trả lại đúng tin đã ghi, và transaction đã rollback nên không có tin thứ
+     * hai. Client đánh dấu đã gửi và thôi.
+     */
+    if (!laTrungKhoa(e)) throw e
+    const cu = await prisma.chatMessage.findUniqueOrThrow({
+      where: { sessionId_clientMessageId: { sessionId, clientMessageId } },
+      select: { id: true, seq: true, senderType: true, body: true, createdAt: true },
+    })
+    return {
+      message: { ...cu, createdAt: cu.createdAt.toISOString() },
+      cursor: dongCursor(cu.seq),
+      daCo: true,
+    }
+  }
+}
+
+/**
+ * Luật phát, một chỗ.
+ *
+ * ===========================================================================
+ * HAI PHÒNG, KHÔNG PHẢI MỘT
+ * ===========================================================================
+ * Một phòng chung nghĩa là mọi `emit` tới cả hai bên. Khi phiên quay về
+ * AI_ACTIVE, NTD đang ngồi trong phòng đó sẽ nhận realtime TỪNG CÂU sinh viên
+ * nói với trợ lý — dù truy vấn REST chặn họ đọc đúng những tin ấy.
+ *
+ * Không test REST nào bắt được, vì REST hoàn toàn đúng.
+ *
+ * Cùng một cờ `visibleToEmployer` quyết định cả câu truy vấn REST lẫn phòng
+ * socket. Một nguồn sự thật, hai đường dùng.
+ */
+export function phatTinMoi(sessionId: string, message: TinNhanItem, choNTD: boolean): void {
+  phatToiPhong(phongChu(sessionId), 'hoi-thoai:tin-moi', { sessionId, message })
+  if (choNTD) {
+    phatToiPhong(phongNTD(sessionId), 'hoi-thoai:tin-moi', { sessionId, message })
+  }
+}
+
+/** Dùng lại cho handler socket — tránh hai chỗ cùng gọi `quyenTruyCapPhien`. */
+export async function quyenPhien(
+  user: { id: string; role: Role },
+  sessionId: string,
+): Promise<QuyenTruyCap> {
+  const q = await quyenTruyCapPhien(user, sessionId)
+  if (!q) throw notFound('Không tìm thấy hội thoại')
+  return q
 }

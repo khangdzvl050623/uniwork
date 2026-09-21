@@ -34,6 +34,7 @@
     "google-auth-library": "^11.0.2",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.2.0",
+    "socket.io": "^4.8.3",
     "tsx": "^4.19.2",
     "zod": "^4.4.3"
   },
@@ -48,6 +49,7 @@
     "@uniwork/config": "workspace:*",
     "eslint": "^9.17.0",
     "prisma": "^6.19.3",
+    "socket.io-client": "^4.8.3",
     "supertest": "^7.2.2",
     "typescript": "^5.7.2",
     "vitest": "^4.1.10"

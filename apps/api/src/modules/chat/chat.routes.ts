@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { requireAuth, requireRole } from '../../middlewares/auth.js'
 import { rateLimit } from '../../middlewares/rate-limit.js'
 import {
+  guiTinNhanController,
   hoiController,
   layTinNhanController,
   luotConLaiController,
@@ -23,6 +24,7 @@ hoiThoaiRoutes.use(requireAuth, requireRole('STUDENT', 'EMPLOYER'))
 
 hoiThoaiRoutes.post('/', taoPhienController)
 hoiThoaiRoutes.get('/:id/tin-nhan', layTinNhanController)
+hoiThoaiRoutes.post('/:id/tin-nhan', guiTinNhanController)
 
 /* ------------------------------------------------------------- trợ lý -- */
 
