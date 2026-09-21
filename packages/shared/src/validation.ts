@@ -890,3 +890,46 @@ export const applicantQuerySchema = z.object({
   status: z.enum(APPLICATION_STATUSES).optional(),
   sort: z.enum(APPLICANT_SORTS).default('match'),
 })
+
+/* ============================================== Trợ lý AI (Sprint 5) ==== */
+
+/**
+ * `clientSessionId` và `clientMessageId` do TRÌNH DUYỆT sinh, không phải server.
+ *
+ * Đó là điểm mấu chốt của cả hai khoá chống trùng: id phải được sinh MỘT LẦN
+ * trước lần gửi đầu tiên và giữ nguyên qua mọi lần thử lại. Server sinh thì mỗi
+ * lần thử lại là một id mới, và "chống trùng" không chống được gì.
+ *
+ * Không ép định dạng uuid: client nào cũng được, miễn là ổn định và đủ dài để
+ * không đụng nhau. Ép uuid chỉ thêm một cách hỏng mà không mua lại gì — khoá
+ * unique trong database mới là thứ bảo đảm.
+ */
+const idDoClientSinh = z
+  .string()
+  .trim()
+  .min(8, 'Id quá ngắn')
+  .max(64, 'Id quá dài')
+
+export const taoPhienChatSchema = z.object({
+  kind: z.enum(['AI_STUDENT', 'AI_EMPLOYER']),
+  clientSessionId: idDoClientSinh,
+  jobId: z.string().trim().min(1).max(40).optional(),
+})
+
+/**
+ * Trần 2000 ký tự, và `min(1)` chạy SAU `trim()`.
+ *
+ * Không trim trước thì một tin toàn dấu cách qua được `min(1)`, tốn một lượt
+ * trong năm lượt của ngày, và model nhận về chuỗi rỗng.
+ */
+export const hoiTroLySchema = z.object({
+  sessionId: z.string().trim().min(1).max(40),
+  clientMessageId: idDoClientSinh,
+  noiDung: z
+    .string()
+    .trim()
+    .min(1, 'Nhập câu hỏi trước đã')
+    .max(2000, 'Câu hỏi tối đa 2000 ký tự'),
+  /** Tin người dùng đang mở, để trợ lý hiểu "việc này" mà không phải hỏi lại. */
+  jobIdDangXem: z.string().trim().min(1).max(40).optional(),
+})

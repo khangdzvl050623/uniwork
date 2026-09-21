@@ -12,6 +12,7 @@ import {
 import { profileRoutes } from './modules/profile/profile.routes.js'
 import { adminSkillsRoutes, skillsRoutes } from './modules/skills/skills.routes.js'
 import { notificationRoutes } from './modules/notifications/notifications.routes.js'
+import { hoiThoaiRoutes, troLyRoutes } from './modules/chat/chat.routes.js'
 
 /**
  * Gom router của tất cả module lại, gắn dưới tiền tố /api.
@@ -31,6 +32,18 @@ apiRouter.use('/auth', authRoutes)
  */
 apiRouter.use('/toi/thong-bao', notificationRoutes)
 apiRouter.use('/skills', skillsRoutes)
+
+/*
+ * Trợ lý AI. Hai nhánh tách rời có chủ đích:
+ *
+ *   /hoi-thoai  rẻ, idempotent — tạo phiên, tải lại tin nhắn
+ *   /tro-ly     tốn lượt và tốn tiền — hỏi model
+ *
+ * Gộp một nhánh thì giới hạn tần suất của bên đắt chặn nhầm cả việc mở lại một
+ * hội thoại cũ.
+ */
+apiRouter.use('/hoi-thoai', hoiThoaiRoutes)
+apiRouter.use('/tro-ly', troLyRoutes)
 
 /* Việc làm công khai — endpoint DUY NHẤT trong dự án không cần đăng nhập ngoài /health. */
 apiRouter.use('/viec-lam', publicJobRoutes)

@@ -131,3 +131,103 @@ export async function demLuotConLai(
   if (!hang) return { conLai: tong, tong }
   return { conLai: Math.max(0, tong - (hang.turnsReserved - hang.turnsRefunded)), tong }
 }
+
+interface ThamSoChotLuot {
+  turnId: string
+  state: 'SUCCEEDED' | 'FAILED'
+  inputTokens?: number
+  outputTokens?: number
+  requestCount?: number
+  toolRounds?: number
+  toolNames?: string[]
+  category?: string
+  latencyMs?: number
+  timeToFirstTokenMs?: number
+  errorCode?: string
+  handoffProposed?: boolean
+}
+
+/**
+ * Chốt một lượt đã chạy xong.
+ *
+ * ---------------------------------------------------------------------------
+ * `FAILED` VẪN TRỪ LƯỢT — ĐÓ LÀ CHỦ ĐÍCH, KHÔNG PHẢI THIẾU SÓT
+ * ---------------------------------------------------------------------------
+ * Model trả lời được nửa câu rồi lỗi thì token đã tiêu thật, hạn mức RPD của
+ * nhà cung cấp đã bị trừ thật. Hoàn lượt ở đây là mời người dùng bấm lại năm
+ * lần và đốt năm lần tài nguyên với đúng một lượt trên sổ.
+ *
+ * Chỉ hoàn khi CHƯA tiêu gì — xem `hoanLuot`.
+ */
+/*
+ * Nhận `PrismaClient` đầy đủ, KHÔNG nhận `tx` như `giuLuot`: hai hàm này tự mở
+ * transaction của mình. Chúng chạy SAU khi model đã trả lời xong, tức là ngoài
+ * transaction giữ lượt — lồng một transaction dài bằng cả lượt gọi model sẽ giữ
+ * kết nối trong suốt thời gian đó.
+ */
+export async function chotLuot(prisma: PrismaClient, ts: ThamSoChotLuot): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const turn = await tx.aiTurn.update({
+      where: { id: ts.turnId, state: 'RESERVED' },
+      data: {
+        state: ts.state,
+        settledAt: new Date(),
+        inputTokens: ts.inputTokens ?? 0,
+        outputTokens: ts.outputTokens ?? 0,
+        requestCount: ts.requestCount ?? 0,
+        toolRounds: ts.toolRounds ?? 0,
+        toolNames: ts.toolNames ?? [],
+        category: ts.category ?? null,
+        latencyMs: ts.latencyMs ?? null,
+        timeToFirstTokenMs: ts.timeToFirstTokenMs ?? null,
+        errorCode: ts.errorCode ?? null,
+        handoffProposed: ts.handoffProposed ?? false,
+      },
+      select: { userId: true, feature: true, quotaDay: true },
+    })
+
+    await tx.aiUsageDay.update({
+      where: {
+        userId_day_feature: {
+          userId: turn.userId,
+          day: turn.quotaDay,
+          feature: turn.feature,
+        },
+      },
+      data: { turnsUsed: { increment: 1 } },
+    })
+  })
+}
+
+/**
+ * Hoàn một lượt CHƯA tiêu gì: hết lượt ở tầng nhà cung cấp, mạch ngắt đang mở,
+ * hoặc process tắt trước khi gọi model.
+ *
+ * Cộng vào `turnsRefunded` của `quotaDay` CHÉP TRONG LƯỢT, không phải của hôm
+ * nay. Lượt giữ lúc 23:58 và hoàn lúc 00:03 mà tính theo ngày hiện tại là cộng
+ * vào bucket ngày mai — người dùng tự nhiên có sáu lượt.
+ */
+export async function hoanLuot(
+  prisma: PrismaClient,
+  turnId: string,
+  errorCode: string,
+): Promise<void> {
+  await prisma.$transaction(async (tx) => {
+    const turn = await tx.aiTurn.update({
+      where: { id: turnId, state: 'RESERVED' },
+      data: { state: 'REFUNDED', settledAt: new Date(), errorCode },
+      select: { userId: true, feature: true, quotaDay: true },
+    })
+
+    await tx.aiUsageDay.update({
+      where: {
+        userId_day_feature: {
+          userId: turn.userId,
+          day: turn.quotaDay,
+          feature: turn.feature,
+        },
+      },
+      data: { turnsRefunded: { increment: 1 } },
+    })
+  })
+}

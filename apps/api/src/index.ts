@@ -1,3 +1,17 @@
+/*
+ * Nạp .env ở DÒNG ĐẦU TIÊN của process, trước mọi import khác.
+ *
+ * `config/env.ts` cũng gọi `dotenv/config`, nhưng `packages/ai-runtime` CỐ Ý
+ * không import nó (worker sẽ dùng chung package đó và không được import code
+ * của api) — nó đọc thẳng `process.env` lúc nạp module. Tức thứ tự nạp quyết
+ * định nó thấy hay không thấy giá trị trong .env.
+ *
+ * Hôm nay thứ tự đang đúng nhờ `app.ts` tình cờ import `config/env.js` trước
+ * `routes.js`. Đó là một sự tình cờ, và nó hỏng theo kiểu tệ nhất: đảo hai dòng
+ * import trong app.ts là AI_CHAT_TURNS_PER_DAY trong .env bị bỏ qua, rơi về mặc
+ * định, và KHÔNG có lỗi nào bắn ra. Dòng này khoá lại chuyện đó.
+ */
+import 'dotenv/config'
 import { createServer } from 'node:http'
 import { createApp } from './app.js'
 import { env } from './config/env.js'

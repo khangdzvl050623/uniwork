@@ -1,7 +1,9 @@
 export { aiConfig, CO_KHOA_THAT, ngayVN, ngayPacific, ngayUTC } from './config.js'
 export { modelChat, resetProviderCache } from './provider.js'
 export { kiemTraKetNoi, type KetQuaKiemTra } from './kiem-tra.js'
-export { giuLuot, demLuotConLai, DangBanError } from './quota.js'
+export { chayLuotChat } from './chat.js'
+export type { ThamSoLuotChat, KetQuaLuotChat } from './chat.js'
+export { giuLuot, chotLuot, hoanLuot, demLuotConLai, DangBanError } from './quota.js'
 export type { KetQuaGiuLuot, ClientPrisma } from './quota.js'
 
 /*
@@ -13,4 +15,4 @@ export type { KetQuaGiuLuot, ClientPrisma } from './quota.js'
  * package khai `ai` trong dependencies, nên nâng cấp SDK là sửa một chỗ và
  * `pnpm why ai` chỉ ra đúng một đường.
  */
-export { tool, type Tool, type ToolSet } from 'ai'
+export { tool, type Tool, type ToolSet, type ModelMessage } from 'ai'
