@@ -280,6 +280,51 @@ Ngày kiểm: **2026-09-12**. Ghi cả ngày cập nhật của trang nguồn, v
 > Đây đúng lý do plan bắt chạy spike ngày 1 thay vì tin bảng.
 >
 > Model đang dùng: **`gemini-3.5-flash-lite`**.
+
+**ĐO ĐƯỢC 2026-09-21** — `pnpm --filter @uniwork/api thu-gemini`, khoá thật, một
+lượt không tool:
+
+| | |
+| --- | --- |
+| Độ trễ | **1671 ms** cho 21 token ra |
+| Token | 16 vào / 21 ra |
+| Tỉ lệ tiếng Việt | 49 ký tự → 16 token ≈ **3,1 ký tự/token** |
+
+#### Câu trả lời SAI, và đó là dữ liệu quan trọng nhất của lần đo này
+
+Hỏi *"UniWork là nền tảng gì?"*, model trả:
+
+> *"UniWork là nền tảng quản lý công việc và tối ưu hoá hiệu suất dành cho
+> **doanh nghiệp**."*
+
+Sai hoàn toàn — UniWork là sàn việc part-time cho sinh viên. Model không bịa một
+cách mơ hồ; nó dựng hẳn một sản phẩm B2B hợp lý và phát biểu chắc nịch.
+
+Đây là bằng chứng đo được cho ba quyết định vốn chỉ là lý lẽ:
+
+| Quyết định | Vì sao lần đo này chứng minh nó |
+| --- | --- |
+| Khối `VAI TRÒ` + `PHẠM VI` trong system prompt | Không có nó, model tự định nghĩa sản phẩm |
+| `huongDanSuDung` với enum ĐÓNG, nội dung viết tay | Model sẵn sàng mô tả một giao diện nó chưa từng thấy |
+| `NGUỒN DỮ LIỆU: mọi con số phải đến từ tool` | Nó không hề ngập ngừng khi không có dữ liệu |
+
+#### Chi phí CỐ ĐỊNH mỗi request — đo bằng đếm ký tự, không gọi mạng
+
+| Thành phần | Ký tự | ≈ token |
+| --- | ---: | ---: |
+| System prompt | 2.564 | ~840 |
+| Mô tả 9 tool | 1.378 | ~450 |
+| JSON schema của 9 tool | 2.617 | ~650 |
+| **Tổng** | **6.559** | **~1.900–2.200** |
+
+Câu hỏi của người dùng chỉ 16 token. **Phần cố định lớn gấp hơn 100 lần.** Và nó
+được gửi lại ở MỌI bước, nên một lượt chạm trần `isStepCount(4)` tốn tối thiểu
+**~8.000 token vào**, chưa tính lịch sử 12 tin và kết quả tool.
+
+Hệ quả cho việc tối ưu: cắt mô tả tool và JSON schema có giá trị hơn hẳn cắt lịch
+sử. Nếu cần giảm nữa thì hướng đúng là `prepareStep` thu hẹp `activeTools` sau
+bước đầu — nhưng **đo trước đã**, con số trên là ước lượng từ tỉ lệ ký tự/token,
+chưa phải số Google đếm.
 | `gemini-3.1-pro-preview` | **Không** |
 
 **ĐỌC ĐƯỢC** từ [trang model](https://ai.google.dev/gemini-api/docs/models)

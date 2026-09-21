@@ -712,6 +712,16 @@ là thứ để **thiết kế và theo dõi**, không phải thứ để trả 
 mỗi vòng **gửi lại toàn bộ ngữ cảnh**. Một lượt 3 vòng là ~2k + ~3k + ~4k = **~9k input**,
 không phải 4k.
 
+> **Đo được 2026-09-21, sau khi bước 4–5 xong.** Phần CỐ ĐỊNH mỗi request —
+> system prompt + mô tả 9 tool + JSON schema — là **6.559 ký tự ≈ 1.900–2.200
+> token**, và nó đi kèm mọi bước. Bốn bước là ~8k token vào trước khi cộng lịch
+> sử và kết quả tool. Tức giả định **~9k/lượt ở trên đứng vững**, không phải
+> thấp như lo ban đầu. Chi tiết và cách đo: [00 C.1](00-khao-sat.md).
+>
+> Vẫn CHƯA đo: số token Google thật sự đếm cho một lượt có tool (con số trên suy
+> từ tỉ lệ 3,1 ký tự/token của tiếng Việt), và phân vị 90/99. Xem
+> [09 §"cái gì phải đo"](09-phan-bien.md).
+
 | Việc | Token (đã gồm vòng tool + retry) | Giá mỗi lần |
 | --- | --- | --- |
 | 1 lượt chat, 3 vòng tool (Flash-Lite) | ~9.000 in / ~800 out | 9.000×0,10/10⁶ + 800×0,40/10⁶ = **0,00122 USD** |
