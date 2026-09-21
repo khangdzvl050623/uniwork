@@ -323,8 +323,31 @@ Câu hỏi của người dùng chỉ 16 token. **Phần cố định lớn gấ
 
 Hệ quả cho việc tối ưu: cắt mô tả tool và JSON schema có giá trị hơn hẳn cắt lịch
 sử. Nếu cần giảm nữa thì hướng đúng là `prepareStep` thu hẹp `activeTools` sau
-bước đầu — nhưng **đo trước đã**, con số trên là ước lượng từ tỉ lệ ký tự/token,
-chưa phải số Google đếm.
+bước đầu.
+
+#### Token THẬT của một lượt có tool — `pnpm --filter @uniwork/api thu-tro-ly`
+
+Không còn là ngoại suy. Hai lượt thật, dữ liệu thật trong database dev:
+
+| Câu hỏi | Vòng tool | Token vào | Token ra | Chữ đầu | Tổng |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| "có việc pha chế nào ở Hà Nội không, lương bao nhiêu?" | 1 | **4.395** | 93 | 2.789 ms | 3,2 s |
+| "em rảnh tối T2 T4, có việc nào hợp lịch em không?" | 3 | **9.889** | 158 | 4.297 ms | 5,0 s |
+
+Giả định **~9k token vào cho một lượt 3 vòng** ở [01 §8.4](01-kien-truc-va-ranh-gioi.md)
+trúng gần như chính xác. Chi phí không phải đoán nữa.
+
+Còn thiếu: phân vị 90/99 (hai lượt không phải mẫu), và số của lượt chạm trần 4 vòng.
+
+#### Lỗi tìm ra nhờ chạy thật, không nhờ đọc code
+
+Bản đầu của `chayLuotChat` đọc `textStream` rồi rút tên tool từ `kq.steps` sau khi
+xong. Test xanh, kiểu đúng, và **sai**: chỉ báo "đang tra cứu…" hiện ra SAU câu trả
+lời. Người dùng nhìn màn hình trắng 4,3 giây rồi mới biết hệ thống đang làm gì.
+
+Sửa: đọc `fullStream` và bắt `tool-input-start` — tín hiệu sớm nhất có được. Đây là
+loại lỗi không test đơn vị nào bắt được, vì nó là lỗi về THỨ TỰ THỜI GIAN mà mọi
+khẳng định vẫn đúng.
 | `gemini-3.1-pro-preview` | **Không** |
 
 **ĐỌC ĐƯỢC** từ [trang model](https://ai.google.dev/gemini-api/docs/models)

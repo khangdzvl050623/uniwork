@@ -42,7 +42,6 @@ export interface KetQuaLuotChat {
 export async function chayLuotChat(ts: ThamSoLuotChat): Promise<KetQuaLuotChat> {
   const batDau = Date.now()
   let mocChuDau: number | null = null
-  const daBaoTool = new Set<string>()
 
   const kq = streamText({
     model: modelChat(),
@@ -62,9 +61,24 @@ export async function chayLuotChat(ts: ThamSoLuotChat): Promise<KetQuaLuotChat> 
     stopWhen: isStepCount(aiConfig.maxToolRounds),
   })
 
-  for await (const chu of kq.textStream) {
-    mocChuDau ??= Date.now()
-    ts.onChu(chu)
+  /*
+   * `fullStream`, KHÔNG phải `textStream`.
+   *
+   * Bản đầu đọc `textStream` rồi rút tên tool từ `kq.steps` sau khi xong. Chạy
+   * thử một lượt thật là thấy ngay: chỉ báo "đang tra cứu…" hiện ra SAU câu trả
+   * lời. Đúng thứ tự code, vô dụng với người dùng — họ ngồi nhìn màn hình trắng
+   * gần 3 giây rồi mới biết là hệ thống đang làm gì.
+   *
+   * `tool-input-start` là tín hiệu SỚM NHẤT có được: model vừa bắt đầu phát lời
+   * gọi tool, chưa cần đợi tham số đầy đủ hay đợi tool chạy xong.
+   */
+  for await (const m of kq.fullStream) {
+    if (m.type === 'text-delta') {
+      mocChuDau ??= Date.now()
+      ts.onChu(m.text)
+    } else if (m.type === 'tool-input-start') {
+      ts.onTool?.(m.toolName)
+    }
   }
 
   const [buoc, dung] = await Promise.all([kq.steps, kq.usage])
@@ -73,10 +87,6 @@ export async function chayLuotChat(ts: ThamSoLuotChat): Promise<KetQuaLuotChat> 
   for (const b of buoc) {
     for (const r of b.toolResults) {
       goiTool.push({ ten: r.toolName, ketQua: r.output })
-      if (ts.onTool && !daBaoTool.has(r.toolName)) {
-        daBaoTool.add(r.toolName)
-        ts.onTool(r.toolName)
-      }
     }
   }
 

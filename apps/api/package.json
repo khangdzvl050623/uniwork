@@ -18,7 +18,8 @@
     "db:studio": "prisma studio",
     "db:deploy": "prisma migrate deploy",
     "db:tao-admin": "tsx scripts/tao-admin.ts",
-    "thu-gemini": "tsx scripts/thu-gemini.ts"
+    "thu-gemini": "tsx scripts/thu-gemini.ts",
+    "thu-tro-ly": "tsx scripts/thu-tro-ly.ts"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.0.2",

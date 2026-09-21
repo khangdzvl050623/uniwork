@@ -718,9 +718,12 @@ không phải 4k.
 > sử và kết quả tool. Tức giả định **~9k/lượt ở trên đứng vững**, không phải
 > thấp như lo ban đầu. Chi tiết và cách đo: [00 C.1](00-khao-sat.md).
 >
-> Vẫn CHƯA đo: số token Google thật sự đếm cho một lượt có tool (con số trên suy
-> từ tỉ lệ 3,1 ký tự/token của tiếng Việt), và phân vị 90/99. Xem
-> [09 §"cái gì phải đo"](09-phan-bien.md).
+> **Đo thật cùng ngày, sau khi endpoint chạy được:** một lượt 1 vòng tool =
+> **4.395** token vào; một lượt 3 vòng = **9.889** vào / 158 ra. Con số ~9k ở
+> trên trúng gần như chính xác — bảng B dưới đây dùng được.
+>
+> Vẫn CHƯA đo: phân vị 90/99 (hai lượt không phải mẫu) và lượt chạm trần 4 vòng.
+> Xem [09 §"cái gì phải đo"](09-phan-bien.md).
 
 | Việc | Token (đã gồm vòng tool + retry) | Giá mỗi lần |
 | --- | --- | --- |

@@ -59,8 +59,15 @@ async function dungNhaTuyenDung() {
         salaryMax: 30000,
         scheduleType: 'RECURRING',
         deadline: new Date(Date.now() + 30 * 86_400_000),
-        status: 'OPEN',
-        publishedAt: new Date(),
+        /*
+         * DRAFT, không phải OPEN.
+         *
+         * CHECK `chat_handoff_du_thong_tin` chỉ đòi `jobId` khác null, không
+         * đòi tin đang mở. Để OPEN thì tin giả này nằm lại trong database dev
+         * và hiện lên ở `/viec-lam` — đã xảy ra thật: `thu-tro-ly` chạy lần đầu
+         * và trợ lý gợi ý "Quán Thử Nghiệm" cho người dùng.
+         */
+        status: 'DRAFT',
       },
       select: { id: true },
     }))
