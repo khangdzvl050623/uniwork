@@ -51,7 +51,7 @@ export default defineConfig({
        * Hệ quả: KHÔNG ca test nào gọi mạng thật tới Gemini.
        */
       GOOGLE_GENERATIVE_AI_API_KEY: '',
-      AI_CHAT_MODEL: 'gemini-2.5-flash-lite',
+      AI_CHAT_MODEL: 'gemini-3.5-flash-lite',
       AI_CHAT_TURNS_PER_DAY: '5',
     },
   },

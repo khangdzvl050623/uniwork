@@ -27,7 +27,7 @@ export const aiConfig = {
    * mất, còn đăng nhập / tìm việc / ứng tuyển vẫn chạy nguyên vẹn.
    */
   googleApiKey: chuoi('GOOGLE_GENERATIVE_AI_API_KEY', ''),
-  chatModel: chuoi('AI_CHAT_MODEL', 'gemini-2.5-flash-lite'),
+  chatModel: chuoi('AI_CHAT_MODEL', 'gemini-3.5-flash-lite'),
 
   /* ------------------------------------------------- giới hạn mỗi lượt ---- */
   maxOutputTokens: so('AI_MAX_OUTPUT_TOKENS', 1024),

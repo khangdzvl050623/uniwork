@@ -517,7 +517,7 @@ mặc định rỗng** (thiếu thì chỉ tắt tính năng).
 GOOGLE_GENERATIVE_AI_API_KEY: z.string().default(''),
 
 /* Model dùng cho chat. Đổi được mà không sửa code — xem plan 08 mục "paid/scale". */
-AI_CHAT_MODEL: z.string().default('gemini-2.5-flash-lite'),
+AI_CHAT_MODEL: z.string().default('gemini-3.5-flash-lite'),
 /* Model dùng cho đọc CV. Tách khỏi chat vì hai việc cần năng lực khác nhau. */
 AI_SCAN_MODEL: z.string().default('gemini-2.5-flash'),
 
@@ -665,7 +665,7 @@ hay không, và nó nằm trong database chứ không nằm trong bộ nhớ c�
 
 | Đổi gì | Từ | Sang | Biến |
 | --- | --- | --- | --- |
-| Model chat | `gemini-2.5-flash-lite` | model mạnh hơn | `AI_CHAT_MODEL` |
+| Model chat | `gemini-3.5-flash-lite` | model mạnh hơn | `AI_CHAT_MODEL` |
 | Model scan | `gemini-2.5-flash` | model mạnh hơn | `AI_SCAN_MODEL` |
 | Lượt/ngày | 5 chat, 3 scan | tuỳ gói | `AI_CHAT_TURNS_PER_DAY`, `AI_SCAN_JOBS_PER_DAY` |
 | Trần project | 400 req/ngày | theo ngân sách tiền | `AI_PROJECT_REQUESTS_PER_DAY` |

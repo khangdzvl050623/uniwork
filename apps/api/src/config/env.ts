@@ -204,7 +204,7 @@ const schema = z.object({
   GOOGLE_GENERATIVE_AI_API_KEY: z.string().default(''),
 
   /* Đổi model mà không sửa code. Xem plans/ai/thiet-ke.md mục 8. */
-  AI_CHAT_MODEL: z.string().default('gemini-2.5-flash-lite'),
+  AI_CHAT_MODEL: z.string().default('gemini-3.5-flash-lite'),
 
   /* Lượt hỏi mỗi tài khoản mỗi ngày, reset lúc 00:00 giờ Việt Nam. */
   AI_CHAT_TURNS_PER_DAY: z.coerce.number().int().min(0).default(5),

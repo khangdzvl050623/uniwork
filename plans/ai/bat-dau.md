@@ -120,7 +120,7 @@ Nếu đã có kết quả đo từ lúc planning, kiểm tra chúng rồi dùng
 ### 4.1. Gemini — cho chat
 
 1. Mở [hạn mức trong AI Studio](https://aistudio.google.com/rate-limit), chọn đúng project dùng cho UniWork.
-2. Kiểm tra model dự kiến trong thiết kế là `gemini-2.5-flash-lite` có dùng được trên project không.
+2. Kiểm tra model dự kiến trong thiết kế là `gemini-3.5-flash-lite` có dùng được trên project không.
 3. Ghi RPM (request/phút), TPM (token/phút), RPD (request/ngày), model và ngày đo vào `docs/gemini-quota-YYYY-MM-DD.md`, kèm ảnh đã che thông tin bí mật.
 
 `AI_PROJECT_REQUESTS_PER_DAY=400` trong plan là cấu hình dự kiến, không phải hạn mức đã đo của tài khoản bạn. Hạn mức thực tế xem theo project trong AI Studio. [Tài liệu Google](https://ai.google.dev/gemini-api/docs/rate-limits).

@@ -18,6 +18,7 @@
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.69",
+    "@prisma/client": "^6.19.3",
     "ai": "^7.0.99",
     "zod": "^4.4.3"
   }

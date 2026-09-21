@@ -202,6 +202,9 @@ importers:
       '@ai-sdk/google':
         specifier: ^4.0.69
         version: 4.0.76(zod@4.4.3)
+      '@prisma/client':
+        specifier: ^6.19.3
+        version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
       ai:
         specifier: ^7.0.99
         version: 7.0.107(zod@4.4.3)

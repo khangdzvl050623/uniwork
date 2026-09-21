@@ -167,7 +167,9 @@ model User {
   refreshTokens  RefreshToken[]
   oneTimeTokens  OneTimeToken[]
   linkedAccounts UserAccount[]
-  notifications Notification[]
+  notifications  Notification[]
+  aiUsageDays    AiUsageDay[]
+  aiTurns        AiTurn[]
 
   @@map("users")
 }
@@ -182,13 +184,13 @@ model Notification {
   id String @id @default(cuid())
 
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  type    NotificationType
-  title   String
-  body    String
-  link    String?
-  readAt  DateTime?
+  type   NotificationType
+  title  String
+  body   String
+  link   String?
+  readAt DateTime?
 
   createdAt DateTime @default(now())
 
@@ -773,4 +775,131 @@ model SavedJob {
   @@id([studentProfileId, jobId])
   @@index([jobId])
   @@map("saved_jobs")
+}
+
+// ---------------------------------------------------------------------------
+// Hạn mức AI
+//
+// HAI bảng chứ không một, vì chúng có vòng đời khác hẳn nhau:
+//
+//   AiUsageDay — sổ cái LƯỢT của người dùng, theo ngày. Sống cả ngày.
+//   AiTurn     — MỘT LẦN gọi model. Sống vài giây tới 90 giây.
+//
+// Với chat thì một lượt = một lần gọi nên hai thứ trùng thời gian. Với scan CV
+// thì một lượt có thể kéo dài hàng giờ (chờ hạn mức, retry) và sinh ra nhiều
+// AiTurn. Gộp làm một bảng là lúc job scan chờ lâu sẽ bị dọn nhầm.
+// ---------------------------------------------------------------------------
+
+enum AiFeature {
+  CHAT
+  CV_SCAN
+}
+
+enum AiTurnState {
+  /// Đã giữ chỗ, chưa biết kết quả. Mỗi tài khoản chỉ được có MỘT hàng như vậy.
+  RESERVED
+  SUCCEEDED
+  /// Hỏng vì phía ta (mạng, 5xx, timeout, deploy).
+  FAILED
+  /// Đã hoàn lượt. Tách khỏi FAILED để đếm được "đã hoàn bao nhiêu".
+  REFUNDED
+}
+
+/// Sổ cái lượt AI theo NGÀY, theo TÀI KHOẢN, theo TÍNH NĂNG.
+///
+/// BA cột đếm chứ không một, vì chúng trả lời ba câu hỏi khác nhau:
+///   turnsReserved — đã xin bao nhiêu lượt, KỂ CẢ lượt đang chạy
+///   turnsUsed     — bao nhiêu lượt đã kết thúc
+///   turnsRefunded — bao nhiêu lượt trả lại vì hệ thống hỏng
+///
+/// Số lượt CÒN LẠI = limit - (turnsReserved - turnsRefunded).
+///
+/// Dùng `turnsReserved` chứ không `turnsUsed` trong công thức đó là có chủ đích:
+/// lượt đang chạy phải bị trừ NGAY, không thì mở 5 tab bấm cùng lúc sẽ qua mặt
+/// được hạn mức — cả 5 đều thấy "còn 5 lượt" trước khi cái nào kịp kết thúc.
+model AiUsageDay {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Ngày theo GIỜ VIỆT NAM, kiểu `date` thuần chứ không phải timestamp.
+  ///
+  /// "Hôm nay" của người dùng là ngày ở Việt Nam, còn server chạy UTC. Reset lúc
+  /// 00:00 UTC là reset lúc 7 giờ sáng giờ VN — người hết lượt lúc 22h tối sẽ
+  /// thấy nó không reset lúc nửa đêm như mọi ứng dụng khác, và không ai đoán ra
+  /// vì sao. Dùng `ngayVN()` của @uniwork/ai-runtime để tính cột này.
+  day DateTime @db.Date
+
+  feature AiFeature
+
+  turnsReserved Int @default(0)
+  turnsUsed     Int @default(0)
+  turnsRefunded Int @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  /// Khoá của phép cộng nguyên tử `INSERT ... ON CONFLICT ... DO UPDATE`.
+  /// Thiếu nó thì không có gì để ON CONFLICT bám vào.
+  @@unique([userId, day, feature])
+  @@map("ai_usage_days")
+}
+
+/// Một LẦN GỌI MODEL. Nhiều hàng cho một lượt nếu có retry hoặc nhiều vòng tool.
+model AiTurn {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  feature AiFeature
+  state   AiTurnState @default(RESERVED)
+
+  /// Process nào đang chạy lượt này.
+  ///
+  /// Lúc tắt server có trật tự, chỉ được huỷ lượt của CHÍNH process mình — API
+  /// deploy lại không được hoàn lượt mà worker đang chạy dở.
+  runnerId String
+
+  /// Ngày VN lúc GIỮ CHỖ, chép từ AiUsageDay.day.
+  ///
+  /// Phải lưu lại vì lượt có thể kết thúc sang ngày hôm sau: giữ lúc 23:58, hoàn
+  /// lúc 00:03 mà tính theo `ngayVN(now())` là cộng turnsRefunded vào bucket
+  /// NGÀY MAI — người dùng tự nhiên có 6 lượt.
+  quotaDay DateTime @db.Date
+
+  /// Chat thì có sessionId; scan CV thì có extractionId. Không bao giờ cả hai.
+  sessionId    String?
+  extractionId String?
+
+  /// Nhóm câu hỏi, suy từ dấu vết tool sau khi chạy xong. Chỉ để đo, KHÔNG dùng
+  /// điều khiển luồng. 'UNKNOWN' khi không đủ tín hiệu — không đoán bừa.
+  category String?
+
+  /// Số lời gọi HTTP thật tới nhà cung cấp, kể cả SDK tự thử lại.
+  requestCount Int      @default(0)
+  toolRounds   Int      @default(0)
+  toolNames    String[] @default([])
+
+  inputTokens  Int @default(0)
+  outputTokens Int @default(0)
+
+  modelId       String
+  promptVersion String
+
+  latencyMs          Int?
+  timeToFirstTokenMs Int?
+  errorCode          String?
+
+  handoffProposed Boolean @default(false)
+
+  reservedAt DateTime  @default(now())
+  settledAt  DateTime?
+
+  @@index([userId, reservedAt])
+  @@index([feature, reservedAt])
+  /// Luật "mỗi tài khoản chỉ MỘT lượt đang chạy" là một chỉ mục UNIQUE MỘT PHẦN
+  ///   CREATE UNIQUE INDEX ... ON ai_turns ("userId") WHERE state = 'RESERVED'
+  /// Prisma không khai được partial index, nên nó nằm trong migration viết tay.
+  @@map("ai_turns")
 }

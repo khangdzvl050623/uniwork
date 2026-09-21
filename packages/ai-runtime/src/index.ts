@@ -1,3 +1,5 @@
 export { aiConfig, CO_KHOA_THAT, ngayVN, ngayPacific, ngayUTC } from './config.js'
 export { modelChat, resetProviderCache } from './provider.js'
 export { kiemTraKetNoi, type KetQuaKiemTra } from './kiem-tra.js'
+export { giuLuot, demLuotConLai, DangBanError } from './quota.js'
+export type { KetQuaGiuLuot, ClientPrisma } from './quota.js'

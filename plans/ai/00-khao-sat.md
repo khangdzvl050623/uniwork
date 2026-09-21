@@ -272,6 +272,14 @@ Ngày kiểm: **2026-09-12**. Ghi cả ngày cập nhật của trang nguồn, v
 | `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash` | Có |
 | `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite` | Có |
 | `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.5-pro` | Có |
+
+> **Sửa 2026-09-21 — đo thật, không đọc tài liệu.** Gọi `gemini-2.5-flash-lite` bằng
+> khoá thật thì Google trả: *"This model models/gemini-2.5-flash-lite is **no longer**
+> **available to new users**. Please update your code to use models/gemini-3.5-flash-lite"*.
+> Bảng giá vẫn liệt kê nó là có free tier, nhưng **tài khoản mới không dùng được**.
+> Đây đúng lý do plan bắt chạy spike ngày 1 thay vì tin bảng.
+>
+> Model đang dùng: **`gemini-3.5-flash-lite`**.
 | `gemini-3.1-pro-preview` | **Không** |
 
 **ĐỌC ĐƯỢC** từ [trang model](https://ai.google.dev/gemini-api/docs/models)
