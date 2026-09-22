@@ -1,6 +1,8 @@
 # Guide bắt đầu — Trợ lý AI + Scan CV + RabbitMQ
 
-Guide này đưa bạn từ **planning đã xong** đến **PR đầu tiên**, rồi tới hai luồng chạy được từ đầu đến cuối. Các lệnh chạy ở thư mục gốc repo bằng PowerShell. Đối chiếu repo ngày 2026-09-15.
+Guide này đưa hai người từ **chỗ đang đứng** tới **hai luồng chạy được từ đầu đến cuối**. Các lệnh chạy ở thư mục gốc repo bằng PowerShell.
+
+**Đối chiếu repo ngày 2026-09-22, nhánh `feature/ai-tro-ly`, 8 commit.** Trợ lý AI đã trả lời được bằng dữ liệu thật; Scan CV và RabbitMQ chưa bắt đầu. Xem [§5](#5-đã-xong--trợ-lý-ai-chạy-được-đầu-cuối) trước khi đọc phần chia việc.
 
 ## 1. Hiểu đúng thứ mình sắp xây
 
@@ -35,22 +37,28 @@ Nguồn quyết định: [thiet-ke.md](thiet-ke.md). Khi cần lý do, mở tài
 
 ## 2. Repo đang có gì, chưa có gì?
 
-| Đã có và dùng được | Cần triển khai |
+| Đã có và chạy được | Chưa có |
 | --- | --- |
-| `apps/api`, `apps/web` | `apps/worker` |
-| `packages/shared`, `packages/config` | `packages/contracts`, `packages/messaging`, `packages/ai-runtime` |
-| Docker Compose: PostgreSQL, Redis tùy chọn | RabbitMQ dưới profile `mq` |
-| Auth, hồ sơ, việc làm, ứng tuyển, upload CV hiện tại | Chat, scan CV, quota AI, outbox, realtime |
-| `pnpm dev:local`, `test:db`, Prisma migrations | Script `mq:up`, cấu hình khởi động worker |
-| Script thử `spike/thu-workers-ai.mjs` | Pipeline scan sản phẩm và bộ kiểm chất lượng |
+| `apps/api`, `apps/web`, `packages/shared`, `packages/config` | `apps/worker` |
+| **`packages/ai-runtime`** — provider, quota, `chayLuotChat` | `packages/contracts`, `packages/messaging` |
+| **Bảng AI + chat**, 4 CHECK, 1 chỉ mục unique một phần | Bảng `cv_extractions`, `outbox_messages`, `processed_messages`, `user_presence` |
+| **Trợ lý AI chạy thật**: 9 tool, SSE, Socket.IO | Máy trạng thái handoff — hiện **chưa ai chuyển được phiên sang NTD** |
+| Auth, hồ sơ, việc làm, ứng tuyển, upload CV | Toàn bộ Scan CV |
+| Docker Compose: PostgreSQL, Redis tuỳ chọn | RabbitMQ dưới profile `mq` |
+| `pnpm dev:local`, `test:db`, Prisma migrations | Script `mq:up`, khởi động worker |
+| `thu-gemini`, `thu-tro-ly` — đã đo provider và một lượt thật | `spike/thu-workers-ai.mjs` **chưa ai chạy với CV thật** |
+| | **Giao diện chat ở `apps/web` — chưa có một dòng nào** |
 
-**Vì thế, hiện chưa chạy được `pnpm mq:up` hoặc `pnpm --filter @uniwork/worker start`.** Guide sẽ ghi rõ lúc nào những lệnh này dùng được.
+Hai dòng cuối là hai chỗ dễ tưởng đã xong nhất. Backend chat trả lời được qua script và qua test, nhưng **chưa người dùng nào gõ được câu nào trên trình duyệt**.
+
+**Vì thế, hiện chưa chạy được `pnpm mq:up` hoặc `pnpm --filter @uniwork/worker start`.** Guide ghi rõ ở [§6](#6-chia-việc-cho-hai-người) lúc nào những lệnh này dùng được.
 
 ### Các chỗ tài liệu cũ dễ làm bạn đi nhầm
 
 - README gốc vẫn nói chưa dùng RabbitMQ và có `EmailQueue`; bộ tài liệu AI đã chỉ ra phần này cần cập nhật khi triển khai.
 - Một số dòng trong `07-lo-trinh-14-ngay.md` vẫn ghi scan bằng Gemini, `thu-schema.ts`, queue `retry.1/.2/.3`. Dùng quyết định mới: **Cloudflare cho scan, script `thu-workers-ai.mjs`, retry bằng outbox có `nextTryAt`**.
 - Ba đường CV A/B/C đã được chốt. Spike dùng để kiểm khả năng model và chất lượng, không tự thay đổi kiến trúc chỉ vì một file thử thành công.
+- **Thứ tự PR trong `07-lo-trinh-14-ngay.md` đã cũ.** Nó viết cho một người và cho lúc chưa có gì. Dùng [§6](#6-chia-việc-cho-hai-người).
 - RabbitMQ có thể giao lại message. Mục tiêu là **xử lý việc giao trùng an toàn** bằng deduplication và cập nhật có điều kiện; không cam kết model chỉ bị gọi đúng một lần trong mọi tình huống crash.
 
 ## 3. Buổi đầu: chuẩn bị và chạy lại app hiện có
@@ -61,11 +69,14 @@ Kiểm tra `git status` trước. Nếu đang có thay đổi, commit hoặc c�
 
 ```powershell
 git status
-git fetch origin
-git switch --no-track -c feature/ai-foundation origin/dev
+git checkout dev
+git pull --ff-only origin dev
+git checkout -b feature/chat-handoff      # A1 — hoặc feature/messaging-nen cho B1
 ```
 
-`--no-track` tránh để nhánh mới theo dõi nhầm `origin/dev`. Lần push đầu sẽ chỉ rõ nhánh đích.
+**Đừng bỏ bước `pull`.** Nhánh `dev` bật *Require branches to be up to date*, nên tách từ bản local cũ là nhánh **sinh ra đã out-of-date** trước khi viết dòng nào. Đo thật 2026-09-15: local `dev` cũ 13 tiếng, `origin/dev` đã hơn 6 commit.
+
+`--ff-only` là chốt an toàn: local `dev` lỡ có commit riêng thì nó **báo lỗi thay vì merge ngầm**. Quy trình đầy đủ ở `README.md` §9.3.
 
 ### 3.2. Kiểm tra môi trường
 
@@ -117,17 +128,29 @@ pnpm dev:local
 
 Nếu đã có kết quả đo từ lúc planning, kiểm tra chúng rồi dùng lại; không cần đo lại chỉ để hoàn thành checklist.
 
-### 4.1. Gemini — cho chat
+### 4.1. Gemini — cho chat · ĐÃ ĐO XONG
 
-1. Mở [hạn mức trong AI Studio](https://aistudio.google.com/rate-limit), chọn đúng project dùng cho UniWork.
-2. Kiểm tra model dự kiến trong thiết kế là `gemini-3.5-flash-lite` có dùng được trên project không.
-3. Ghi RPM (request/phút), TPM (token/phút), RPD (request/ngày), model và ngày đo vào `docs/gemini-quota-YYYY-MM-DD.md`, kèm ảnh đã che thông tin bí mật.
+```powershell
+pnpm --filter @uniwork/api thu-gemini      # kiểm khoá và model
+pnpm --filter @uniwork/api thu-tro-ly      # chạy MỘT lượt thật, có tool, có database
+```
+
+Kết quả 2026-09-21, ghi đầy đủ ở [00 C.1](00-khao-sat.md):
+
+| | |
+| --- | --- |
+| Model dùng được | **`gemini-3.5-flash-lite`** — `gemini-2.5-flash-lite` bị Google chặn với tài khoản mới, dù bảng giá vẫn liệt kê |
+| Một lượt 1 vòng tool | 4.395 token vào / 93 ra · chữ đầu 2,8 s |
+| Một lượt 3 vòng tool | **9.889** token vào / 158 ra · chữ đầu 4,3 s |
+| Phần cố định mỗi request | 6.559 ký tự ≈ 2.000 token — gửi lại ở **mọi** bước |
+
+**Còn phải đo:** RPM/TPM/RPD của chính project — mở [AI Studio](https://aistudio.google.com/rate-limit), ghi vào `docs/gemini-quota-YYYY-MM-DD.md` kèm ảnh đã che thông tin bí mật.
 
 `AI_PROJECT_REQUESTS_PER_DAY=400` trong plan là cấu hình dự kiến, không phải hạn mức đã đo của tài khoản bạn. Hạn mức thực tế xem theo project trong AI Studio. [Tài liệu Google](https://ai.google.dev/gemini-api/docs/rate-limits).
 
-Một lượt chat có thể gọi model nhiều lần do vòng tool, nên không quy đổi 400 request thành 400 câu hỏi.
+Một lượt chat gọi model **một lần cho mỗi bước**, và số đo ở trên cho thấy 3 vòng tool là chuyện bình thường. Không quy đổi 400 request thành 400 câu hỏi.
 
-### 4.2. Cloudflare — cho scan CV
+### 4.2. Cloudflare — cho scan CV · CHƯA AI CHẠY
 
 Chuẩn bị Account ID và API token theo [hướng dẫn Workers AI REST API](https://developers.cloudflare.com/workers-ai/get-started/rest-api/). Script hiện đọc đúng hai biến:
 
@@ -158,51 +181,98 @@ Hai thư mục `spike/cv/` và `spike/ket-qua/` đã được gitignore. Kết q
 
 **Đạt khi:** có báo cáo ghi model, mẫu thử, thời gian, lỗi, độ đúng và usage nếu có. HTTP 200 hoặc `JSON.parse` thành công chưa chứng minh kết quả đủ schema hay đúng nội dung. Script cũng chưa kiểm đầy đủ đường A gồm Markdown → text model → kết quả sản phẩm.
 
-## 5. PR đầu tiên: dựng nền để hai phần cùng dùng
+## 5. Đã xong — trợ lý AI chạy được đầu cuối
 
-**Nhánh:** `feature/ai-foundation`.
+Tám commit trên `feature/ai-tro-ly`, tách từ `dev`. Mỗi commit qua đủ lint / typecheck / test trước khi tạo.
 
-### Việc cần làm
+| # | Commit | Thêm gì |
+| --- | --- | --- |
+| 1 | `d112353` | `packages/ai-runtime`: cấu hình, provider Gemini, ba hàm ngày (`ngayVN` cho quota người dùng, `ngayPacific` cho RPD của Google, `ngayUTC` cho Cloudflare) |
+| 2 | `c79b84f` | `ai_usage_days` + `ai_turns`; `giuLuot` bằng **một** câu `INSERT … ON CONFLICT … DO UPDATE WHERE`; chỉ mục unique **một phần** `ai_turns_mot_luot_dang_chay` |
+| 3 | `53955bd` | `chat_sessions` + `chat_messages`; **4 CHECK viết tay** tách vai "chủ phiên" khỏi "NTD nhận handoff" |
+| 4 | `9fa9926` | 9 tool sinh viên; `luoc-pii.ts` với **danh sách CHO PHÉP**; `gon-lai.ts` thu một tin từ ~700 xuống ~60 token; 13 chủ đề hướng dẫn viết tay |
+| 5 | `9a0d20e` | SSE `POST /api/tro-ly/hoi`; ba việc trong **một** transaction; ghi trả lời **có điều kiện**; `chotLuot` / `hoanLuot` |
+| — | `42327f8` | Số đo thật từ `thu-gemini`, và chi phí cố định mỗi request |
+| — | `387642f` | Sửa lỗi chỉ chạy thật mới lộ: sự kiện "đang tra cứu" bắn **sau** câu trả lời |
+| 6 | `78b89bc` | Socket.IO; `quyenTruyCapPhien()` dùng chung REST + socket; cursor đục; `guiTinNhan()` |
 
-1. Tạo ba package, mỗi package có `package.json`, TypeScript config, exports và các script kiểm tra phù hợp với repo:
-   - `@uniwork/contracts`: envelope có version, event CV/chat/realtime, schema kết quả.
-   - `@uniwork/messaging`: điểm vào cho connection, publisher, outbox, consumer.
-   - `@uniwork/ai-runtime`: cấu hình provider, quota, circuit, telemetry dùng chung.
-2. Tạo `@uniwork/worker` với hai file:
-   - `worker.ts`: export `startDocumentWorker`, không tự khởi động khi import.
-   - `main.ts`: entrypoint khởi động và xử lý shutdown.
-3. Thêm dependency `workspace:*`, cấu hình ESLint chặn worker import `apps/api`.
-4. Giữ Prisma schema ở `apps/api/prisma/schema.prisma`; API và worker cấp Prisma client cho package dùng chung. Không copy client/config từ API sang worker.
-5. Bổ sung cấu hình theo `thiet-ke.md §8`, `.env.example` và env test. Thiếu khóa AI thì app thường vẫn khởi động được. Local dùng `WORKER_INLINE=false`.
-6. Kiểm tra cách đọc env của worker khi chạy từ workspace riêng; API có `.env` không có nghĩa worker tự nhận được nó.
-7. Cập nhật lockfile và kiểm tra cấu hình Turbo: hiện root `dev` có `--concurrency=3`; nếu thêm tác vụ watch ở package, phải bố trí đủ slot cho mọi task chạy lâu.
+### Đang chạy được
 
-Chi tiết contract và ranh giới: [01 — kiến trúc](01-kien-truc-va-ranh-gioi.md).
+| Đường | Kiểu |
+| --- | --- |
+| `POST /api/hoi-thoai` · `GET`/`POST /api/hoi-thoai/:id/tin-nhan` | REST |
+| `POST /api/tro-ly/hoi` (SSE) · `GET /api/tro-ly/luot-con-lai` | REST |
+| `hoi-thoai:vao` · `:ra` · `:gui` · `:tai-bu` · `:dang-go` | Socket.IO — đều có ACK trừ `dang-go` |
 
-### Điều kiện hoàn thành PR
+**516 test làn thường · 88 test làn database.** Chạy `pnpm test` và `pnpm --filter @uniwork/api test:db`.
 
-- [ ] API/web cũ vẫn chạy khi chưa cấu hình AI và RabbitMQ.
-- [ ] Các package resolve được qua tên `@uniwork/...`.
-- [ ] Worker typecheck được mà không import API.
-- [ ] Import `worker.ts` không tự mở connection hoặc đăng ký consumer.
-- [ ] Lint, typecheck, test hiện có và build qua.
+### Bảy luật đã cưỡng chế bằng code — đừng phá
 
-Đây là PR dựng cấu trúc; chưa phải bằng chứng pipeline scan đã chạy. Consumer thật được kiểm ở bước messaging.
+1. **Chỉ `packages/ai-runtime` được import `ai`.** `apps/api` dùng `tool` xuất lại từ đó. Nâng cấp SDK là sửa một chỗ.
+2. **`userId` nằm trong closure**, không có trong `inputSchema` của bất kỳ tool nào. Model không *diễn đạt được* yêu cầu dữ liệu của người khác.
+3. **`raSoat()` là cổng ra duy nhất của DTO gửi model.** Khoá lạ ⇒ ném `LoLotPII` (lỗi người viết code). Chuỗi chứa sđt/email ⇒ che (dữ liệu thật hợp lệ).
+4. **Tool gọi service, không gọi Prisma.** Tầng kiểm quyền đã có sẵn và đã được test.
+5. **Không tool nào ghi.** Injection thành công nhất cũng chỉ khiến model *nói* sai một câu.
+6. **Kiểm xong hết rồi mới mở kênh SSE.** Sau khi header đi, HTTP status đóng băng ở 200 vĩnh viễn.
+7. **Hai phòng socket, không phải một.** Phòng chung nghĩa là NTD nhận realtime từng câu sinh viên nói riêng với trợ lý.
 
-## 6. Các PR tiếp theo — đi theo phụ thuộc
+### Chưa làm, cố ý
 
-| Thứ tự | Nhánh gợi ý | Đầu ra cụ thể | Chứng minh đã xong |
+Handoff · giao diện web · 3 tool NTD · `UserPresence` · circuit breaker · bộ 40 câu đánh giá. Toàn bộ nằm trong phần chia việc dưới đây.
+
+## 6. Chia việc cho hai người
+
+Nền dùng chung đã xong, nên hai làn dưới đây **song song thật**: A không đợi RabbitMQ, B không đợi handoff. Mỗi PR tách từ `origin/dev` đã chứa phụ thuộc của nó.
+
+### Người A — đi nốt phần chat
+
+| # | Nhánh | Đầu ra | Chứng minh đã xong |
 | --- | --- | --- | --- |
-| 2 | `feature/ai-quota` | Migration các bảng AI, giữ/chốt/hoàn lượt, giới hạn provider, circuit | Ca tranh chấp quota chạy trên Postgres thật; chat và scan có quy tắc chốt riêng |
-| 3 | `feature/messaging-outbox` | RabbitMQ local, topology, publisher, outbox relay, consumer, retry và parked message | Rollback không tạo message; broker ngắt không mất outbox; giao trùng không ghi kết quả trùng |
-| 4 | `feature/cv-scan-pipeline` | Upload, kiểm file, `cv_extractions`, worker Cloudflare, GET kết quả | Một CV đi `QUEUED → PROCESSING → NEEDS_REVIEW`; API trả `202` trước khi model hoàn tất |
-| 5 | `feature/cv-scan-review` | Đối chiếu, ánh xạ kỹ năng, xác nhận bằng transaction và `revision` | Chỉ trường người dùng chọn được lưu; kỹ năng cũ còn nguyên; request dùng revision cũ bị từ chối |
-| 6 | `feature/ai-chat` | Session, tool nghiệp vụ, DTO lược dữ liệu cá nhân, SSE | Hỏi việc làm → tool lấy tin thật → câu trả lời có căn cứ; model không nhận trường liên hệ |
-| 7 | `feature/chat-handoff` | Socket.IO, quyền phòng, tải bù bằng cursor, chuyển NTD | Chuyển người thật thành công; NTD không đọc được phần chat AI riêng tư; mất socket vẫn tải lại được |
+| A1 | `feature/chat-handoff` | Năm chuyển đổi: `chuyen-ntd` · `huy-cho` · `tiep-nhan` · `quay-lai-ai` · `ket-thuc`. `handoffEmployerProfileId` đóng băng ở lần chuyển đầu; `employerVisibleFromSeq` chỉ đặt khi đang `null`; huỷ lượt AI đang chạy nếu bấm chuyển giữa chừng | Chuyển xong thì `duocGui` bật cho cả hai bên; NTD **không** đọc được phần chat AI riêng tư; đổi trạng thái giữa lúc model đang viết thì câu trả lời bị **bỏ**, lượt vẫn `SUCCEEDED` |
+| A2 | `feature/chat-web` | Giao diện: đọc SSE, nối Socket.IO, giữ cursor, gửi lại theo `clientMessageId`, nút "nhắn nhà tuyển dụng" | Gõ câu hỏi trên trình duyệt và thấy chữ chảy ra; rút mạng 5 giây rồi cắm lại — **không mất và không nhân đôi** tin nào |
+| A3 | `feature/chat-ntd` | 3 tool vai NTD (`xemTinCuaToi`, `xemChiTietTinCuaToi`, `xemUngVien`) + prompt vai NTD; `hoTenVietTat` cho danh sách ứng viên | Ca canh PII chạy trên **cả** bộ tool NTD và vẫn xanh: không sđt, không email, không họ tên đầy đủ |
+| A4 | `feature/chat-do-luong` | Bộ 40 câu nhãn tay, chấm hai trục (hành vi / có căn cứ); circuit breaker | Công bố số ca từng nhóm; trục "có căn cứ" phải **100 %** — một câu bịa lương là chặn phát hành |
 
-Đây là thứ tự triển khai đề xuất cho một người. Sau nền, quota và messaging có thể do hai người làm riêng khi đã thống nhất contracts và migration. Từng PR sau bắt đầu từ `origin/dev` đã chứa dependency của nó.
+### Người B — hạ tầng message và Scan CV
 
-Hai tuần là mốc theo dõi trong plan; dùng điều kiện hoàn thành để quyết định chuyển bước, không dùng số ngày để bỏ qua kiểm tra.
+| # | Nhánh | Đầu ra | Chứng minh đã xong |
+| --- | --- | --- | --- |
+| B1 | `feature/messaging-nen` | `packages/contracts` (envelope có version) + `packages/messaging` (connection, publisher, consumer); RabbitMQ dưới profile `mq`; script `mq:up` | `pnpm mq:up` lên được; tab **Consumers** của queue thấy consumer đã đăng ký — chỉ có connection là chưa đủ |
+| B2 | `feature/messaging-outbox` | `outbox_messages` + relay + `processed_messages`; publisher chờ confirm và xử lý `return`; retry bằng `nextTryAt` | Rollback **không** tạo message; tắt broker giữa chừng **không** mất outbox; giao trùng **không** ghi kết quả trùng |
+| B3 | `feature/worker` | `apps/worker`: `worker.ts` xuất `startDocumentWorker` (import không tự chạy), `main.ts` là entrypoint; ESLint chặn worker import `apps/api` | Worker typecheck mà không import API; import `worker.ts` không tự mở connection |
+| B4 | `feature/cv-scan-pipeline` | Upload, kiểm file, `cv_extractions`, handler Cloudflare, GET kết quả | Một CV đi `QUEUED → PROCESSING → NEEDS_REVIEW`; API trả **202** trước khi model xong |
+| B5 | `feature/cv-scan-review` | Đối chiếu, ánh xạ kỹ năng, xác nhận bằng transaction và `revision` | Chỉ trường người dùng chọn được lưu; kỹ năng cũ còn nguyên; request dùng `revision` cũ bị **từ chối** |
+
+**Việc đầu tiên của B, trước cả B1:** chạy `spike/thu-workers-ai.mjs` với CV thật (xem §4.2). Nó quyết định đường trích xuất PDF. Làm sai thứ tự là xây cả pipeline cho một model có thể không đọc nổi CV.
+
+### Bốn điểm chạm — thống nhất trước khi code
+
+**1. `schema.prisma` và migration.** Cả hai đều thêm bảng. Luật: `git pull origin dev` **ngay trước** khi chạy `prisma migrate dev`, và **không bao giờ sửa migration đã push**. Người merge sau tạo migration mới, không sửa file cũ.
+
+> **Tuyệt đối không `prisma db push`.** Bốn CHECK và chỉ mục unique một phần **không có trong `schema.prisma`** — Prisma không khai được chúng. `db push` dựng ra một database **không có ràng buộc nào** và không báo gì cả.
+
+**2. Chỉ mục `ai_turns_mot_luot_dang_chay` đang khoá theo `userId`, KHÔNG theo `(userId, feature)`.**
+
+```sql
+CREATE UNIQUE INDEX "ai_turns_mot_luot_dang_chay"
+  ON "ai_turns" ("userId") WHERE state = 'RESERVED';
+```
+
+Hôm nay vô hại vì mới có mỗi chat. Khi B nối Scan CV vào, một người đang quét CV — lượt chạy trong worker hàng chục giây — sẽ **không hỏi được trợ lý**, và nhận `409 AI_BUSY` mà không hiểu vì sao.
+
+Đây là quyết định cần chốt, không phải bug ai đó tự sửa: đổi sang `(userId, feature)` thì mất luật "một lượt AI mỗi tài khoản"; giữ nguyên thì hai tính năng chặn nhau. **B chốt trước khi bắt đầu B4.**
+
+**3. Bộ phát realtime.** `chat.service` gọi `phatToiPhong()` và không import socket.io. Hôm nay `socket.gateway.ts` đăng ký một bộ phát bắn thẳng vào `io`; khi cần nhiều instance, **B đổi đúng chỗ đăng ký đó** sang publish qua RabbitMQ — A không sửa gì. Ranh giới: **A quyết định phát cái gì, B quyết định nó đi thế nào.**
+
+**4. `packages/contracts` là của B, và A không cần chờ nó.** Kiểu của chat cứ nằm ở `packages/shared` như hiện tại. Đừng dời sang `contracts` giữa chừng chỉ để "gọn" — dời là A phải đợi B, mà đó đúng là thứ cách chia này đang tránh.
+
+### Nếu chỉ có một người làm
+
+Thứ tự: **A1 → A2 → B1 → B2 → B3 → B4 → B5 → A3 → A4.**
+
+Xong handoff và giao diện thì chat đã là một tính năng hoàn chỉnh, demo được, rồi mới mở mặt trận thứ hai.
+
+Hai tuần là mốc theo dõi trong plan. Dùng cột "chứng minh đã xong" để quyết định chuyển bước, không dùng số ngày để bỏ qua kiểm tra.
 
 ### Bước messaging: bắt đầu thế nào?
 
@@ -217,17 +287,17 @@ docker compose --profile mq ps
 
 Mở `http://localhost:15672`; cấu hình local trong plan dùng `uniwork / uniwork_dev`. Cổng `15672` để xem quản trị; `5672` để code kết nối AMQP.
 
-4. Dựng topology và dùng handler thử không gọi AI để kiểm đường đi qua DB/outbox/broker/consumer.
-5. Sau đó mới nối handler scan thật. Xem tab Consumers của queue để kiểm consumer đã đăng ký; chỉ có connection chưa đủ.
+4. Dựng topology và dùng handler thử **không gọi AI** để kiểm đường đi qua DB → outbox → broker → consumer.
+5. Sau đó mới nối handler scan thật. Xem tab Consumers của queue để kiểm consumer đã đăng ký; chỉ có connection là chưa đủ.
 
 **Bốn điều phải kiểm ngay:**
 
 - Publisher chờ confirm, xử lý message bị `return`; command nghiệp vụ dùng `mandatory: true`.
 - Consumer chỉ ACK sau khi transaction lưu kết quả hoặc lịch retry đã commit.
-- Lỗi tạm thời đặt `nextTryAt` trong outbox; không dựng ba queue retry TTL theo bảng lịch cũ.
-- Xử lý trùng bằng `processed_messages`; worker ghi kết quả theo `leaseOwner` và `runSeq`. Đây là cập nhật có điều kiện: worker cũ không được ghi đè lượt chạy mới.
+- Lỗi tạm thời đặt `nextTryAt` trong outbox; **không** dựng ba queue retry TTL theo bảng lịch cũ.
+- Xử lý trùng bằng `processed_messages`; worker ghi kết quả theo `leaseOwner` và `runSeq`. Đây là cập nhật **có điều kiện**: worker cũ không được ghi đè lượt chạy mới.
 
-Khi đã triển khai script `start` và nạp env cho worker, chạy ở terminal riêng:
+Khi đã có script `start` và nạp env cho worker, chạy ở terminal riêng:
 
 ```powershell
 pnpm --filter @uniwork/worker start
@@ -235,19 +305,9 @@ pnpm --filter @uniwork/worker start
 
 Để API ở `WORKER_INLINE=false` trong phép thử này.
 
-## 7. Hai mốc demo nên làm trước
+## 7. Hai mốc demo
 
-### Mốc A — một CV đi hết vòng
-
-```text
-Chọn file → API trả 202 → DB có job + outbox
-→ RabbitMQ giao việc → worker đọc CV → NEEDS_REVIEW
-→ người dùng chọn dữ liệu → xác nhận → hồ sơ cập nhật
-```
-
-Kiểm thêm: upload trùng, file sai, model timeout, dừng/khởi động worker, GET kết quả khi không có realtime. Worker chỉ trích xuất; API ánh xạ kỹ năng và cập nhật hồ sơ sau xác nhận.
-
-### Mốc B — một câu hỏi có câu trả lời từ dữ liệu thật
+### Mốc B — một câu hỏi có câu trả lời từ dữ liệu thật · ĐÃ ĐẠT Ở BACKEND
 
 ```text
 Đăng nhập → tạo phiên → gửi câu hỏi
@@ -255,7 +315,25 @@ Kiểm thêm: upload trùng, file sai, model timeout, dừng/khởi động work
 → lưu tin nhắn → chốt lượt
 ```
 
-Làm một tool hoàn chỉnh trước để kiểm luồng, rồi mở rộng đủ tool và vai theo thiết kế. Khi chat ổn mới nối handoff; AI chỉ đề nghị chuyển, người dùng bấm nút mới thực hiện chuyển.
+Chạy lại bất cứ lúc nào:
+
+```powershell
+pnpm --filter @uniwork/api thu-tro-ly "em rảnh tối thứ 2 thứ 4, có việc nào hợp lịch em không?"
+```
+
+Lượt thật ngày 2026-09-21 gọi ba vòng tool (`timViecLam` → `xemLichRanhCuaToi` → `timViecLam`), đọc đúng bốn ô lịch rảnh từ database, và **nói "chưa có việc nào khớp" thay vì bịa một tin**.
+
+**Chưa đạt phần giao diện.** Mốc B chỉ khép lại khi gõ được câu hỏi trên trình duyệt và thấy chữ chảy ra — đó là việc A2.
+
+### Mốc A — một CV đi hết vòng · CHƯA BẮT ĐẦU
+
+```text
+Chọn file → API trả 202 → DB có job + outbox
+→ RabbitMQ giao việc → worker đọc CV → NEEDS_REVIEW
+→ người dùng chọn dữ liệu → xác nhận → hồ sơ cập nhật
+```
+
+Kiểm thêm: upload trùng, file sai, model timeout, dừng/khởi động worker, GET kết quả khi không có realtime. Worker **chỉ trích xuất**; API ánh xạ kỹ năng và cập nhật hồ sơ sau khi người dùng xác nhận.
 
 ## 8. Kiểm tra và push từng PR
 
@@ -283,7 +361,7 @@ $LASTEXITCODE
 
 Mock phù hợp để kiểm logic; ràng buộc và ca tranh chấp cần Postgres thật. Broker và provider thật có bản ghi kiểm thử local riêng. Chạy lại những kiểm tra bị ảnh hưởng sau khi merge `dev`.
 
-Ví dụ trước khi push PR đầu tiên, sau khi đã commit phần việc của mình:
+Trước khi push, sau khi đã commit phần việc của mình — với **hai người cùng đẩy vào `dev`** thì bước này không bỏ được:
 
 ```powershell
 git fetch origin
@@ -299,17 +377,34 @@ git merge origin/dev --no-edit
 Sửa conflict nếu có, commit kết quả và kiểm tra lại, rồi:
 
 ```powershell
-git push -u origin feature/ai-foundation
+git push -u origin <ten-nhanh-cua-ban>
 ```
 
 Mở PR vào `dev`. Mô tả ghi **đã làm gì, chạy thử bằng cách nào, bằng chứng đạt**. Với nhánh sau, thay tên nhánh cho đúng.
 
 ## 9. Checklist bắt tay vào làm ngay
 
-- [ ] App hiện tại chạy được trên local.
-- [ ] Đã xem kết quả đo Gemini và Cloudflare; ghi rõ phần chưa kiểm chứng.
-- [ ] Đã tạo `feature/ai-foundation` từ `origin/dev`.
-- [ ] Bắt đầu bằng **contracts → khung messaging/ai-runtime → khung worker → env/ESLint**.
-- [ ] PR nền qua kiểm tra, rồi mới chuyển quota và messaging.
+### Cả hai người
 
-**Việc đầu tiên trong code:** mở cấu trúc `packages/shared` và `packages/config` làm mẫu cấu hình workspace; tạo `packages/contracts` theo `01 §3`, sau đó kiểm typecheck trước khi tạo package tiếp theo.
+- [ ] `pnpm install --frozen-lockfile`, Docker Desktop bật, `pnpm db:wait`.
+- [ ] `pnpm --filter @uniwork/api exec prisma migrate deploy` — nhánh này thêm **hai** migration.
+- [ ] App cũ vẫn chạy: web `:5173`, API `:4000/api/health`.
+- [ ] Có `GOOGLE_GENERATIVE_AI_API_KEY` trong `apps/api/.env`, rồi `pnpm --filter @uniwork/api thu-gemini`.
+- [ ] Đọc [§5](#5-đã-xong--trợ-lý-ai-chạy-được-đầu-cuối) — nhất là **bảy luật đã cưỡng chế bằng code**.
+- [ ] Thống nhất **bốn điểm chạm** ở [§6](#bốn-điểm-chạm--thống-nhất-trước-khi-code), đặc biệt là quyết định về chỉ mục `ai_turns_mot_luot_dang_chay`.
+
+### Người A
+
+- [ ] `pnpm --filter @uniwork/api thu-tro-ly` chạy được và trả lời có căn cứ.
+- [ ] Đọc `apps/api/src/modules/chat/chat.access.ts` trước tiên — `quyenTruyCapPhien()` là chỗ A1 sửa nhiều nhất.
+- [ ] Tách `feature/chat-handoff` từ `origin/dev` **sau khi** nhánh này đã merge.
+
+### Người B
+
+- [ ] Có `CLOUDFLARE_ACCOUNT_ID` và `CLOUDFLARE_API_TOKEN`.
+- [ ] **Chạy `spike/thu-workers-ai.mjs` với CV thật trước khi viết dòng code nào** — nó chốt đường trích xuất PDF.
+- [ ] Đọc `packages/ai-runtime/src/quota.ts` — `giuLuot` / `chotLuot` / `hoanLuot` dùng lại được cho `CV_SCAN`, không viết lại.
+- [ ] Đọc `apps/api/src/modules/chat/phat-su-kien.ts` — khe cắm B sẽ đổi sang RabbitMQ.
+- [ ] Tách `feature/messaging-nen` từ `origin/dev`.
+
+**Việc đầu tiên trong code của B:** mở `packages/ai-runtime` làm mẫu cấu hình workspace (nó là package mới nhất và đúng nếp repo nhất), rồi tạo `packages/contracts` theo [01 §3](01-kien-truc-va-ranh-gioi.md), typecheck xong mới tạo package tiếp theo.

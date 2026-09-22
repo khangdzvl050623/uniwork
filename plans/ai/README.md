@@ -54,6 +54,17 @@ Sửa cùng lúc với việc thi công, không để sau.
 
 ---
 
+## Đã xây được gì (2026-09-22)
+
+Nhánh `feature/ai-tro-ly`, 8 commit. **Trợ lý AI trả lời được bằng dữ liệu thật** —
+9 tool, SSE, Socket.IO, 516 test làn thường + 88 làn database. **Scan CV và RabbitMQ
+chưa bắt đầu**, và **giao diện chat chưa có dòng nào**.
+
+Danh sách từng commit, bảy luật đã cưỡng chế bằng code, và **phần chia việc cho hai
+người**: [bat-dau.md §5–§6](bat-dau.md).
+
+---
+
 ## Tiến độ: 14 ngày không đủ
 
 Ước lượng backend **~39 ngày-người** (khoảng 33–46); 14 ngày lịch với một dev cho
