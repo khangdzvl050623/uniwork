@@ -42,6 +42,17 @@ export default defineConfig({
       // Nhánh "chưa cấu hình" nhờ vậy được đi qua thật chứ không chỉ nằm đó.
       GOOGLE_CLIENT_ID: '',
       GOOGLE_CLIENT_SECRET: '',
+
+      /*
+       * Khoá AI CỐ Ý để trống — cùng lý do hai biến Google ở trên: test chạy
+       * đúng như máy của người chưa tạo API key, nên nhánh "chưa cấu hình"
+       * (CO_KHOA_THAT = false) được đi qua thật chứ không chỉ nằm đó.
+       *
+       * Hệ quả: KHÔNG ca test nào gọi mạng thật tới Gemini.
+       */
+      GOOGLE_GENERATIVE_AI_API_KEY: '',
+      AI_CHAT_MODEL: 'gemini-3.5-flash-lite',
+      AI_CHAT_TURNS_PER_DAY: '5',
     },
   },
 })

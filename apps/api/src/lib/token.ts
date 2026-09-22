@@ -49,14 +49,34 @@ export function signAccessToken(payload: AccessPayload): string {
  * "token hết hạn" đều dẫn tới cùng một kết quả: 401. Bắt lỗi ở đây giữ cho chỗ
  * gọi không phải viết try/catch.
  */
-export function verifyAccessToken(token: string): AccessPayload | null {
+export function verifyAccessToken(token: string): AccessClaims | null {
   try {
     const decoded = jwt.verify(token, env.JWT_ACCESS_SECRET)
     if (typeof decoded === 'string') return null
-    return { sub: String(decoded.sub), role: decoded.role as Role }
+    return {
+      sub: String(decoded.sub),
+      role: decoded.role as Role,
+      exp: typeof decoded.exp === 'number' ? decoded.exp : undefined,
+    }
   } catch {
     return null
   }
+}
+
+/**
+ * Những gì ĐỌC RA được từ token, rộng hơn những gì GHI VÀO.
+ *
+ * `exp` do thư viện jwt tự đặt từ `ACCESS_TTL`, nên nó không có trong
+ * `AccessPayload` (thứ truyền vào lúc ký) nhưng luôn có lúc giải mã. Tách hai
+ * kiểu thay vì cho `exp?: number` vào `AccessPayload`: chỗ ký sẽ tưởng mình
+ * được phép tự đặt hạn, mà đặt tay ở đó là bỏ qua `ACCESS_TTL`.
+ *
+ * Cổng Socket.IO cần nó: một kết nối WebSocket sống hàng giờ, trong khi
+ * `requireAuth` chỉ chấp nhận đánh đổi 15 phút. Xem `socket.gateway.ts`.
+ */
+export interface AccessClaims extends AccessPayload {
+  /** Giây epoch. `undefined` nếu token không có hạn — không xảy ra ở đây. */
+  exp?: number
 }
 
 /**

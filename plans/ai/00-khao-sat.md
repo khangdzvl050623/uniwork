@@ -272,6 +272,82 @@ Ngày kiểm: **2026-09-12**. Ghi cả ngày cập nhật của trang nguồn, v
 | `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash` | Có |
 | `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite` | Có |
 | `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.5-pro` | Có |
+
+> **Sửa 2026-09-21 — đo thật, không đọc tài liệu.** Gọi `gemini-2.5-flash-lite` bằng
+> khoá thật thì Google trả: *"This model models/gemini-2.5-flash-lite is **no longer**
+> **available to new users**. Please update your code to use models/gemini-3.5-flash-lite"*.
+> Bảng giá vẫn liệt kê nó là có free tier, nhưng **tài khoản mới không dùng được**.
+> Đây đúng lý do plan bắt chạy spike ngày 1 thay vì tin bảng.
+>
+> Model đang dùng: **`gemini-3.5-flash-lite`**.
+
+**ĐO ĐƯỢC 2026-09-21** — `pnpm --filter @uniwork/api thu-gemini`, khoá thật, một
+lượt không tool:
+
+| | |
+| --- | --- |
+| Độ trễ | **1671 ms** cho 21 token ra |
+| Token | 16 vào / 21 ra |
+| Tỉ lệ tiếng Việt | 49 ký tự → 16 token ≈ **3,1 ký tự/token** |
+
+#### Câu trả lời SAI, và đó là dữ liệu quan trọng nhất của lần đo này
+
+Hỏi *"UniWork là nền tảng gì?"*, model trả:
+
+> *"UniWork là nền tảng quản lý công việc và tối ưu hoá hiệu suất dành cho
+> **doanh nghiệp**."*
+
+Sai hoàn toàn — UniWork là sàn việc part-time cho sinh viên. Model không bịa một
+cách mơ hồ; nó dựng hẳn một sản phẩm B2B hợp lý và phát biểu chắc nịch.
+
+Đây là bằng chứng đo được cho ba quyết định vốn chỉ là lý lẽ:
+
+| Quyết định | Vì sao lần đo này chứng minh nó |
+| --- | --- |
+| Khối `VAI TRÒ` + `PHẠM VI` trong system prompt | Không có nó, model tự định nghĩa sản phẩm |
+| `huongDanSuDung` với enum ĐÓNG, nội dung viết tay | Model sẵn sàng mô tả một giao diện nó chưa từng thấy |
+| `NGUỒN DỮ LIỆU: mọi con số phải đến từ tool` | Nó không hề ngập ngừng khi không có dữ liệu |
+
+#### Chi phí CỐ ĐỊNH mỗi request — đo bằng đếm ký tự, không gọi mạng
+
+| Thành phần | Ký tự | ≈ token |
+| --- | ---: | ---: |
+| System prompt | 2.564 | ~840 |
+| Mô tả 9 tool | 1.378 | ~450 |
+| JSON schema của 9 tool | 2.617 | ~650 |
+| **Tổng** | **6.559** | **~1.900–2.200** |
+
+Câu hỏi của người dùng chỉ 16 token. **Phần cố định lớn gấp hơn 100 lần.** Và nó
+được gửi lại ở MỌI bước, nên một lượt chạm trần `isStepCount(4)` tốn tối thiểu
+**~8.000 token vào**, chưa tính lịch sử 12 tin và kết quả tool.
+
+Hệ quả cho việc tối ưu: cắt mô tả tool và JSON schema có giá trị hơn hẳn cắt lịch
+sử. Nếu cần giảm nữa thì hướng đúng là `prepareStep` thu hẹp `activeTools` sau
+bước đầu.
+
+#### Token THẬT của một lượt có tool — `pnpm --filter @uniwork/api thu-tro-ly`
+
+Không còn là ngoại suy. Hai lượt thật, dữ liệu thật trong database dev:
+
+| Câu hỏi | Vòng tool | Token vào | Token ra | Chữ đầu | Tổng |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| "có việc pha chế nào ở Hà Nội không, lương bao nhiêu?" | 1 | **4.395** | 93 | 2.789 ms | 3,2 s |
+| "em rảnh tối T2 T4, có việc nào hợp lịch em không?" | 3 | **9.889** | 158 | 4.297 ms | 5,0 s |
+
+Giả định **~9k token vào cho một lượt 3 vòng** ở [01 §8.4](01-kien-truc-va-ranh-gioi.md)
+trúng gần như chính xác. Chi phí không phải đoán nữa.
+
+Còn thiếu: phân vị 90/99 (hai lượt không phải mẫu), và số của lượt chạm trần 4 vòng.
+
+#### Lỗi tìm ra nhờ chạy thật, không nhờ đọc code
+
+Bản đầu của `chayLuotChat` đọc `textStream` rồi rút tên tool từ `kq.steps` sau khi
+xong. Test xanh, kiểu đúng, và **sai**: chỉ báo "đang tra cứu…" hiện ra SAU câu trả
+lời. Người dùng nhìn màn hình trắng 4,3 giây rồi mới biết hệ thống đang làm gì.
+
+Sửa: đọc `fullStream` và bắt `tool-input-start` — tín hiệu sớm nhất có được. Đây là
+loại lỗi không test đơn vị nào bắt được, vì nó là lỗi về THỨ TỰ THỜI GIAN mà mọi
+khẳng định vẫn đúng.
 | `gemini-3.1-pro-preview` | **Không** |
 
 **ĐỌC ĐƯỢC** từ [trang model](https://ai.google.dev/gemini-api/docs/models)

@@ -252,7 +252,7 @@ export function dungToolSinhVien(ctx: CtxSinhVien) {
         scheduleType: z.enum(SCHEDULE_TYPES).optional(),
         salaryFrom: z.number().int().min(0).optional(),
         salaryUnit: z.enum(SALARY_UNITS).optional(),
-        skillSlugs: z.array(z.string()).max(5).optional(),
+        kyNang: z.array(z.string()).max(5).optional(),   // tên hoặc slug; tool tự đổi sang skillIds
         matchAvailability: z.boolean().optional()
           .describe('true = chỉ lấy tin mà người dùng nhận đủ số ca tối thiểu'),
         sort: z.enum(PUBLIC_JOB_SORTS).optional(),
@@ -281,10 +281,10 @@ tool nào. Model **không có ngôn ngữ** để yêu cầu dữ liệu của n
 | `timViecLam` | như 3.1 | `listPublicJobs(q, userId)` | ≤ 5 tin gọn |
 | `xemChiTietViec` | `{ jobId }` | `getPublicJob(jobId, userId)` | 1 tin gọn + ca làm + kỹ năng |
 | `xemLichRanhCuaToi` | `{}` | `getAvailability(userId)` | mảng ô `{dayOfWeek, slot}` |
-| `xemHoSoCuaToi` | `{}` | `getStudentProfile(userId)` | hồ sơ, **bỏ `cvUrl`** |
+| `xemHoSoCuaToi` | `{}` | `getStudentProfile(userId)` | hồ sơ, **bỏ `fullName`/`phone`/`bio`**, `cvUrl` rút thành `coCv` |
 | `xemDonUngTuyenCuaToi` | `{ status? }` | `listStudentApplications(userId)` | ≤ 10 đơn gọn |
 | `xemTinDaLuu` | `{}` | `listSavedJobs(userId)` | ≤ 10 tin gọn |
-| `danhMucKyNang` | `{ tuKhoa? }` | `listSkills()` | ≤ 20 `{name, slug}` |
+| `danhMucKyNang` | `{ tuKhoa? }` | `listSkills()` | ≤ 20 `{name, slug}` — **không trả `id`**; `timViecLam` tự đổi tên → id |
 | `deNghiChuyenNhaTuyenDung` | `{ jobId, lyDo }` | **không gọi service nào** | xem 3.4 |
 
 **Nhà tuyển dụng** (`requireRole('EMPLOYER')`):
@@ -357,13 +357,39 @@ rời khỏi hạ tầng của ta.**
  * người thêm cột phải quyết định có cho model thấy hay không.
  */
 export const TRUONG_CHO_MODEL = {
-  hoSoSinhVien: ['university', 'major', 'year', 'expectedHourlyRate', 'availableUntil', 'skills'],
+  tinTuyenDung: ['id', 'tenTin', 'congTy', 'daXacMinh', 'noiLam', 'luong', 'kieuLich',
+                 'matchScore', 'eligible', 'soCaHop', 'tongCa', 'hanNop'],
+  tinChiTiet:   [...tinTuyenDung, 'moTa', 'yeuCau', 'phucLoi', 'soLuong', 'caLam',
+                 'kyNang', 'camKetThang', 'soCaToiThieuTuan', 'ngayBatDau', 'ngayKetThuc'],
+  hoSoSinhVien: ['truong', 'nganh', 'namHoc', 'luongMongMuon', 'lamDuocToiNgay',
+                 'kyNang', 'coCv'],
+  donUngTuyen:  ['id', 'jobId', 'tenTin', 'congTy', 'trangThai', 'matchScore',
+                 'ngayNop', 'moLienHe'],
   ungVien:      ['ma', 'hoTenVietTat', 'truong', 'nganh', 'matchScore', 'eligible', 'trangThai'],
-  donUngTuyen:  ['ma', 'jobId', 'jobTitle', 'companyName', 'trangThai', 'matchScore', 'ngayNop'],
-  tinTuyenDung: ['id', 'title', 'companyName', 'noiLam', 'luong', 'scheduleType',
-                 'matchScore', 'eligible', 'hanNop'],
+  oLichRanh:    ['dayOfWeek', 'slot'],
+  kyNang:       ['name', 'slug'],
 } as const
 ```
+
+Cưỡng chế bằng `raSoat(nhom, dto)` — **cổng ra duy nhất**, gọi ở cuối mọi hàm gọn hoá.
+Nó làm hai việc khác hẳn nhau và không được gộp:
+
+| Tình huống | Xử lý | Vì sao |
+| --- | --- | --- |
+| Khoá không có trong danh sách | **ném `LoLotPII`** | Lỗi người viết code. Ném để test đỏ ngay |
+| Chuỗi chứa sđt/email | **che thành `[đã ẩn]`** | Dữ liệu thật hợp lệ. Ném là làm hỏng tool cho một tin không có gì sai |
+
+`LoLotPII` **cố ý không bị lớp bọc tool bắt lại** — mọi lỗi tool khác đổi thành một câu
+cho model đọc, riêng lỗi này phải nổ ra ngoài. Xử lý mềm ở đây tức là vẫn gửi trường
+chưa duyệt cho model rồi xin lỗi sau.
+
+#### `bio` bị bỏ khỏi hồ sơ, không phải được che (phát hiện lúc thi công)
+
+Bản đầu của `hoSoGon` có `gioiThieu`. Ca canh bắt được ngay: sinh viên viết phần giới
+thiệu bằng lời của mình, và câu đầu rất hay là *"Em là Nguyễn Văn An"*. Bộ che theo
+**hình dạng** bắt được sđt và email; nó không biết chuỗi nào là tên người, chuỗi nào là
+địa chỉ nhà. Nên trường này bị bỏ hẳn. Kỹ năng + trường + ngành + mức lương mong muốn
+đã mang đủ tín hiệu để gợi việc.
 
 Ba trường **không bao giờ** có mặt ở bất kỳ dòng nào: `phone`, `email`, `fullName`.
 Thay `fullName` bằng `hoTenVietTat` (`"Nguyễn Văn An"` → `"N.V.A"`) — đủ để model phân

@@ -54,6 +54,21 @@ export const API_ERROR_CODES = [
   'CONFLICT',
   'RATE_LIMITED',
   'INTERNAL_ERROR',
+
+  /*
+   * Ba mã của trợ lý AI. Tách riêng khỏi RATE_LIMITED và CONFLICT vì giao diện
+   * phải nói ba câu khác hẳn nhau:
+   *
+   *   AI_QUOTA_EXCEEDED  "hôm nay bạn hết lượt, mai quay lại"  → không thử lại
+   *   AI_BUSY            "câu trước đang chạy, đợi chút"        → thử lại được ngay
+   *   AI_UNAVAILABLE     "trợ lý đang bảo trì"                  → thử lại sau
+   *
+   * Gộp cả ba vào RATE_LIMITED thì người dùng bị bảo "thao tác quá nhanh" trong
+   * khi họ chỉ mở hai tab.
+   */
+  'AI_QUOTA_EXCEEDED',
+  'AI_BUSY',
+  'AI_UNAVAILABLE',
 ] as const
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number]
