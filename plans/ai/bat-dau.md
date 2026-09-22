@@ -31,6 +31,22 @@ Hai service nghiệp vụ: **Trợ lý AI** chạy trong `apps/api`, dùng Gemin
 
 **Chưa có luồng Scan CV chạy được. Upload CV hiện có chưa phải tính năng scan.**
 
+### Bảy luật đã cưỡng chế bằng code
+
+Không phải quy ước — phá là test đỏ hoặc chạy hỏng. Liệt kê ở đây vì chúng nằm rải trong code, người mới không tự thấy, và cả A lẫn B đều sẽ chạm vào.
+
+| Luật | Ở đâu |
+| --- | --- |
+| Chỉ `packages/ai-runtime` khai `ai` trong dependencies; `apps/api` dùng `tool` xuất lại từ đó. Nâng cấp SDK là sửa một chỗ | `packages/ai-runtime/src/index.ts` |
+| `userId` nằm trong closure, **không** có trong `inputSchema` của bất kỳ tool nào. Model không *diễn đạt được* yêu cầu dữ liệu của người khác | `tools.sinh-vien.ts` |
+| `raSoat()` là cổng ra duy nhất của DTO gửi model: khoá lạ ⇒ ném `LoLotPII` (lỗi code); chuỗi chứa sđt/email ⇒ che (dữ liệu thật hợp lệ) | `luoc-pii.ts` |
+| Tool gọi service, không gọi Prisma — tầng kiểm quyền đã có sẵn và đã được test | `tools.sinh-vien.ts` |
+| Không tool nào ghi. Chỉ ba chỗ ghi `chat_messages`, và `visibleToEmployer: true` chỉ đặt ở `guiTinNhan` — vốn đòi `duocGui`, tức state `HUMAN_ACTIVE` | `chat.service.ts:250, :338, :436` |
+| Kiểm xong hết rồi mới mở kênh SSE. Sau khi header đi, HTTP status đóng băng ở 200 — một lỗi 429 sẽ ra ngoài dưới dạng thành công | `chat.controller.ts` |
+| Hai phòng socket `:chu` và `:ntd`, không phải một. Phòng chung nghĩa là NTD nhận realtime từng câu sinh viên nói riêng với trợ lý — không test REST nào bắt được | `chat.access.ts`, `chat.service.ts` |
+
+Luật thứ tám nằm ở database và **không có trong `schema.prisma`**: 4 CHECK của `chat_sessions` cùng chỉ mục unique một phần `ai_turns_mot_luot_dang_chay`. Prisma không khai được chúng, nên `prisma db push` dựng ra database không có ràng buộc nào và không báo gì cả.
+
 ## 2. Việc cho hai người
 
 **A phụ trách Trợ lý AI và chat; B phụ trách RabbitMQ và Scan CV, gồm cả giao diện scan.** Hai người làm song song trên nền hiện có. Tạo nhánh từ `dev` sau khi phần nền trên `feature/ai-tro-ly` đã được merge.
