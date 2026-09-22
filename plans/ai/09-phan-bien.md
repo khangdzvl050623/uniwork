@@ -336,11 +336,11 @@ lén trong plan này** — mỗi cái là một việc riêng cần lịch riên
 | Nợ | Chi tiết | Mức |
 | --- | --- | --- |
 | **`uploadCvFile` lưu CV công khai** | `cloudinary.ts:78` không có `type: 'authenticated'`, và `public_id = userId` nên **đoán được**. Biết id một sinh viên là đọc được CV của họ | **Cao** |
-| README mô tả bảng `EmailQueue` không tồn tại | README §2 nói hàng đợi bằng bảng Postgres; `grep` ra 0 kết quả. Email gửi thẳng trong request (`applications.service.ts:236`) | Trung bình — tài liệu sai |
+| README mô tả bảng `EmailQueue` không tồn tại | README §2 nói hàng đợi bằng bảng Postgres; `grep` ra 0 kết quả. Email gửi thẳng trong request (`applications.service.ts:258`, còn `:498` và `:789`) | Trung bình — tài liệu sai |
 | README nói không có free tier cho broker | CloudAMQP Little Lemur có tồn tại ([00](00-khao-sat.md) C.7) | Thấp |
 | Email gửi ngoài transaction, không thử lại | `guiEmailAnToan` sau commit. Brevo hỏng ⇒ mất thông báo, không ai biết | Trung bình — **outbox ở plan này giải được**, nếu muốn dùng lại |
 | **Thân request của API không được kiểm kiểu** | `apiFetch<T>` — `T` chỉ kiểu hoá **response**; tham số thứ hai là `RequestInit` với `body: BodyInit`, và **62 chỗ gọi** đều `JSON.stringify(...)` trước khi đưa vào. Kiểu của dữ liệu gửi đi biến mất hoàn toàn | **Trung bình–cao** |
-| ↳ hệ quả đã xảy ra | `grep -r "UpdateSkillsInput\|UpdateStudentProfileInput" apps/web` → **0**. `useProfile.ts:35` khai interface cục bộ `StudentProfileInput` **4 trường**, trong khi shared có **7** — thiếu `phone`, `availableUntil`, `expectedHourlyRate`. Đã lệch, không ai biết | |
+| ↳ hệ quả đã xảy ra | `grep -r "UpdateSkillsInput\|UpdateStudentProfileInput" apps/web` → **0**. `useProfile.ts:34` khai interface cục bộ `StudentProfileInput` **4 trường**, trong khi shared có **7** — thiếu `phone`, `availableUntil`, `expectedHourlyRate`. Đã lệch, không ai biết | |
 | ↳ README §2 nói sai | *"đổi backend là FE báo lỗi compile ngay"* — đúng với response, **sai với request body**. Chỗ sai thứ ba của README | Thấp — tài liệu |
 
 **Về lỗ `apiFetch`:** plan này chỉ vá **ba endpoint nó chạm tới**, bằng `apiSend<TReq,

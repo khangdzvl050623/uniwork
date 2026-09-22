@@ -4,7 +4,7 @@
 
 | Bạn đang | Mở |
 | --- | --- |
-| **Vừa xong planning, bắt đầu code** | **[bat-dau.md](bat-dau.md)** — chuẩn bị local, kiểm provider, PR đầu tiên và thứ tự triển khai |
+| **Xem tiến độ và nhận việc** | **[bat-dau.md](bat-dau.md)** — đã làm, chưa làm của hai service và chia việc cho hai người |
 | **Xây** | **[thiet-ke.md](thiet-ke.md)** — sơ đồ, bảng, hợp đồng, 17 luật. Không lý lẽ. |
 | **Debug** | [thiet-ke.md §12](thiet-ke.md) — bảng triệu chứng → chỗ tra |
 | **Muốn đổi một quyết định** | `00`–`09` bên dưới. Mỗi file có lý do và các phương án đã loại |
@@ -31,7 +31,7 @@ chế độ chạy**: process riêng ở local, `WORKER_INLINE=true` trên Rende
 
 **3. `packages/shared` KHÔNG kiểm kiểu thân request.** `apiFetch<T>` chỉ kiểu hoá
 response; mọi chỗ gọi đều `JSON.stringify(...)`. `UpdateSkillsInput` được dùng **0 lần**
-trong `apps/web`, và bản khai cục bộ ở `useProfile.ts:35` đã lệch 3 trường so với shared
+trong `apps/web`, và bản khai cục bộ ở `useProfile.ts:34` đã lệch 3 trường so với shared
 mà không ai phát hiện. Nên cơ chế cưỡng chế là **Zod fail-closed + `apiSend<TReq,TRes>`**,
 không phải trình biên dịch. → [06 §9.4](06-scan-cv.md) · [09 §8](09-phan-bien.md)
 
@@ -44,24 +44,43 @@ hosting. → [01 §8.4](01-kien-truc-va-ranh-gioi.md)
 
 ## Ba chỗ README gốc của repo đang ghi sai
 
-Sửa cùng lúc với việc thi công, không để sau.
+Kiểm lại toàn bộ 2026-09-22 trên source hiện tại. Sửa cùng lúc với việc thi công, không để sau.
 
 | README nói | Thực tế |
 | --- | --- |
-| "Xử lý bất đồng bộ làm bằng bảng hàng đợi Postgres, bảng `EmailQueue`" | **Không có bảng đó.** Email gửi thẳng trong request — `applications.service.ts:236` |
-| "Kafka / RabbitMQ — không có tầng free tier thực dụng" | CloudAMQP Little Lemur free có tồn tại |
-| "type dùng chung qua `packages/shared` nên đổi backend là FE báo lỗi compile ngay" | Đúng với **response**, sai với **request body** — xem sự thật 3 |
+| "Xử lý bất đồng bộ làm bằng bảng hàng đợi Postgres, bảng `EmailQueue`" (§ dòng 83) | **Không có bảng đó** — `grep EmailQueue` ra 0 kết quả trong cả `schema.prisma` lẫn source. Email gửi thẳng trong request: `applications.service.ts:258`, `:498`, `:789` |
+| "Kafka / RabbitMQ — không có tầng free tier thực dụng" (§ dòng 91) | Nửa đầu sai: CloudAMQP **Little Lemur FREE** có thật. Nửa sau *đúng ở thời điểm viết* — xem ghi chú dưới |
+| "type dùng chung qua `packages/shared` nên đổi backend là FE báo lỗi compile ngay" (§ dòng 52) | Đúng với **response**, sai với **request body** — xem sự thật 3 |
+
+**Chỗ 1 — README sai cơ chế, nhưng kết luận của nó vẫn đúng.** README nói nhờ hàng đợi mà "email hỏng không kéo theo việc đổi trạng thái đơn bị hỏng". Tính chất đó **có thật**, chỉ là đến từ chỗ khác: `guiEmailAnToan` (`applications.service.ts:47`) bọc `try/catch`, và lời gọi nằm **ngoài** transaction (transaction đóng ở `:249`, email gửi ở `:258`). Nên việc cần làm là **mô tả đúng cơ chế**, không phải đi thêm một bảng hàng đợi.
+
+**Chỗ 2 — nửa câu bị bỏ qua.** Câu đầy đủ của README là: *"không có tầng free tier thực dụng cho message broker, **và hệ thống này không có bài toán mà nó giải: chỉ một service tiêu thụ sự kiện, throughput vài chục message mỗi ngày**"*.
+
+Vế thứ hai **đúng** với hệ thống lúc đó, và nó mới là vế mạnh. Thứ làm nó hết đúng không phải việc phát hiện ra CloudAMQP, mà là **Scan CV**: một consumer thứ hai (`apps/worker`), và một việc buộc phải bất đồng bộ vì model chạy hàng chục giây. Đừng đọc dòng này thành "README viết ẩu".
+
+Hạn mức Little Lemur đã kiểm 2026-09-22 tại [cloudamqp.com/plans.html](https://www.cloudamqp.com/plans.html):
+
+| | |
+| --- | --- |
+| Giá | FREE, broker **dùng chung** |
+| Queue | tối đa 100 |
+| Message đang xếp hàng | tối đa 10.000 |
+| Message mỗi tháng | 1 triệu |
+| Connection | 20 |
+| **Queue nhàn rỗi** | **bị xoá sau 28 ngày** |
+
+Dòng cuối là cạm bẫy thật, và [02 §7](02-messaging-rabbitmq.md) đã thiết kế quanh nó: `parked.q` theo định nghĩa là queue không ai tiêu thụ, nên bằng chứng lỗi lưu ở bảng `ParkedMessage` trong Postgres chứ không nằm lại trong broker.
 
 ---
 
 ## Đã xây được gì (2026-09-22)
 
-Nhánh `feature/ai-tro-ly`, 8 commit. **Trợ lý AI trả lời được bằng dữ liệu thật** —
+Nhánh `feature/ai-tro-ly`. **Trợ lý AI trả lời được bằng dữ liệu thật** —
 9 tool, SSE, Socket.IO, 516 test làn thường + 88 làn database. **Scan CV và RabbitMQ
 chưa bắt đầu**, và **giao diện chat chưa có dòng nào**.
 
-Danh sách từng commit, bảy luật đã cưỡng chế bằng code, và **phần chia việc cho hai
-người**: [bat-dau.md §5–§6](bat-dau.md).
+Chi tiết **đã làm, chưa làm và phần chia việc cho hai người**:
+[bat-dau.md](bat-dau.md).
 
 ---
 

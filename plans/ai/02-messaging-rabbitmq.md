@@ -223,7 +223,7 @@ Luật chung: **Socket.IO là đường tăng tốc, REST là nguồn sự thậ
 Đúng, và đây là chỗ **rẻ nhất** để dùng lại hạ tầng vừa dựng.
 
 Hiện trạng: `createApplication` commit transaction rồi `await guiEmailAnToan(...)`
-ngay trong request ([applications.service.ts:236-244](../../apps/api/src/modules/applications/applications.service.ts#L236-L244)).
+ngay trong request ([applications.service.ts:251-259](../../apps/api/src/modules/applications/applications.service.ts#L251-L259)).
 Hai vấn đề thật: người nộp đơn **chờ Brevo trả lời** mới thấy màn hình xong, và
 Brevo hỏng thì **email mất im lặng** — không retry, không log, không ai biết.
 
