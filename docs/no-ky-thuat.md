@@ -6,7 +6,7 @@ Việc đã biết là phải làm nhưng chưa làm. Mỗi mục: hỏng gì, �
 
 ## 1. Ô search ở header admin là vỏ rỗng
 
-**Trạng thái:** chưa làm · phát hiện 2026-09-22
+**Trạng thái:** ĐÃ XỬ theo hướng A — gỡ hẳn `SearchBox` (2026-09-28)
 
 ### Hỏng gì
 
@@ -40,3 +40,9 @@ Ba trang NTD còn lại (`/ntd/ho-so`, `/ntd/dang-tin`, `/ntd/ung-vien`) dùng `
 **Search chạy được đã có sẵn, ở tầng trang.** Xem `Toolbar` với `value` / `onChange` — ví dụ [EmployerJobs.tsx:167](../apps/web/src/pages/admin/EmployerJobs.tsx#L167). Không thiếu hạ tầng; ô ở header là thứ vẽ ra rồi bỏ lại.
 
 **Không có test nào phủ `AdminLayout`**, nên hướng A gần như không có rủi ro — nhưng cũng nghĩa là không có lưới đỡ nếu làm hỏng layout. Mở `/admin` và `/ntd/quan-ly` xem bằng mắt sau khi sửa.
+
+### Đã làm gì
+
+Gỡ `SearchBox` và lời gọi trong `AdminLayout`, kèm hai import thành thừa (`useEffect`, `Search`) — hai import này làm `pnpm typecheck` đỏ, nên gỡ component mà quên chúng thì cổng kiểm tra chặn lại ngay.
+
+Hai điểm ở trên vẫn đúng cho lần sau, nếu có ai muốn làm search toàn cục thật: phải lọc kết quả theo vai, và đã có sẵn mẫu `Toolbar` ở tầng trang để dùng lại.
