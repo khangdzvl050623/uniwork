@@ -321,8 +321,8 @@ Câu hỏi của người dùng chỉ 16 token. **Phần cố định lớn gấ
 được gửi lại ở MỌI bước, nên một lượt chạm trần `isStepCount(4)` tốn tối thiểu
 **~8.000 token vào**, chưa tính lịch sử 12 tin và kết quả tool.
 
-Hệ quả cho việc tối ưu: cắt mô tả tool và JSON schema có giá trị hơn hẳn cắt lịch
-sử. Nếu cần giảm nữa thì hướng đúng là `prepareStep` thu hẹp `activeTools` sau
+Hệ quả cho việc tối ưu CHI PHÍ — không phải độ trễ, xem mục ngay dưới: cắt mô tả
+tool và JSON schema có giá trị hơn hẳn cắt lịch sử. Nếu cần giảm nữa thì hướng đúng là `prepareStep` thu hẹp `activeTools` sau
 bước đầu.
 
 #### Token THẬT của một lượt có tool — `pnpm --filter @uniwork/api thu-tro-ly`
@@ -338,6 +338,44 @@ Giả định **~9k token vào cho một lượt 3 vòng** ở [01 §8.4](01-kie
 trúng gần như chính xác. Chi phí không phải đoán nữa.
 
 Còn thiếu: phân vị 90/99 (hai lượt không phải mẫu), và số của lượt chạm trần 4 vòng.
+
+#### Độ trễ: hai cụm, và KHÔNG liên quan tới kích thước prompt (đo 2026-09-28)
+
+Một lượt thật mất **114 giây** trong khi lượt tương đương hôm trước mất 4,3 giây. Cùng model, cùng tài khoản, cùng số vòng tool. Đi tìm nguyên nhân bằng cách tách dần từng biến.
+
+**Bước 1 — của ta hay của họ.** Thêm `onLanguageModelCallEnd` để cộng dồn `performance.responseTimeMs`:
+
+```
+soLanGoiModel=2  msModel=50091  msConLai=47  msTong=50138
+```
+
+**47 mili giây** là toàn bộ phần của ta: chạy tool, truy vấn Postgres, ghi tin nhắn. 100 % thời gian nằm ở nhà cung cấp. Loại xong giả thuyết "tool chậm".
+
+**Bước 2 — có phải do prompt nặng.** Gọi trần không tool: **1.177 ms** cho 16 token. Gọi qua trợ lý với câu "chào bạn" — 0 vòng tool, nhưng vẫn gửi system prompt và 9 định nghĩa tool: **21.478 ms** cho 2.543 token. Cùng một phút. Có vẻ prompt càng lớn càng chậm.
+
+**Bước 3 — kiểm giả thuyết đó.** Gọi thẳng REST, không SDK, không tool, chỉ đổi kích thước prompt:
+
+| Ký tự | Token vào | Thời gian |
+| ---: | ---: | ---: |
+| 20 | 14 | 1.425 ms |
+| 1.000 | 249 | 15.204 ms |
+| 3.000 | 725 | 16.618 ms |
+| **8.000** | **1.917** | **1.086 ms** |
+| 20 (lặp lại) | 14 | 15.675 ms |
+
+**Giả thuyết sai.** Prompt lớn nhất lại nhanh nhất, và đúng prompt 20 ký tự lúc nhanh 1,4 s lúc chậm 15,7 s.
+
+#### Kết luận
+
+Độ trễ chia **hai cụm**: hoặc ~1 giây, hoặc **~15–25 giây**. Rơi vào cụm nào là ngẫu nhiên, không phụ thuộc kích thước prompt, số tool, hay lớp SDK. Cụm chậm ổn định quanh 15 s — giống một hàng đợi có độ trễ cố định hơn là thời gian suy luận.
+
+Ba hệ quả:
+
+1. **Cắt mô tả tool không làm nhanh hơn.** Nó vẫn đáng làm để giảm token, nhưng đừng kỳ vọng nó chữa độ trễ.
+2. **Một lượt 4 bước rơi cụm chậm là ~100 giây, và vẫn là lượt hợp lệ.** Vì vậy `AI_REQUEST_TIMEOUT_MS` để 60 s, `AI_TURN_TIMEOUT_MS` để 180 s — đặt chặt hơn là cắt nhầm lượt thật.
+3. **Đây là rủi ro sản phẩm, không phải lỗi code.** Chờ 15–50 giây cho một câu trả lời là không dùng được. Ba đường: chấp nhận và hiện chỉ báo "đang tra cứu" cho rõ; đổi sang model khác; hoặc trả phí. Cần đo lại trên tài khoản trả phí trước khi kết luận là giới hạn của free tier.
+
+Cách đo lại bất cứ lúc nào: `pnpm --filter @uniwork/api thu-tro-ly "<câu hỏi>"` — dòng cuối in tách `model` và `còn lại`.
 
 #### Lỗi tìm ra nhờ chạy thật, không nhờ đọc code
 
