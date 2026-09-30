@@ -7,6 +7,7 @@ import {
   xuLyBaoCao,
   type AnhChupTin,
 } from '../src/modules/bao-cao/bao-cao.service.js'
+import { goTin } from '../src/modules/jobs/jobs.service.js'
 
 /**
  * Báo cáo tin tuyển dụng — PostgreSQL thật.
@@ -44,7 +45,17 @@ async function taoTin(employerProfileId: string, title: string, moTa: string) {
     select: { id: true },
   })
   if (cu) {
-    await prisma.job.update({ where: { id: cu.id }, data: { description: moTa, status: 'OPEN' } })
+    /*
+     * Xoá cờ gỡ cùng lúc với việc trả `status` về `OPEN`.
+     *
+     * CHECK `jobs_go_du_ly_do` đòi "đã gỡ thì phải CLOSED". Đặt lại `OPEN` mà
+     * để `goBoiAdminId` sót lại từ ca trước là vi phạm ngay — và lỗi nổ ở
+     * `beforeEach`, xa hẳn ca thật sự gây ra nó.
+     */
+    await prisma.job.update({
+      where: { id: cu.id },
+      data: { description: moTa, status: 'OPEN', goBoiAdminId: null, lyDoGo: null, closedAt: null },
+    })
     return cu.id
   }
   const j = await prisma.job.create({
@@ -83,7 +94,8 @@ async function dungDuLieu() {
   jobKhacId = await taoTin(hs.id, 'Tin khác', 'bình thường')
 
   await prisma.jobReport.deleteMany({ where: { reporterUserId: { in: [sv, ntdUserId] } } })
-  await prisma.notification.deleteMany({ where: { userId: sv } })
+  await prisma.notification.deleteMany({ where: { userId: { in: [sv, ntdUserId] } } })
+
 }
 
 const gui = (clientReportId: string, job = jobId) =>
@@ -249,5 +261,82 @@ describe('admin xử lý', () => {
 
     /* Và chỉ MỘT thông báo tới người gửi, không phải hai câu trái ngược. */
     expect(await prisma.notification.count({ where: { userId: sv } })).toBe(1)
+  })
+})
+
+/*
+ * ===========================================================================
+ * GỠ TIN — HÀNH ĐỘNG ĐỨNG SAU KẾT LUẬN "ĐÃ XỬ LÝ"
+ * ===========================================================================
+ * Trước khi có đường này, `reviewJob` chỉ xử được tin `PENDING`, nên admin kết
+ * luận một báo cáo là `DA_XU_LY` mà tin lừa đảo vẫn nằm nguyên trên trang chủ.
+ * Người báo cáo nhận thông báo "đã xử lý" và không hiểu vì sao tin còn đó.
+ */
+describe('gỡ tin', () => {
+  it('đưa tin về CLOSED, ghi ai gỡ và vì sao', async () => {
+    await goTin(adminA, jobId, 'Tin yêu cầu đặt cọc trái quy định')
+
+    const sau = await prisma.job.findUniqueOrThrow({ where: { id: jobId } })
+    expect(sau.status).toBe('CLOSED')
+    expect(sau.goBoiAdminId).toBe(adminA)
+    expect(sau.lyDoGo).toContain('đặt cọc')
+    expect(sau.closedAt).not.toBeNull()
+  })
+
+  /*
+   * Nhà tuyển dụng PHẢI biết, và phải đọc được nguyên văn lý do.
+   *
+   * Thiếu thông báo thì họ mở bảng tin lên thấy "Đã đóng" y hệt một tin họ tự
+   * đóng tuần trước — một hành động cưỡng chế mà người bị tác động không biết
+   * là nó đã xảy ra.
+   */
+  it('báo cho nhà tuyển dụng, kèm nguyên văn lý do', async () => {
+    await goTin(adminA, jobId, 'Tin yêu cầu đặt cọc trái quy định')
+
+    const tb = await prisma.notification.findFirst({
+      where: { userId: ntdUserId, type: 'TIN_BI_GO' },
+    })
+    expect(tb?.body).toBe('Tin yêu cầu đặt cọc trái quy định')
+  })
+
+  it('gỡ lần hai bị từ chối, không ghi đè lý do cũ', async () => {
+    await goTin(adminA, jobId, 'Lý do thứ nhất và đủ dài')
+    await expect(goTin(adminB, jobId, 'Lý do thứ hai và đủ dài')).rejects.toMatchObject({
+      code: 'CONFLICT',
+    })
+
+    const sau = await prisma.job.findUniqueOrThrow({ where: { id: jobId } })
+    expect(sau.lyDoGo).toBe('Lý do thứ nhất và đủ dài')
+    expect(sau.goBoiAdminId).toBe(adminA)
+  })
+
+  it('tin chưa công khai thì không gỡ — có đường riêng cho nó', async () => {
+    await prisma.job.update({ where: { id: jobKhacId }, data: { status: 'PENDING' } })
+    await expect(goTin(adminA, jobKhacId, 'Lý do đủ dài để qua Zod')).rejects.toMatchObject({
+      code: 'CONFLICT',
+    })
+  })
+
+  /*
+   * CHECK `jobs_go_du_ly_do` — viết TAY trong migration, Prisma không biết nó
+   * tồn tại. Một script vá tay hay một endpoint viết vội ở sprint sau đều đi
+   * vòng qua Zod được; CHECK thì không đường nào lách.
+   */
+  it('database từ chối một lần gỡ KHÔNG có lý do', async () => {
+    await expect(
+      prisma.job.update({
+        where: { id: jobId },
+        data: { status: 'CLOSED', goBoiAdminId: adminA, lyDoGo: null },
+      }),
+    ).rejects.toThrow(/jobs_go_du_ly_do/)
+  })
+
+  it('database từ chối gỡ mà vẫn để tin hiển thị', async () => {
+    await expect(
+      prisma.job.update({
+        where: { id: jobId },
+        data: { status: 'OPEN', goBoiAdminId: adminA, lyDoGo: 'Lý do đủ dài' },
+      }),
+    ).rejects.toThrow(/jobs_go_du_ly_do/)
   })
 })

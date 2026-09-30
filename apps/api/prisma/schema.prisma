@@ -177,6 +177,8 @@ model User {
   baoCaoDaGui    JobReport[]    @relation("NguoiBaoCao")
   /// Bao cao do chinh admin nay xu ly.
   baoCaoDaXuLy   JobReport[]    @relation("AdminXuLyBaoCao")
+  /// Tin do chinh admin nay go khoi trang cong khai.
+  tinDaGo        Job[]          @relation("JobGoBoiAdmin")
 
   @@map("users")
 }
@@ -192,6 +194,13 @@ enum NotificationType {
 
   /// Admin da ket luan mot bao cao tin — nguoi gui doc duoc ket luan.
   BAO_CAO_DA_XU_LY
+
+  /// Admin GO mot tin dang hien thi. Nha tuyen dung doc duoc ly do.
+  ///
+  /// Tach khoi APPLICATION_* va BAO_CAO_*: day la hanh dong cuong che len tai
+  /// san cua ho, khong phai mot cap nhat tien trinh. Gop chung nhan thi no
+  /// nam lan giua nhung thong bao thuong ngay va bi luot qua.
+  TIN_BI_GO
 }
 
 /// Thông báo trong ứng dụng, dành riêng cho một tài khoản.
@@ -658,6 +667,24 @@ model Job {
   /// nằm nháp cả tuần trước khi được gửi duyệt.
   publishedAt DateTime?
   closedAt    DateTime?
+
+  /// Admin nào đã GỠ tin này. `null` = nhà tuyển dụng tự đóng.
+  ///
+  /// ==========================================================================
+  /// VÌ SAO CẦN CỘT NÀY DÙ `CLOSED` ĐÃ ĐỦ ĐỂ ẨN TIN
+  /// ==========================================================================
+  /// `CLOSED` là trạng thái cuối, không có đường mở lại — nên nó đã đủ để gỡ
+  /// một tin vi phạm. Nhưng nếu chỉ có thế thì nhà tuyển dụng mở bảng tin lên
+  /// thấy "Đã đóng" y hệt một tin họ tự đóng tuần trước, và không có cách nào
+  /// biết chuyện gì vừa xảy ra.
+  ///
+  /// Hai cột này là phần "vì sao" — thứ biến một hành động cưỡng chế thành một
+  /// quyết định giải thích được.
+  goBoiAdminId String?
+  goBoiAdmin   User?   @relation("JobGoBoiAdmin", fields: [goBoiAdminId], references: [id], onDelete: SetNull)
+
+  /// Lý do gỡ. Nhà tuyển dụng đọc nguyên văn câu này trong thông báo.
+  lyDoGo String?
 
   /// Lý do admin từ chối, hiện lại cho nhà tuyển dụng sửa.
   rejectionReason String?

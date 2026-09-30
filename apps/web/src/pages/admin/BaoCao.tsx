@@ -10,6 +10,7 @@ import {
   type BaoCaoChoAdmin,
   type TrangThaiBaoCao,
 } from '@/hooks/useBaoCao'
+import { useGoTin } from '@/hooks/useAdminJobs'
 import { ApiClientError } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -191,7 +192,20 @@ function ChiTiet({
 }) {
   const [ketLuan, setKetLuan] = useState(r.ketLuan ?? '')
   const [loi, setLoi] = useState<string | null>(null)
+  const [moGo, setMoGo] = useState(false)
+  const [lyDoGo, setLyDoGo] = useState('')
+  const goTin = useGoTin()
   const daDong = r.status === 'DA_XU_LY' || r.status === 'BAC_BO'
+
+  async function go() {
+    setLoi(null)
+    try {
+      await goTin.mutateAsync({ id: r.jobId, lyDo: lyDoGo })
+      setMoGo(false)
+    } catch (e) {
+      setLoi(e instanceof ApiClientError ? e.message : 'Không gỡ được tin')
+    }
+  }
 
   async function bam(status: 'DANG_XEM' | 'DA_XU_LY' | 'BAC_BO') {
     setLoi(null)
@@ -239,15 +253,65 @@ function ChiTiet({
           {r.anhChupTin.description}
         </p>
 
-        <Link
-          to={`/viec-lam/${r.jobId}`}
-          target="_blank"
-          rel="noreferrer"
-          className="text-dash-accent mt-2 inline-flex items-center gap-1 text-xs hover:underline"
-        >
-          Xem tin hiện tại
-          <ExternalLink size={12} aria-hidden="true" />
-        </Link>
+        <div className="mt-2 flex flex-wrap items-center gap-3">
+          <Link
+            to={`/viec-lam/${r.jobId}`}
+            target="_blank"
+            rel="noreferrer"
+            className="text-dash-accent inline-flex items-center gap-1 text-xs hover:underline"
+          >
+            Xem tin hiện tại
+            <ExternalLink size={12} aria-hidden="true" />
+          </Link>
+
+          {/*
+            Chỉ hiện khi tin CÒN hiển thị. Tin đã gỡ mà vẫn bày nút gỡ là mời
+            admin bấm rồi nhận về một lỗi 409 chẳng giúp được gì.
+          */}
+          {r.tinConMo ? (
+            <RowAction tone="bad" disabled={goTin.isPending} onClick={() => setMoGo((v) => !v)}>
+              {moGo ? 'Thôi, không gỡ' : 'Gỡ tin khỏi trang'}
+            </RowAction>
+          ) : (
+            <span className="text-dash-muted text-xs">Tin này không còn hiển thị</span>
+          )}
+        </div>
+
+        {moGo && (
+          <div className="border-dash-bad/40 bg-dash-bad/5 mt-3 rounded-lg border p-3">
+            <label htmlFor={`ly-do-go-${r.id}`} className="text-dash-text text-sm font-medium">
+              Vì sao gỡ tin này?
+            </label>
+            {/*
+              Cảnh báo phải nói rõ tính KHÔNG ĐẢO NGƯỢC trước khi bấm, không
+              phải sau. `CLOSED` là trạng thái cuối — không phía nào mở lại
+              được, kể cả admin.
+            */}
+            <p className="text-dash-muted mt-0.5 text-xs">
+              Nhà tuyển dụng nhận thông báo kèm nguyên văn câu này.{' '}
+              <strong className="text-dash-bad">Gỡ rồi không mở lại được</strong> — họ phải đăng
+              tin mới.
+            </p>
+            <textarea
+              id={`ly-do-go-${r.id}`}
+              rows={3}
+              value={lyDoGo}
+              maxLength={500}
+              onChange={(e) => setLyDoGo(e.target.value)}
+              placeholder="Ví dụ: tin yêu cầu đặt cọc 500.000đ trước khi đi làm, trái quy định của UniWork."
+              className="border-dash-line bg-dash-surface text-dash-text focus:border-dash-accent mt-2 w-full resize-none rounded-lg border px-3 py-2 text-sm outline-none"
+            />
+            <div className="mt-2 flex justify-end">
+              <RowAction
+                tone="bad"
+                disabled={goTin.isPending || lyDoGo.trim().length < 10}
+                onClick={() => void go()}
+              >
+                Xác nhận gỡ tin
+              </RowAction>
+            </div>
+          </div>
+        )}
       </section>
 
       <section>

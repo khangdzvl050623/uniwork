@@ -47,3 +47,32 @@ export function useReviewJob() {
     },
   })
 }
+
+/**
+ * GỠ một tin đang hiển thị.
+ *
+ * Mutation RIÊNG, không thêm một `decision` vào `useReviewJob`. `CLOSED` không
+ * mở lại được, nên gộp là mời một cú bấm nhầm trong màn duyệt hàng loạt trở
+ * thành vĩnh viễn.
+ *
+ * Làm mới cả hàng đợi BÁO CÁO: cột "tin còn mở" ở màn duyệt báo cáo đọc từ
+ * `job.status`, nên gỡ xong mà không xoá cache thì admin vẫn thấy "còn hiển
+ * thị" và gỡ thêm lần nữa.
+ */
+export function useGoTin() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: ({ id, lyDo }: { id: string; lyDo: string }) =>
+      apiFetch<AdminJobResponse>(`/api/admin/tin-tuyen-dung/${id}/go`, {
+        method: 'PUT',
+        body: JSON.stringify({ lyDo }),
+      }),
+
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: KHOA_DUYET_TIN })
+      void queryClient.invalidateQueries({ queryKey: KHOA_CONG_KHAI })
+      void queryClient.invalidateQueries({ queryKey: ['admin', 'bao-cao'] })
+    },
+  })
+}

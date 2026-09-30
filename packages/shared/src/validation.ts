@@ -686,6 +686,32 @@ export const reviewJobSchema = z
 
 export type ReviewJobData = z.infer<typeof reviewJobSchema>
 
+/**
+ * Admin GỠ một tin đang hiển thị công khai.
+ *
+ * ===========================================================================
+ * TÁCH HẲN KHỎI `reviewJobSchema`, VÀ ĐÓ LÀ CÓ CHỦ Ý
+ * ===========================================================================
+ * Duyệt là nói "tin này được lên sàn"; gỡ là nói "tin đang trên sàn phải xuống
+ * ngay". Hai câu hỏi ở hai thời điểm khác nhau, với hai hậu quả khác nhau —
+ * và `CLOSED` là trạng thái CUỐI, không có đường mở lại.
+ *
+ * Gộp thành `PUT /:id/duyet { decision: 'TAKEDOWN' }` thì một lần bấm nhầm
+ * trong màn duyệt hàng loạt là gỡ vĩnh viễn một tin hợp lệ.
+ *
+ * `lyDo` BẮT BUỘC, tối thiểu 10 ký tự: nhà tuyển dụng đọc nguyên văn câu này,
+ * và một lần gỡ không lời giải thích là thứ họ không cãi lại được.
+ */
+export const goTinSchema = z.object({
+  lyDo: z
+    .string()
+    .trim()
+    .min(10, 'Ghi rõ vì sao gỡ — nhà tuyển dụng đọc đúng câu này')
+    .max(500, 'Lý do tối đa 500 ký tự'),
+})
+
+export type GoTinData = z.infer<typeof goTinSchema>
+
 /** Lọc hàng đợi duyệt theo trạng thái. Không truyền thì mặc định `PENDING`. */
 export const adminJobQuerySchema = z.object({
   status: z.enum(JOB_STATUSES).optional(),
