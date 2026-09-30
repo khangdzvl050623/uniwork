@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { Loader2, SendHorizontal } from 'lucide-react'
 import { BongChat, type BienChat } from '@/components/tro-ly/BongChat'
+import { DangGo } from '@/components/tro-ly/DangGo'
+import { danhDauThoiGian } from '@/lib/gop-tin'
 import type { KenhHoiThoai } from '@/hooks/useKenhHoiThoai'
 import { cn } from '@/lib/utils'
 
@@ -55,7 +57,8 @@ export function KhungChat({
    */
   useEffect(() => {
     cuoiDanhSach.current?.scrollIntoView({ block: 'end' })
-  }, [kenh.tinNhan])
+    /* Cuộn cả khi chỉ báo "đang gõ" hiện ra — nếu không nó nằm khuất dưới đáy. */
+  }, [kenh.tinNhan, kenh.hoDangGo])
 
   const khoa = !kenh.duocGui || dangGui
 
@@ -109,9 +112,16 @@ export function KhungChat({
 
         {!kenh.dangTai && kenh.tinNhan.length === 0 && trong}
 
-        {kenh.tinNhan.map((t) => (
-          <BongChat key={t.id} tin={t} tenHo={tenHo} bien={bien} />
+        {danhDauThoiGian(kenh.tinNhan).map(({ tin, moc, hienGio }) => (
+          <div key={tin.id} className="space-y-3">
+            {moc && (
+              <p className={cn('py-1 text-center text-xs tabular-nums', mau.chuPhu)}>{moc}</p>
+            )}
+            <BongChat tin={tin} tenHo={tenHo} bien={bien} hienGio={hienGio} />
+          </div>
         ))}
+
+        {kenh.hoDangGo && <DangGo ten={tenHo} bien={bien} />}
 
         <div ref={cuoiDanhSach} />
       </div>
@@ -140,7 +150,10 @@ export function KhungChat({
               maxLength={TRAN_KY_TU}
               disabled={khoa}
               placeholder={placeholder}
-              onChange={(e) => setNoiDung(e.target.value)}
+              onChange={(e) => {
+                setNoiDung(e.target.value)
+                kenh.baoDangGo()
+              }}
               /* Enter gửi, Shift+Enter xuống dòng — nếp quen của mọi ô chat. */
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) void guiDi(e)

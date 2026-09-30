@@ -1,4 +1,5 @@
 import { cn } from '@/lib/utils'
+import { gioPhut } from '@/lib/gop-tin'
 import type { TinNhanUI } from '@/hooks/useTroLy'
 
 /**
@@ -55,11 +56,20 @@ export function BongChat({
   tin,
   tenHo,
   bien = 'sang',
+  hienGio = false,
 }: {
   tin: TinNhanUI
   /** Tên hiển thị của người kia. Thiếu thì bong bóng của họ không có nhãn. */
   tenHo?: string
   bien?: BienChat
+  /**
+   * Hiện giờ dưới bong bóng.
+   *
+   * Do `danhDauThoiGian` quyết, KHÔNG phải component tự suy: nó chỉ bật ở tin
+   * cuối của một chuỗi cùng người nói, mà quyết định đó cần nhìn cả tin kế
+   * tiếp — thứ component này không có.
+   */
+  hienGio?: boolean
 }) {
   if (tin.vai === 'he-thong') {
     return <p className={cn('py-1 text-center text-xs', CHU_PHU[bien])}>{tin.noiDung}</p>
@@ -105,6 +115,12 @@ export function BongChat({
           />
         )}
       </div>
+
+      {hienGio && tin.luc && (
+        <span className={cn('mt-0.5 px-1 text-[11px] tabular-nums', CHU_PHU[bien])}>
+          {gioPhut(tin.luc)}
+        </span>
+      )}
     </div>
   )
 }

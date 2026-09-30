@@ -40,6 +40,10 @@ interface TraTinNhan {
 
 export interface KenhHoiThoai {
   tinNhan: TinNhanUI[]
+  /** Người bên kia vừa gõ trong vài giây gần đây. */
+  hoDangGo: boolean
+  /** Gọi mỗi khi người dùng gõ. Tự hãm nhịp bên trong. */
+  baoDangGo: () => void
   /**
    * Trạng thái phiên do SERVER quyết. Client chỉ hiển thị, không tự suy.
    *
@@ -80,6 +84,20 @@ export function useKenhHoiThoai(sessionId: string | null): KenhHoiThoai {
   const [duocGui, setDuocGui] = useState(false)
   const [dangTai, setDangTai] = useState(false)
   const [loi, setLoi] = useState<string | null>(null)
+  const [hoDangGo, setHoDangGo] = useState(false)
+
+  /*
+   * Hai hẹn giờ cho hai việc ngược nhau, và cả hai đều là `ref`:
+   *
+   *   `hamNhip` — chặn gửi quá dày. Người gõ nhanh bắn ~8 sự kiện/giây; gửi
+   *   hết là tốn băng thông cho một thứ vứt đi được.
+   *
+   *   `tatSauKhiIm` — TỰ TẮT chỉ báo. Không có nó thì chỉ báo "đang gõ" kẹt
+   *   vĩnh viễn khi người kia gõ dở rồi đóng tab — server không gửi sự kiện
+   *   "thôi gõ" nào, và cố gửi thì cũng mất cùng lúc với kết nối.
+   */
+  const hamNhip = useRef(0)
+  const tatSauKhiIm = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   /*
    * Cursor ĐỤC — chỉ cất rồi gửi lại, không đọc, không so sánh, không tính.
@@ -184,6 +202,14 @@ export function useKenhHoiThoai(sessionId: string | null): KenhHoiThoai {
       setTinNhan((ds) => gopLichSu(ds, [message], toiLa))
     }
 
+    const dangGo = (du: unknown) => {
+      const { sessionId: sid } = du as { sessionId: string }
+      if (sid !== sessionId) return
+      setHoDangGo(true)
+      if (tatSauKhiIm.current) clearTimeout(tatSauKhiIm.current)
+      tatSauKhiIm.current = setTimeout(() => setHoDangGo(false), 3000)
+    }
+
     const doiTrangThai = (du: unknown) => {
       const { state } = du as { state: string }
       setTrangThai(state)
@@ -193,11 +219,15 @@ export function useKenhHoiThoai(sessionId: string | null): KenhHoiThoai {
     s.on('connect', () => void vaoPhong())
     s.on('hoi-thoai:tin-moi', tinMoi)
     s.on('hoi-thoai:trang-thai', doiTrangThai)
+    s.on('hoi-thoai:dang-go', dangGo)
     if (s.connected) void vaoPhong()
 
     return () => {
       s.off('hoi-thoai:tin-moi', tinMoi)
       s.off('hoi-thoai:trang-thai', doiTrangThai)
+      s.off('hoi-thoai:dang-go', dangGo)
+      if (tatSauKhiIm.current) clearTimeout(tatSauKhiIm.current)
+      setHoDangGo(false)
       s.emit('hoi-thoai:ra', { sessionId })
     }
   }, [sessionId, toiLa])
@@ -230,8 +260,25 @@ export function useKenhHoiThoai(sessionId: string | null): KenhHoiThoai {
     [sessionId],
   )
 
+  /**
+   * Báo "tôi đang gõ", nhiều nhất một lần mỗi 2 giây.
+   *
+   * Sự kiện này KHÔNG có ACK và không chạm database (xem `socket.gateway`),
+   * nên mất một cái là không ai biết. Đúng vì thế mà nó phải rẻ: hãm nhịp ở
+   * client là chỗ rẻ nhất để làm điều đó.
+   */
+  const baoDangGo = useCallback(() => {
+    if (!sessionId) return
+    const now = Date.now()
+    if (now - hamNhip.current < 2000) return
+    hamNhip.current = now
+    moSocket().emit('hoi-thoai:dang-go', { sessionId })
+  }, [sessionId])
+
   return {
     tinNhan,
+    hoDangGo,
+    baoDangGo,
     trangThai,
     duocGui,
     dangTai,

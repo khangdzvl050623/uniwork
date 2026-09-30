@@ -6,7 +6,14 @@ import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
 import { prisma } from '../../lib/prisma.js'
 import { verifyAccessToken } from '../../lib/token.js'
-import { PHONG_ADMIN_HO_TRO, phongHopThuNTD, phongNguoiDung } from './chat.access.js'
+import {
+  PHONG_ADMIN_HO_TRO,
+  phongAdmin,
+  phongChu,
+  phongHopThuNTD,
+  phongNguoiDung,
+  phongNTD,
+} from './chat.access.js'
 import { guiTinNhan, layTinNhan, quyenPhien } from './chat.service.js'
 import { dangKyBoPhat } from './phat-su-kien.js'
 
@@ -252,9 +259,32 @@ async function bao(socket: Socket, v: unknown): Promise<void> {
      * hình NTD.
      */
     if (!quyen.duocGui) return
-    socket
-      .to(quyen.vai === 'CHU' ? `hoi-thoai:${sessionId}:ntd` : `hoi-thoai:${sessionId}:chu`)
-      .emit('hoi-thoai:dang-go', { sessionId, userId: user.id })
+
+    /*
+     * =======================================================================
+     * TÊN PHÒNG LẤY TỪ `chat.access`, KHÔNG GHÉP CHUỖI TAY
+     * =======================================================================
+     * Bản trước viết thẳng `hoi-thoai:${sessionId}:ntd` và chỉ biết hai phòng:
+     * CHU thì bắn sang `:ntd`, còn lại bắn về `:chu`.
+     *
+     * Ở kênh HỖ TRỢ người đối diện ngồi trong `:admin`, nên "đang gõ" của
+     * người dùng bay vào một phòng rỗng — không lỗi, không log, chỉ là quản
+     * trị viên không bao giờ thấy. Đúng cái bẫy `chat.access.ts` đã nêu ở đầu
+     * file của nó, và đúng cái đã sửa cho `phatTinMoi` hôm qua.
+     *
+     * Chủ phiên bắn vào CẢ HAI phòng bên kia. An toàn nhờ cùng một bất biến:
+     * đường duy nhất vào `:ntd` / `:admin` là `quyenTruyCapPhien`, và nó chỉ
+     * mở đúng phòng cho đúng `kind` — phòng còn lại rỗng một cách chứng minh
+     * được.
+     */
+    const den =
+      quyen.vai === 'CHU'
+        ? [phongNTD(sessionId), phongAdmin(sessionId)]
+        : [phongChu(sessionId)]
+
+    for (const phong of den) {
+      socket.to(phong).emit('hoi-thoai:dang-go', { sessionId, userId: user.id })
+    }
   } catch {
     /* Không quyền hoặc phiên không tồn tại — bỏ qua, đây là sự kiện vứt đi được. */
   }

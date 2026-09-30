@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest'
-import { danhDauXong, danhSoTin, gopChu, gopLichSu, type TinNhanUI } from './gop-tin'
+import {
+  danhDauThoiGian,
+  danhDauXong,
+  danhSoTin,
+  gopChu,
+  gopLichSu,
+  type TinNhanUI,
+} from './gop-tin'
 
 const HOI: TinNhanUI = { id: 'tam-1', vai: 'toi', noiDung: 'có việc gì không?' }
 const ID = 'ai-1'
@@ -171,5 +178,110 @@ describe('danhSoTin', () => {
     const ds = danhSoTin([{ id: 'tam', vai: 'toi', noiDung: 'hỏi' }], 'tam', 5)
     const sau = gopLichSu(ds, [{ id: 'db-5', seq: 5, senderType: 'STUDENT', body: 'hỏi' }], 'STUDENT')
     expect(sau).toHaveLength(1)
+  })
+})
+
+/*
+ * ===========================================================================
+ * MỐC THỜI GIAN — ĐÚNG CHỖ, KHÔNG PHẢI MỌI CHỖ
+ * ===========================================================================
+ * Mười tin liên tiếp trong một phút, mỗi cái một dòng giờ phía dưới, là mười
+ * dòng nhiễu nói cùng một điều. Luật ở đây quyết chỗ nào đáng hiện.
+ *
+ * Dùng giờ CỐ ĐỊNH, không `Date.now()`: hàm phải thuần, và một ca kiểm phụ
+ * thuộc lúc chạy sẽ đỏ vào đúng nửa đêm.
+ */
+describe('danhDauThoiGian', () => {
+  const luc = (h: number, m: number, ngay = 15) =>
+    new Date(2026, 9, ngay, h, m).toISOString()
+
+  const tin = (id: string, vai: TinNhanUI['vai'], gio: string): TinNhanUI => ({
+    id,
+    seq: Number(id),
+    vai,
+    noiDung: id,
+    luc: gio,
+  })
+
+  it('tin đầu tiên luôn mở đầu bằng một mốc', () => {
+    const kq = danhDauThoiGian([tin('1', 'toi', luc(14, 30))])
+    expect(kq[0]!.moc).not.toBeNull()
+  })
+
+  it('hai tin sát nhau KHÔNG chèn mốc ở giữa', () => {
+    const kq = danhDauThoiGian([
+      tin('1', 'toi', luc(14, 30)),
+      tin('2', 'ho', luc(14, 31)),
+    ])
+    expect(kq[1]!.moc).toBeNull()
+  })
+
+  it('cách nhau hơn 20 phút thì chèn mốc', () => {
+    const kq = danhDauThoiGian([
+      tin('1', 'toi', luc(14, 30)),
+      tin('2', 'toi', luc(15, 0)),
+    ])
+    expect(kq[1]!.moc).not.toBeNull()
+  })
+
+  /*
+   * Sang ngày khác thì chèn mốc DÙ chỉ cách vài phút. 23:58 hôm qua và 00:01
+   * hôm nay cách nhau ba phút, nhưng đọc lại thì đó là hai buổi khác nhau —
+   * và nếu chỉ so khoảng cách thì chúng dính liền thành một.
+   */
+  it('sang ngày khác thì chèn mốc dù chỉ cách vài phút', () => {
+    const kq = danhDauThoiGian([
+      tin('1', 'toi', new Date(2026, 9, 15, 23, 58).toISOString()),
+      tin('2', 'toi', new Date(2026, 9, 16, 0, 1).toISOString()),
+    ])
+    expect(kq[1]!.moc).not.toBeNull()
+  })
+
+  /*
+   * =======================================================================
+   * GIỜ CHỈ Ở CUỐI MỖI CHUỖI CÙNG NGƯỜI NÓI
+   * =======================================================================
+   * Đây là phần dễ viết thành "luôn đúng" nhất: khẳng định trên CẢ chuỗi chứ
+   * không trên một phần tử, để đổi luật thành "hiện hết" hay "không hiện gì"
+   * đều đỏ.
+   */
+  it('chuỗi ba tin cùng người: chỉ tin CUỐI hiện giờ', () => {
+    const kq = danhDauThoiGian([
+      tin('1', 'toi', luc(14, 30)),
+      tin('2', 'toi', luc(14, 31)),
+      tin('3', 'toi', luc(14, 32)),
+    ])
+    expect(kq.map((k) => k.hienGio)).toEqual([false, false, true])
+  })
+
+  it('đổi người nói thì tin trước đó hiện giờ', () => {
+    const kq = danhDauThoiGian([
+      tin('1', 'toi', luc(14, 30)),
+      tin('2', 'ho', luc(14, 31)),
+    ])
+    expect(kq.map((k) => k.hienGio)).toEqual([true, true])
+  })
+
+  /* Tin hệ thống là dòng chữ giữa màn hình, không phải bong bóng — không gắn giờ. */
+  it('tin hệ thống không hiện giờ', () => {
+    const kq = danhDauThoiGian([tin('1', 'he-thong', luc(14, 30))])
+    expect(kq[0]!.hienGio).toBe(false)
+  })
+
+  /*
+   * Tin đang chảy dở chưa có `luc` — server chưa ghi nó. KHÔNG được bịa giờ
+   * bằng `new Date()`: đồng hồ máy người dùng lệch được hàng phút, và một giờ
+   * sai trông y hệt một giờ đúng.
+   */
+  it('tin chưa có giờ thì không mốc, không hiện giờ', () => {
+    const kq = danhDauThoiGian([{ id: 'tam', vai: 'ai', noiDung: 'đang…', dangViet: true }])
+    expect(kq[0]).toMatchObject({ moc: null, hienGio: false })
+  })
+
+  it('không sửa mảng gốc, và gọi hai lần ra cùng kết quả', () => {
+    const ds = [tin('1', 'toi', luc(14, 30)), tin('2', 'ho', luc(14, 31))]
+    const truoc = JSON.stringify(ds)
+    expect(danhDauThoiGian(ds)).toEqual(danhDauThoiGian(ds))
+    expect(JSON.stringify(ds)).toBe(truoc)
   })
 })

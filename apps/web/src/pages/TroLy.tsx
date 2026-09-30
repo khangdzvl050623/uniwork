@@ -6,6 +6,7 @@ import { BongChat } from '@/components/tro-ly/BongChat'
 import { DangTraCuu } from '@/components/tro-ly/DangTraCuu'
 import { TheDeNghiNTD } from '@/components/tro-ly/TheDeNghiNTD'
 import { useLuotConLai, useTroLy } from '@/hooks/useTroLy'
+import { danhDauThoiGian } from '@/lib/gop-tin'
 
 const TRAN_KY_TU = 2000
 
@@ -149,8 +150,17 @@ export function TroLy() {
           </div>
         )}
 
-        {tinNhan.map((t) => (
-          <BongChat key={t.id} tin={t} />
+        {/*
+          Trang này cũng gom nhóm thời gian như mọi hội thoại khác, dù đầu kia
+          là model. Người dùng quay lại sau một ngày vẫn cần biết đoạn nào hỏi
+          hôm qua, đoạn nào hỏi hôm nay — luồng trợ lý sống vĩnh viễn nên nó
+          dài ra mãi.
+        */}
+        {danhDauThoiGian(tinNhan).map(({ tin, moc, hienGio }) => (
+          <div key={tin.id} className="space-y-3">
+            {moc && <p className="py-1 text-center text-xs tabular-nums text-slate-500">{moc}</p>}
+            <BongChat tin={tin} hienGio={hienGio} />
+          </div>
         ))}
 
         {dangChay && <DangTraCuu tool={toolDangChay} />}

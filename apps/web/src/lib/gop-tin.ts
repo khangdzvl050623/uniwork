@@ -20,6 +20,14 @@ export interface TinNhanUI {
   seq?: number
   /** AI đang viết dở tin này. */
   dangViet?: boolean
+  /**
+   * Thời điểm server ghi tin, dạng ISO. `undefined` khi tin còn đang chảy dở
+   * — lúc đó nó chưa có trong database nên chưa có giờ nào là thật.
+   *
+   * Không tự đặt `new Date()` ở client để lấp chỗ trống: đồng hồ máy người
+   * dùng lệch được hàng phút, và một giờ SAI trông y hệt một giờ đúng.
+   */
+  luc?: string
 }
 
 /**
@@ -80,6 +88,7 @@ export interface TinTuServer {
   seq: number
   senderType: string
   body: string
+  createdAt?: string
 }
 
 /**
@@ -142,6 +151,7 @@ export function gopLichSu(
       seq: t.seq,
       vai: vaiTheoNguoiGui(t.senderType, toiLa),
       noiDung: t.body,
+      luc: t.createdAt,
     }
     kq = viTri === -1 ? [...kq, thanh] : kq.map((c, i) => (i === viTri ? thanh : c))
   }
@@ -152,4 +162,88 @@ export function gopLichSu(
 /** Gán `seq` cho một tin tạm, để lần phát qua socket sau đó không tạo bản sao. */
 export function danhSoTin(ds: TinNhanUI[], id: string, seq: number): TinNhanUI[] {
   return ds.map((t) => (t.id === id ? { ...t, seq } : t))
+}
+
+/* ====================================================== mốc thời gian -- */
+
+/** Khoảng lặng đủ dài để chèn một mốc thời gian. 20 phút. */
+const KHE_MOC_MS = 20 * 60_000
+
+export interface TinCoMoc {
+  tin: TinNhanUI
+  /** Dòng ngăn cách phía TRÊN tin này. `null` nếu không cần. */
+  moc: string | null
+  /** Có hiện giờ dưới bong bóng này không. */
+  hienGio: boolean
+}
+
+/**
+ * Quyết định chỗ nào hiện mốc thời gian, chỗ nào hiện giờ.
+ *
+ * ===========================================================================
+ * KHÔNG GẮN GIỜ VÀO MỌI BONG BÓNG
+ * ===========================================================================
+ * Mười tin nhắn liên tiếp trong một phút, mỗi cái một dòng "14:32" phía dưới,
+ * là mười dòng nhiễu nói cùng một điều. Mắt phải lọc chúng để đọc nội dung.
+ *
+ * Nếp mà mọi ứng dụng nhắn tin dùng, và lý do của từng phần:
+ *
+ *   MỐC ngăn cách  khi cách tin trước >20 phút, hoặc sang ngày khác. Đây là
+ *                  thứ trả lời "cuộc trò chuyện này diễn ra khi nào".
+ *
+ *   GIỜ dưới bóng  chỉ ở tin CUỐI của một chuỗi liên tiếp cùng người nói.
+ *                  Trả lời "câu này nói lúc mấy giờ" mà không lặp lại.
+ *
+ * Hàm thuần, không đọc `Date.now()`: cùng đầu vào luôn ra cùng kết quả, nên
+ * test được và không nhấp nháy giữa hai lần render.
+ */
+export function danhDauThoiGian(ds: TinNhanUI[]): TinCoMoc[] {
+  return ds.map((tin, i) => {
+    const truoc = ds[i - 1]
+    const sau = ds[i + 1]
+
+    return {
+      tin,
+      moc: canMoc(truoc?.luc, tin.luc) ? nhanMoc(tin.luc!) : null,
+      /*
+       * Tin cuối danh sách luôn hiện giờ. Tin giữa chuỗi chỉ hiện khi người
+       * nói tiếp theo KHÁC — hoặc khi tin sau đó đã cách xa tới mức có mốc
+       * riêng, vì lúc đó chuỗi coi như đã đứt.
+       */
+      hienGio:
+        tin.luc !== undefined &&
+        tin.vai !== 'he-thong' &&
+        (sau === undefined || sau.vai !== tin.vai || canMoc(tin.luc, sau.luc)),
+    }
+  })
+}
+
+function canMoc(truoc: string | undefined, nay: string | undefined): boolean {
+  if (nay === undefined) return false
+  /* Tin đầu tiên có giờ thì luôn mở đầu bằng một mốc. */
+  if (truoc === undefined) return true
+
+  const a = new Date(truoc)
+  const b = new Date(nay)
+  if (b.getTime() - a.getTime() >= KHE_MOC_MS) return true
+  return a.toDateString() !== b.toDateString()
+}
+
+/** "14:32" nếu là hôm nay, "Hôm qua 14:32", còn lại "02/10 14:32". */
+function nhanMoc(iso: string): string {
+  const d = new Date(iso)
+  const gio = gioPhut(iso)
+
+  const homNay = new Date()
+  const homQua = new Date(homNay.getTime() - 86_400_000)
+
+  if (d.toDateString() === homNay.toDateString()) return gio
+  if (d.toDateString() === homQua.toDateString()) return `Hôm qua ${gio}`
+
+  return `${d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })} ${gio}`
+}
+
+/** "14:32". Tách riêng vì bong bóng chỉ cần giờ, không cần ngày. */
+export function gioPhut(iso: string): string {
+  return new Date(iso).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
 }
