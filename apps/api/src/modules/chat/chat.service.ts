@@ -3,7 +3,14 @@ import type { ModelMessage } from '@uniwork/ai-runtime'
 import { aiConfig, DangBanError, giuLuot } from '@uniwork/ai-runtime'
 import { prisma } from '../../lib/prisma.js'
 import { conflict, forbidden, notFound, AppError } from '../../lib/errors.js'
-import { phongChu, phongNTD, quyenTruyCapPhien, type QuyenTruyCap } from './chat.access.js'
+import {
+  phongAdmin,
+  phongChu,
+  phongNguoiDung,
+  phongNTD,
+  quyenTruyCapPhien,
+  type QuyenTruyCap,
+} from './chat.access.js'
 import { dongCursor, moCursor } from './cursor.js'
 import { phatToiPhong } from './phat-su-kien.js'
 import { PROMPT_VERSION } from './prompts/he-thong-sinh-vien.js'
@@ -540,6 +547,60 @@ export function phatTinMoi(sessionId: string, message: TinNhanItem, choNTD: bool
   if (choNTD) {
     phatToiPhong(phongNTD(sessionId), 'hoi-thoai:tin-moi', { sessionId, message })
   }
+  /*
+   * =========================================================================
+   * PHÒNG ADMIN: PHÁT VÔ ĐIỀU KIỆN, VÀ ĐIỀU ĐÓ AN TOÀN
+   * =========================================================================
+   * Không có cờ nào ở đây, khác hẳn `choNTD`. Lý do là một BẤT BIẾN, không
+   * phải một sự cẩu thả:
+   *
+   *   Đường DUY NHẤT vào `hoi-thoai:<id>:admin` là `hoi-thoai:vao` →
+   *   `quyenTruyCapPhien`, và hàm đó chỉ trả phòng này khi `kind ===
+   *   'AI_SUPPORT'`. Với mọi kênh khác nó trả `null`, nên phòng RỖNG một cách
+   *   chứng minh được — có test canh ("admin KHÔNG đọc được hội thoại sinh
+   *   viên–nhà tuyển dụng").
+   *
+   * Và trong phiên hỗ trợ thì admin đọc TỪ SEQ 1, không có mốc riêng tư nào,
+   * nên mọi tin đều thuộc về họ. Một cờ `choAdmin` ở đây sẽ là cờ luôn đúng —
+   * tức là một chỗ để gán nhầm chứ không phải một lớp bảo vệ.
+   *
+   * ---------------------------------------------------------------------------
+   * VÌ SAO DÒNG NÀY TỪNG THIẾU, VÀ NÓ HỎNG RA SAO
+   * ---------------------------------------------------------------------------
+   * Hàm này viết khi hệ chỉ có HAI phòng. Kênh hỗ trợ thêm phòng thứ ba nhưng
+   * không ai sửa chỗ phát, nên `tiepNhanHoTro` phải tự vá thêm một `emit`
+   * riêng. Mọi đường khác — kể cả `guiTinNhan`, đường mà MỌI tin nhắn thật đi
+   * qua — thì không.
+   *
+   * Hệ quả: admin gõ xong không thấy gì, sinh viên nhắn sang admin cũng không
+   * thấy gì. Phải F5 mới hiện. Không lỗi, không log — chỉ là realtime chết một
+   * nửa ở đúng kênh mới nhất.
+   */
+  phatToiPhong(phongAdmin(sessionId), 'hoi-thoai:tin-moi', { sessionId, message })
+}
+
+/**
+ * Báo đổi trạng thái phiên — cho CẢ HAI bên, không riêng chủ phiên.
+ *
+ * ===========================================================================
+ * BỐN ĐÍCH, VÀ MỖI ĐÍCH LO MỘT CA KHÁC NHAU
+ * ===========================================================================
+ *   ba phòng hội thoại — người đang MỞ hội thoại thấy nút đổi ngay dưới tay
+ *   phòng riêng của chủ    — chủ phiên đang ở trang khác vẫn nhận được
+ *
+ * Bản trước chỉ phát vào phòng riêng của CHỦ phiên. Nên phía bên kia —
+ * nhà tuyển dụng hoặc admin đang ngồi trong chính hội thoại đó — không bao giờ
+ * biết nó vừa đóng: ô nhập vẫn mở, gõ xong mới nhận lỗi từ server.
+ *
+ * Phát thừa vào một phòng rỗng không tốn gì (Socket.IO bỏ qua), còn phát
+ * thiếu thì giao diện nói dối. Nên khi phân vân thì phát.
+ */
+export function phatTrangThai(sessionId: string, state: string, ownerUserId: string): void {
+  const du = { sessionId, state }
+  phatToiPhong(phongChu(sessionId), 'hoi-thoai:trang-thai', du)
+  phatToiPhong(phongNTD(sessionId), 'hoi-thoai:trang-thai', du)
+  phatToiPhong(phongAdmin(sessionId), 'hoi-thoai:trang-thai', du)
+  phatToiPhong(phongNguoiDung(ownerUserId), 'hoi-thoai:trang-thai', du)
 }
 
 /** Dùng lại cho handler socket — tránh hai chỗ cùng gọi `quyenTruyCapPhien`. */

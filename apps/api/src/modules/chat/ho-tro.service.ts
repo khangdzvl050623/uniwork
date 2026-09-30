@@ -2,8 +2,8 @@ import type { Role } from '@prisma/client'
 import { prisma } from '../../lib/prisma.js'
 import { conflict, notFound } from '../../lib/errors.js'
 import { createNotification } from '../notifications/notifications.service.js'
-import { PHONG_ADMIN_HO_TRO, phongAdmin, phongNguoiDung } from './chat.access.js'
-import { ghiTinHeThong, phatTinMoi, type TinNhanItem } from './chat.service.js'
+import { PHONG_ADMIN_HO_TRO } from './chat.access.js'
+import { ghiTinHeThong, phatTinMoi, phatTrangThai, type TinNhanItem } from './chat.service.js'
 import { phatToiPhong } from './phat-su-kien.js'
 
 /**
@@ -87,6 +87,7 @@ export async function yeuCauHoTro(
   })
 
   phatTinMoi(sessionId, tin, false)
+  phatTrangThai(sessionId, 'WAITING_ADMIN', userId)
   /* Hàng đợi chung — mọi admin đang mở màn hình đều thấy ngay. */
   phatToiPhong(PHONG_ADMIN_HO_TRO, 'ho-tro:yeu-cau-moi', {
     sessionId,
@@ -111,6 +112,7 @@ export async function huyYeuCauHoTro(userId: string, sessionId: string): Promise
   })
 
   phatTinMoi(sessionId, tin, false)
+  phatTrangThai(sessionId, 'AI_ACTIVE', userId)
   return { sessionId, state: 'AI_ACTIVE', tin }
 }
 
@@ -155,12 +157,9 @@ export async function tiepNhanHoTro(adminUserId: string, sessionId: string): Pro
     return tinMo
   })
 
+  /* `phatTinMoi` đã lo cả phòng admin — xem ghi chú bất biến trong hàm đó. */
   phatTinMoi(sessionId, tin, false)
-  phatToiPhong(phongAdmin(sessionId), 'hoi-thoai:tin-moi', { sessionId, message: tin })
-  phatToiPhong(phongNguoiDung(p.ownerUserId), 'hoi-thoai:trang-thai', {
-    sessionId,
-    state: 'HUMAN_ACTIVE',
-  })
+  phatTrangThai(sessionId, 'HUMAN_ACTIVE', p.ownerUserId)
 
   return { sessionId, state: 'HUMAN_ACTIVE', tin }
 }
@@ -192,9 +191,19 @@ export async function hangDoiHoTro(): Promise<{ hoTro: MucHangDoiHoTro[] }> {
       handoffRequestedAt: true,
       lastMessageAt: true,
       owner: { select: { role: true } },
+      /*
+       * Tin hệ thống ĐẦU TIÊN (`asc`), không phải tin mới nhất.
+       *
+       * Tin đầu chính là câu người dùng gõ lúc bấm xin hỗ trợ — thứ duy nhất
+       * trong danh sách nói được ticket này về chuyện gì.
+       *
+       * Bản trước dùng `desc`, nên ngay sau khi admin bấm tiếp nhận thì dòng
+       * mô tả đổi thành "Quản trị viên đã tiếp nhận." — hệ thống tự mô tả
+       * chính nó, và nội dung người dùng viết biến mất khỏi hàng đợi.
+       */
       messages: {
         where: { senderType: 'SYSTEM' },
-        orderBy: { seq: 'desc' },
+        orderBy: { seq: 'asc' },
         take: 1,
         select: { body: true },
       },

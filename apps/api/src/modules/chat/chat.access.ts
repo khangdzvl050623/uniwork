@@ -22,6 +22,14 @@ export type VaiTrongPhien = 'CHU' | 'NTD_NHAN_HANDOFF' | 'ADMIN_HO_TRO'
 
 export interface QuyenTruyCap {
   sessionId: string
+  /**
+   * Chủ phiên. Cần cho việc PHÁT, không cho việc phân quyền.
+   *
+   * `phatTrangThai` bắn cả vào phòng riêng của chủ phiên để họ nhận được kể
+   * cả khi đang ở trang khác. Hàm này đã đọc sẵn giá trị đó; bắt nơi gọi truy
+   * vấn lại là một lần chạm database thừa cho mỗi chuyển đổi.
+   */
+  ownerUserId: string
   vai: VaiTrongPhien
   /**
    * Phòng socket được vào. SUY TỪ `vai`, không cho nơi gọi tự ghép chuỗi.
@@ -80,7 +88,12 @@ export async function quyenTruyCapPhien(
   })
   if (!p) return null
 
-  const chung = { sessionId: p.id, trangThai: p.state, seqHienTai: p.messageSeq }
+  const chung = {
+    sessionId: p.id,
+    ownerUserId: p.ownerUserId,
+    trangThai: p.state,
+    seqHienTai: p.messageSeq,
+  }
 
   if (p.ownerUserId === user.id) {
     return {

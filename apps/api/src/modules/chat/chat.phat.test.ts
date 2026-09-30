@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { phongChu, phongNTD } from './chat.access.js'
+import { phongAdmin, phongChu, phongNTD } from './chat.access.js'
 import { dangKyBoPhat, phatToiPhong } from './phat-su-kien.js'
-import { phatTinMoi } from './chat.service.js'
+import { phatTinMoi, phatTrangThai } from './chat.service.js'
 
 vi.mock('../../lib/prisma.js', () => ({ prisma: {} }))
 
@@ -41,19 +41,72 @@ describe('luật phát tin', () => {
    * đổi và test vẫn xanh — trong khi NTD vừa được đưa vào phòng của chủ phiên
    * và bắt đầu nhận mọi tin riêng tư.
    */
-  it('tin riêng tư chỉ vào phòng của chủ phiên', () => {
+  /*
+   * Điều được canh ở đây là "NTD KHÔNG nhận tin riêng tư", chứ không phải
+   * "đúng một lần phát". Nên khẳng định trên chính phòng của NTD.
+   *
+   * Bản trước viết `toHaveLength(1)`, và nó bó buộc sai chỗ: thêm phòng admin
+   * (phòng mà NTD không bao giờ vào được) làm test đỏ, trong khi tính chất
+   * riêng tư vẫn nguyên vẹn.
+   */
+  it('tin riêng tư KHÔNG vào phòng của nhà tuyển dụng', () => {
     const daPhat = batPhat()
     phatTinMoi('p-1', TIN, false)
 
-    expect(daPhat).toHaveLength(1)
-    expect(daPhat[0]!.phong).toBe('hoi-thoai:p-1:chu')
+    const phong = daPhat.map((d) => d.phong)
+    expect(phong).toContain('hoi-thoai:p-1:chu')
+    expect(phong).not.toContain('hoi-thoai:p-1:ntd')
   })
 
-  it('tin đã chia sẻ vào cả hai phòng, và hai phòng đó KHÁC NHAU', () => {
+  it('tin đã chia sẻ vào cả phòng chủ lẫn phòng NTD, và hai phòng đó KHÁC NHAU', () => {
     const daPhat = batPhat()
     phatTinMoi('p-1', TIN, true)
 
-    expect(daPhat.map((d) => d.phong)).toEqual(['hoi-thoai:p-1:chu', 'hoi-thoai:p-1:ntd'])
+    const phong = daPhat.map((d) => d.phong)
+    expect(phong).toContain('hoi-thoai:p-1:chu')
+    expect(phong).toContain('hoi-thoai:p-1:ntd')
+    expect(new Set(phong).size).toBe(phong.length)
+  })
+
+  /*
+   * =======================================================================
+   * CA NÀY CHẶN "ADMIN GÕ XONG KHÔNG THẤY GÌ, PHẢI F5"
+   * =======================================================================
+   * `phatTinMoi` viết khi hệ chỉ có hai phòng. Kênh hỗ trợ thêm phòng thứ ba
+   * nhưng chỗ phát không đổi, nên `guiTinNhan` — đường mà MỌI tin nhắn thật
+   * đi qua — không bao giờ chạm tới admin.
+   *
+   * Phát vô điều kiện là an toàn vì phòng admin chỉ vào được qua
+   * `quyenTruyCapPhien`, và hàm đó chỉ mở nó cho `kind = 'AI_SUPPORT'`.
+   */
+  it('mọi tin đều vào phòng admin — kể cả tin KHÔNG chia sẻ cho NTD', () => {
+    const daPhat = batPhat()
+    phatTinMoi('p-1', TIN, false)
+
+    expect(daPhat.map((d) => d.phong)).toContain('hoi-thoai:p-1:admin')
+  })
+
+  it('ba phòng của cùng một phiên khác nhau từng đôi một', () => {
+    const ba = [phongChu('p-1'), phongNTD('p-1'), phongAdmin('p-1')]
+    expect(new Set(ba).size).toBe(3)
+  })
+
+  /*
+   * =======================================================================
+   * CA NÀY CHẶN "BÊN KIA KHÔNG BIẾT HỘI THOẠI VỪA ĐÓNG"
+   * =======================================================================
+   * Bản trước chỉ phát đổi trạng thái vào phòng RIÊNG của chủ phiên. Nhà
+   * tuyển dụng hay admin đang ngồi trong chính hội thoại đó không nhận được
+   * gì: ô nhập vẫn mở, và họ chỉ biết khi gõ xong rồi nhận lỗi từ server.
+   */
+  it('đổi trạng thái tới cả ba phòng hội thoại VÀ phòng riêng của chủ phiên', () => {
+    const daPhat = batPhat()
+    phatTrangThai('p-1', 'CLOSED', 'u-9')
+
+    expect(daPhat.map((d) => d.phong).sort()).toEqual(
+      ['hoi-thoai:p-1:admin', 'hoi-thoai:p-1:chu', 'hoi-thoai:p-1:ntd', 'user:u-9'].sort(),
+    )
+    expect(daPhat.every((d) => d.ten === 'hoi-thoai:trang-thai')).toBe(true)
   })
 
   it('tên phòng khớp đúng hằng số hai phía cùng dùng', () => {

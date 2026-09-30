@@ -307,6 +307,28 @@ describe('máy trạng thái hỗ trợ', () => {
     expect(dangXu.hoTro.find((h) => h.sessionId === phienHoTro)?.state).toBe('HUMAN_ACTIVE')
   })
 
+  /*
+   * =======================================================================
+   * CA NÀY CHẶN "HÀNG ĐỢI TỰ MÔ TẢ CHÍNH NÓ"
+   * =======================================================================
+   * `moTaDau` lấy tin hệ thống ĐẦU TIÊN — câu người dùng gõ lúc xin hỗ trợ.
+   * Bản trước lấy tin MỚI NHẤT (`desc`), nên ngay sau khi admin bấm tiếp nhận
+   * thì dòng mô tả đổi thành "Quản trị viên đã tiếp nhận." và nội dung người
+   * dùng viết biến mất khỏi hàng đợi.
+   *
+   * Phải khẳng định SAU khi tiếp nhận: trước đó chỉ có đúng một tin hệ thống
+   * nên `asc` và `desc` cho cùng kết quả, và ca kiểm sẽ luôn xanh.
+   */
+  it('mô tả trong hàng đợi vẫn là câu người dùng viết, sau khi admin tiếp nhận', async () => {
+    await yeuCauHoTro(sv.id, phienHoTro, 'Em không đăng nhập được')
+    await tiepNhanHoTro(adminA.id, phienHoTro)
+
+    const { hoTro } = await hangDoiHoTro()
+    const muc = hoTro.find((h) => h.sessionId === phienHoTro)
+
+    expect(muc?.moTaDau).toBe('Em không đăng nhập được')
+  })
+
   it('hàng đợi KHÔNG lẫn hội thoại tuyển dụng vào', async () => {
     const { hoTro } = await hangDoiHoTro()
     expect(hoTro.find((h) => h.sessionId === phienTuyenDung)).toBeUndefined()

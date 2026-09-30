@@ -2,8 +2,8 @@ import type { Role } from '@prisma/client'
 import { prisma } from '../../lib/prisma.js'
 import { badRequest, conflict, notFound } from '../../lib/errors.js'
 import { createNotification } from '../notifications/notifications.service.js'
-import { phongHopThuNTD, phongNguoiDung, quyenTruyCapPhien } from './chat.access.js'
-import { ghiTinHeThong, phatTinMoi, type TinNhanItem } from './chat.service.js'
+import { phongHopThuNTD, quyenTruyCapPhien } from './chat.access.js'
+import { ghiTinHeThong, phatTinMoi, phatTrangThai, type TinNhanItem } from './chat.service.js'
 import { phatToiPhong } from './phat-su-kien.js'
 
 /**
@@ -182,6 +182,7 @@ export async function chuyenNhaTuyenDung(
   )
 
   phatTinMoi(sessionId, kq, true)
+  phatTrangThai(sessionId, 'WAITING_EMPLOYER', userId)
   phatToiPhong(phongHopThuNTD(tin.employerProfileId), 'ntd:hoi-thoai-cho', {
     sessionId,
     jobId: tin.id,
@@ -228,6 +229,7 @@ export async function huyCho(userId: string, sessionId: string): Promise<KetQuaC
   })
 
   phatTinMoi(sessionId, tin, false)
+  phatTrangThai(sessionId, 'AI_ACTIVE', userId)
   return { sessionId, state: 'AI_ACTIVE', tin }
 }
 
@@ -273,11 +275,7 @@ export async function tiepNhan(
   })
 
   phatTinMoi(sessionId, tin, true)
-  phatToiPhong(phongNguoiDung(phien.ownerUserId), 'hoi-thoai:trang-thai', {
-    sessionId,
-    state: 'HUMAN_ACTIVE',
-  })
-
+  phatTrangThai(sessionId, 'HUMAN_ACTIVE', phien.ownerUserId)
   return { sessionId, state: 'HUMAN_ACTIVE', tin }
 }
 
@@ -306,6 +304,7 @@ export async function quayLaiAi(userId: string, sessionId: string): Promise<KetQ
   })
 
   phatTinMoi(sessionId, tin, true)
+  phatTrangThai(sessionId, 'AI_ACTIVE', userId)
   return { sessionId, state: 'AI_ACTIVE', tin }
 }
 
@@ -353,6 +352,7 @@ export async function ketThuc(
   })
 
   phatTinMoi(sessionId, tin, quyen.vai !== 'ADMIN_HO_TRO')
+  phatTrangThai(sessionId, 'CLOSED', quyen.ownerUserId)
   return { sessionId, state: 'CLOSED', tin }
 }
 
@@ -407,10 +407,7 @@ export async function tuChoiYeuCau(
   })
 
   phatTinMoi(sessionId, tin, true)
-  phatToiPhong(phongNguoiDung(phien.ownerUserId), 'hoi-thoai:trang-thai', {
-    sessionId,
-    state: 'CLOSED',
-  })
+  phatTrangThai(sessionId, 'CLOSED', phien.ownerUserId)
 
   return { sessionId, state: 'CLOSED', tin }
 }
@@ -464,7 +461,10 @@ export async function donYeuCauQuaHan(): Promise<number> {
           !laHoTro,
         )
       })
-      if (tin) phatTinMoi(p.id, tin, !laHoTro)
+      if (tin) {
+        phatTinMoi(p.id, tin, !laHoTro)
+        phatTrangThai(p.id, 'CLOSED', p.ownerUserId)
+      }
     } catch (e) {
       /* Một phiên hỏng không được chặn cả lô. */
       console.error(`[chat] không đóng được yêu cầu quá hạn ${p.id}`, e)
