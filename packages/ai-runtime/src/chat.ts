@@ -33,6 +33,16 @@ export interface KetQuaLuotChat {
   toolNames: string[]
   timeToFirstTokenMs: number | null
   latencyMs: number
+  /**
+   * So loi goi model THAT SU da xong, va tong thoi gian nha cung cap giu.
+   *
+   * Truoc day `requestCount` duoc suy ra bang `toolRounds + 1` — mot con so
+   * dung trong truong hop ly tuong va vo dung khi chan doan. Do that thi tach
+   * duoc "model cham" khoi "ta cham": `latencyMs` tru `msModel` la thoi gian
+   * cua tool, cua database, va cua chinh ta.
+   */
+  soLanGoiModel: number
+  msModel: number
   /** Chạm trần `AI_MAX_TOOL_ROUNDS` mà chưa có câu trả lời. */
   chamTran: boolean
   /** Mọi lời gọi tool kèm kết quả, theo thứ tự. Nơi gọi dùng để suy nhãn và dựng thẻ UI. */
@@ -42,6 +52,8 @@ export interface KetQuaLuotChat {
 export async function chayLuotChat(ts: ThamSoLuotChat): Promise<KetQuaLuotChat> {
   const batDau = Date.now()
   let mocChuDau: number | null = null
+  let soLanGoiModel = 0
+  let msModel = 0
 
   const kq = streamText({
     model: modelChat(),
@@ -59,6 +71,35 @@ export async function chayLuotChat(ts: ThamSoLuotChat): Promise<KetQuaLuotChat> 
      * xemLichRanhCuaToi → trả lời.
      */
     stopWhen: isStepCount(aiConfig.maxToolRounds),
+
+    /*
+     * =====================================================================
+     * TRUOC DAY KHONG CO TRAN THOI GIAN NAO CA
+     * =====================================================================
+     * `AI_REQUEST_TIMEOUT_MS` co trong cau hinh tu buoc 1, nhung chi
+     * `kiem-tra.ts` dung. Duong chay that truyen `ts.abortSignal` — ma signal
+     * do chi bat khi NGUOI DUNG dong tab. Nha cung cap treo thi ket noi SSE
+     * treo theo, vo han.
+     *
+     * Ba tran vi mot con so khong dien ta duoc bai toan: xem `config.ts`.
+     */
+    timeout: {
+      totalMs: aiConfig.turnTimeoutMs,
+      stepMs: aiConfig.requestTimeoutMs,
+      toolMs: aiConfig.toolTimeoutMs,
+    },
+
+    /*
+     * Dem loi goi model that va thoi gian nha cung cap giu.
+     *
+     * `performance.responseTimeMs` la thu duy nhat tra loi duoc cau hoi "cham
+     * la do LLM hay do minh". Khong co no thi chi thay mot con so tong, va moi
+     * gia thuyet deu nghe hop ly nhu nhau.
+     */
+    onLanguageModelCallEnd: (e) => {
+      soLanGoiModel += 1
+      msModel += e.performance.responseTimeMs
+    },
   })
 
   /*
@@ -102,6 +143,8 @@ export async function chayLuotChat(ts: ThamSoLuotChat): Promise<KetQuaLuotChat> 
     toolNames: [...new Set(goiTool.map((g) => g.ten))],
     timeToFirstTokenMs: mocChuDau === null ? null : mocChuDau - batDau,
     latencyMs: Date.now() - batDau,
+    soLanGoiModel,
+    msModel: Math.round(msModel),
     /*
      * Chạm trần mà không có chữ nào: model vẫn đang gọi tool khi bị dừng. Nơi
      * gọi phải trả một câu cố định chứ không để màn hình trống.

@@ -322,6 +322,63 @@ export function dungToolSinhVien(ctx: CtxSinhVien) {
           }
         }),
     }),
+
+    /*
+     * -----------------------------------------------------------------------
+     * CŨNG KHÔNG LÀM GÌ CẢ — cùng khuôn với deNghiChuyenNhaTuyenDung
+     * -----------------------------------------------------------------------
+     * Tool này CHỈ dựng sẵn một biểu mẫu. Người dùng đọc lại, sửa, rồi tự bấm
+     * gửi — `POST /api/toi/bao-cao`.
+     *
+     * Vì sao không cho model tự gửi: báo cáo là cáo buộc về một người thật, và
+     * hậu quả của nó là tin bị gỡ. Model hiểu nhầm một câu than phiền thành
+     * "lừa đảo" là chuyện có thật; để nó tự gửi thì người bị oan không có ai
+     * để trách, và người báo cáo mang tên mình trên một cáo buộc họ không viết.
+     *
+     * Đây cũng là lý do báo cáo KHÔNG đi qua handoff: đường chuyển của trợ lý
+     * dẫn thẳng tới chính nhà tuyển dụng sở hữu tin.
+     */
+    baoCaoTin: tool({
+      description:
+        'Dùng khi người dùng nói một tin có dấu hiệu lừa đảo, đòi tiền cọc, sai sự thật, ' +
+        'nội dung không phù hợp, hoặc đăng trùng lặp. Tool này CHỈ chuẩn bị sẵn biểu mẫu ' +
+        'báo cáo để người dùng xem lại. Nó KHÔNG gửi gì cả. Người dùng phải tự bấm nút gửi. ' +
+        'Tuyệt đối không dùng deNghiChuyenNhaTuyenDung cho việc này.',
+      inputSchema: z.object({
+        jobId: z.string().max(40).optional().describe('Tin bị báo cáo. Chưa rõ thì hỏi lại.'),
+        lyDo: z
+          .enum(['LUA_DAO', 'SAI_SU_THAT', 'KHONG_PHU_HOP', 'TRUNG_LAP', 'KHAC'])
+          .describe('Nhóm lý do gần nhất với điều người dùng kể'),
+        moTa: z
+          .string()
+          .max(2000)
+          .describe('Tóm tắt LẠI lời người dùng kể, ít nhất 20 ký tự. Không thêm suy đoán.'),
+      }),
+      execute: async ({ jobId, lyDo, moTa }) =>
+        chay('baoCaoTin', async () => {
+          const id = jobId ?? ctx.jobIdDangXem
+          if (id === undefined) {
+            throw new AppError(
+              'VALIDATION_ERROR',
+              'Chưa rõ báo cáo tin nào. Hỏi lại người dùng tên tin hoặc bảo họ mở tin ra.',
+              400,
+            )
+          }
+          const tin = await getPublicJob(id, ctx.userId).catch(() => null)
+          if (tin === null) {
+            return { bieuMau: null, lyDoTuChoi: 'Không tìm thấy tin này hoặc tin đã đóng' }
+          }
+          return {
+            bieuMau: {
+              jobId: tin.id,
+              tenTin: tin.title,
+              congTy: tin.employer.companyName,
+              lyDo,
+              moTa,
+            },
+          }
+        }),
+    }),
   }
 }
 

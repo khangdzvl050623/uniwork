@@ -4,8 +4,16 @@ import { Server, type DefaultEventsMap, type Socket as SocketGoc } from 'socket.
 import { corsOrigins } from '../../config/env.js'
 import { AppError } from '../../lib/errors.js'
 import { logger } from '../../lib/logger.js'
+import { prisma } from '../../lib/prisma.js'
 import { verifyAccessToken } from '../../lib/token.js'
-import { phongNguoiDung } from './chat.access.js'
+import {
+  PHONG_ADMIN_HO_TRO,
+  phongAdmin,
+  phongChu,
+  phongHopThuNTD,
+  phongNguoiDung,
+  phongNTD,
+} from './chat.access.js'
 import { guiTinNhan, layTinNhan, quyenPhien } from './chat.service.js'
 import { dangKyBoPhat } from './phat-su-kien.js'
 
@@ -75,6 +83,7 @@ export function ganSocketIO(http: HttpServer): MayChu {
     if (!user) return socket.disconnect(true)
 
     void socket.join(phongNguoiDung(user.id))
+    void vaoPhongTheoVai(socket, user)
     henNgatKhiHetHan(socket)
 
     socket.on('hoi-thoai:vao', xuLy(socket, vaoPhien))
@@ -142,6 +151,51 @@ const layId = (v: Record<string, unknown>, ten: string): string =>
   typeof v[ten] === 'string' ? v[ten] : ''
 
 /**
+ * Phòng "hàng chờ" theo vai, vào ngay lúc kết nối.
+ *
+ * ===========================================================================
+ * KHÁC HẲN PHÒNG HỘI THOẠI, VÀ VÌ SAO PHẢI TỰ VÀO
+ * ===========================================================================
+ * Phòng hội thoại (`hoi-thoai:<id>:chu`) chỉ có nghĩa khi người dùng đã mở
+ * một hội thoại cụ thể, nên client tự xin vào qua `hoi-thoai:vao`.
+ *
+ * Hai phòng dưới đây thì ngược lại: chúng báo tin về những hội thoại người
+ * dùng CHƯA mở — một yêu cầu mới vừa rơi vào hàng đợi. Đợi client xin vào thì
+ * đúng lúc cần nhất (chưa mở gì cả) lại là lúc không ai đang nghe.
+ *
+ * Thiếu bước này thì `phatToiPhong(PHONG_ADMIN_HO_TRO, …)` bắn vào hư không:
+ * không lỗi, không log, chỉ là hàng đợi không bao giờ tự cập nhật. Đã đúng
+ * như vậy trong suốt lần dựng đầu.
+ */
+async function vaoPhongTheoVai(socket: Socket, user: NguoiDung): Promise<void> {
+  try {
+    if (user.role === 'ADMIN') {
+      await socket.join(PHONG_ADMIN_HO_TRO)
+      return
+    }
+
+    if (user.role === 'EMPLOYER') {
+      const hoSo = await prisma.employerProfile.findUnique({
+        where: { userId: user.id },
+        select: { id: true },
+      })
+      /* Chưa lập hồ sơ thì chưa có tin nào, nên cũng chưa có hộp thư nào. */
+      if (hoSo) await socket.join(phongHopThuNTD(hoSo.id))
+    }
+  } catch (e) {
+    /*
+     * KHÔNG ngắt kết nối. Hỏng ở đây nghĩa là hàng đợi không tự cập nhật —
+     * màn hình vẫn có vòng hỏi lại định kỳ đỡ. Đá người dùng ra khỏi socket
+     * thì chat đang mở cũng chết theo, đắt hơn nhiều.
+     */
+    logger.error('Không vào được phòng hàng đợi', {
+      userId: user.id,
+      message: e instanceof Error ? e.message : String(e),
+    })
+  }
+}
+
+/**
  * Tên phòng đến TỪ `quyenTruyCapPhien`, không do handler tự ghép chuỗi.
  *
  * Bản thiết kế đầu để handler `join('hoi-thoai:' + id)` trong khi chỗ phát bắn
@@ -157,7 +211,7 @@ const vaoPhien: Handler = async (user, socket, v) => {
    * khoảng trống hợp lệ — xem `cursor.ts`.
    */
   const bu = await layTinNhan(user, quyen.sessionId, undefined)
-  return { cursor: bu.cursor, duocGui: quyen.duocGui, vai: quyen.vai }
+  return { cursor: bu.cursor, duocGui: quyen.duocGui, vai: quyen.vai, state: quyen.trangThai }
 }
 
 const raPhien: Handler = async (user, socket, v) => {
@@ -205,9 +259,32 @@ async function bao(socket: Socket, v: unknown): Promise<void> {
      * hình NTD.
      */
     if (!quyen.duocGui) return
-    socket
-      .to(quyen.vai === 'CHU' ? `hoi-thoai:${sessionId}:ntd` : `hoi-thoai:${sessionId}:chu`)
-      .emit('hoi-thoai:dang-go', { sessionId, userId: user.id })
+
+    /*
+     * =======================================================================
+     * TÊN PHÒNG LẤY TỪ `chat.access`, KHÔNG GHÉP CHUỖI TAY
+     * =======================================================================
+     * Bản trước viết thẳng `hoi-thoai:${sessionId}:ntd` và chỉ biết hai phòng:
+     * CHU thì bắn sang `:ntd`, còn lại bắn về `:chu`.
+     *
+     * Ở kênh HỖ TRỢ người đối diện ngồi trong `:admin`, nên "đang gõ" của
+     * người dùng bay vào một phòng rỗng — không lỗi, không log, chỉ là quản
+     * trị viên không bao giờ thấy. Đúng cái bẫy `chat.access.ts` đã nêu ở đầu
+     * file của nó, và đúng cái đã sửa cho `phatTinMoi` hôm qua.
+     *
+     * Chủ phiên bắn vào CẢ HAI phòng bên kia. An toàn nhờ cùng một bất biến:
+     * đường duy nhất vào `:ntd` / `:admin` là `quyenTruyCapPhien`, và nó chỉ
+     * mở đúng phòng cho đúng `kind` — phòng còn lại rỗng một cách chứng minh
+     * được.
+     */
+    const den =
+      quyen.vai === 'CHU'
+        ? [phongNTD(sessionId), phongAdmin(sessionId)]
+        : [phongChu(sessionId)]
+
+    for (const phong of den) {
+      socket.to(phong).emit('hoi-thoai:dang-go', { sessionId, userId: user.id })
+    }
   } catch {
     /* Không quyền hoặc phiên không tồn tại — bỏ qua, đây là sự kiện vứt đi được. */
   }

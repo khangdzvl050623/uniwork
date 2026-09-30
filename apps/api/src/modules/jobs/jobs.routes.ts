@@ -12,6 +12,7 @@ import {
   listPublicJobsController,
   listMyJobsController,
   listSavedJobsController,
+  goTinController,
   reviewJobController,
   saveJobController,
   submitJobController,
@@ -93,6 +94,12 @@ adminJobRoutes.use(requireAuth, requireRole('ADMIN'))
 
 adminJobRoutes.get('/', listJobsForAdminController)
 adminJobRoutes.put('/:id/duyet', reviewJobController)
+
+/*
+ * GỠ một tin đang hiển thị — đường riêng, không phải `decision: 'TAKEDOWN'`
+ * nhét vào `/duyet`. `CLOSED` không mở lại được, nên nhầm là nhầm vĩnh viễn.
+ */
+adminJobRoutes.put('/:id/go', goTinController)
 
 /**
  * Việc làm — bản CÔNG KHAI.

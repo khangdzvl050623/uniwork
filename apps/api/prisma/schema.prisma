@@ -171,6 +171,14 @@ model User {
   aiUsageDays    AiUsageDay[]
   aiTurns        AiTurn[]
   chatSessions   ChatSession[]  @relation("ChatOwner")
+  /// Hoi thoai ho tro do chinh admin nay tiep nhan.
+  chatHoTro      ChatSession[]  @relation("ChatAdmin")
+  /// Tin nguoi nay da bao cao.
+  baoCaoDaGui    JobReport[]    @relation("NguoiBaoCao")
+  /// Bao cao do chinh admin nay xu ly.
+  baoCaoDaXuLy   JobReport[]    @relation("AdminXuLyBaoCao")
+  /// Tin do chinh admin nay go khoi trang cong khai.
+  tinDaGo        Job[]          @relation("JobGoBoiAdmin")
 
   @@map("users")
 }
@@ -178,6 +186,21 @@ model User {
 enum NotificationType {
   APPLICATION_SUBMITTED
   APPLICATION_STATUS_CHANGED
+
+  /// Sinh vien bam "nhan nha tuyen dung" — NTD nhan thong bao co nguoi dang cho.
+  CHAT_HANDOFF_REQUESTED
+  /// NTD bam tiep nhan — sinh vien nhan thong bao da co nguoi that tra loi.
+  CHAT_HANDOFF_ACCEPTED
+
+  /// Admin da ket luan mot bao cao tin — nguoi gui doc duoc ket luan.
+  BAO_CAO_DA_XU_LY
+
+  /// Admin GO mot tin dang hien thi. Nha tuyen dung doc duoc ly do.
+  ///
+  /// Tach khoi APPLICATION_* va BAO_CAO_*: day la hanh dong cuong che len tai
+  /// san cua ho, khong phai mot cap nhat tien trinh. Gop chung nhan thi no
+  /// nam lan giua nhung thong bao thuong ngay va bi luot qua.
+  TIN_BI_GO
 }
 
 /// Thông báo trong ứng dụng, dành riêng cho một tài khoản.
@@ -337,6 +360,7 @@ model StudentProfile {
   availabilities Availability[]
   applications   Application[]
   chatSessions   ChatSession[]
+  reports        JobReport[]
   savedJobs      SavedJob[]
 
   @@map("student_profiles")
@@ -644,6 +668,24 @@ model Job {
   publishedAt DateTime?
   closedAt    DateTime?
 
+  /// Admin nào đã GỠ tin này. `null` = nhà tuyển dụng tự đóng.
+  ///
+  /// ==========================================================================
+  /// VÌ SAO CẦN CỘT NÀY DÙ `CLOSED` ĐÃ ĐỦ ĐỂ ẨN TIN
+  /// ==========================================================================
+  /// `CLOSED` là trạng thái cuối, không có đường mở lại — nên nó đã đủ để gỡ
+  /// một tin vi phạm. Nhưng nếu chỉ có thế thì nhà tuyển dụng mở bảng tin lên
+  /// thấy "Đã đóng" y hệt một tin họ tự đóng tuần trước, và không có cách nào
+  /// biết chuyện gì vừa xảy ra.
+  ///
+  /// Hai cột này là phần "vì sao" — thứ biến một hành động cưỡng chế thành một
+  /// quyết định giải thích được.
+  goBoiAdminId String?
+  goBoiAdmin   User?   @relation("JobGoBoiAdmin", fields: [goBoiAdminId], references: [id], onDelete: SetNull)
+
+  /// Lý do gỡ. Nhà tuyển dụng đọc nguyên văn câu này trong thông báo.
+  lyDoGo String?
+
   /// Lý do admin từ chối, hiện lại cho nhà tuyển dụng sửa.
   rejectionReason String?
 
@@ -657,6 +699,7 @@ model Job {
   applications Application[]
   chatSessions ChatSession[]
   savedBy      SavedJob[]
+  jobReports   JobReport[]
 
   /// Truy vấn xương sống của trang danh sách: lọc status OPEN, sắp theo ngày
   /// đăng giảm dần. Không có index này thì mỗi lần mở trang chủ là một lần quét
@@ -918,12 +961,42 @@ model AiTurn {
 // ---------------------------------------------------------------------------
 
 /// Loại phiên. Quyết định ai là chủ, và có handoff được không.
+/// `kind` trả lời đúng MỘT câu: luồng này nói chuyện với AI, với quản trị viên,
+/// hay với một nhà tuyển dụng cụ thể.
+///
+/// ===========================================================================
+/// DANH TÍNH LUỒNG LÀ ĐỐI TƯỢNG, KHÔNG PHẢI LẦN TẠO
+/// ===========================================================================
+/// Bản trước để `AI_STUDENT` kiêm hai vai: khởi đầu là hỏi trợ lý, rồi
+/// `chuyenNhaTuyenDung` BIẾN chính hàng đó thành hội thoại với nhà tuyển dụng.
+///
+/// Hệ quả là muốn hỏi nơi thứ hai thì phải đẻ một luồng AI mới — và lịch sử
+/// trò chuyện với trợ lý bị cắt thành nhiều mảnh rời. Đo thật 2026-09-30: một
+/// tài khoản có TÁM luồng `AI_STUDENT`, bốn trong số đó có tin nhắn.
+///
+/// Tách ra thì mỗi luồng có một khoá tự nhiên và sống vĩnh viễn, đúng cách mọi
+/// ứng dụng nhắn tin làm: không ai "tạo hội thoại", người ta mở hội thoại với
+/// một người.
 enum ChatKind {
-  /// Sinh viên hỏi trợ lý. CÓ THỂ chuyển sang nhà tuyển dụng.
+  /// Sinh viên hỏi trợ lý. MỘT luồng cho mỗi sinh viên, không bao giờ đóng.
   AI_STUDENT
   /// Nhà tuyển dụng hỏi trợ lý về dữ liệu tuyển dụng của mình.
-  /// KHÔNG có handoff — không có ai để chuyển tới.
   AI_EMPLOYER
+
+  /// Hoi thoai HO TRO voi quan tri vien. MOT luong cho moi nguoi dung.
+  ///
+  /// Kenh RIENG chu khong phai mot trang thai cua hai kind tren: quan tri vien
+  /// doc tu seq 1, nen gop vao luong AI la giao cho ho ca doan nguoi dung hoi
+  /// rieng tro ly.
+  AI_SUPPORT
+
+  /// Trao đổi với MỘT nhà tuyển dụng. Một luồng cho mỗi cặp (người dùng, NTD).
+  ///
+  /// `handoffEmployerProfileId` là nửa còn lại của khoá tự nhiên, và nó là lý
+  /// do luồng này tách khỏi `AI_STUDENT`: nơi B không được đọc những gì đã
+  /// trao đổi với nơi A, mà cách chắc chắn nhất để bảo đảm điều đó là chúng
+  /// nằm ở hai hàng khác nhau — không phải một cột mốc phải nhớ kiểm.
+  NTD
 }
 
 enum ChatSessionState {
@@ -931,11 +1004,18 @@ enum ChatSessionState {
   WAITING_EMPLOYER
   HUMAN_ACTIVE
   CLOSED
+
+  /// Cho MOT admin bat ky tiep nhan. Khac WAITING_EMPLOYER o cho chua co
+  /// nguoi nhan cu the — admin la hang doi, khong ai bi khoa truoc.
+  WAITING_ADMIN
 }
 
 enum ChatSenderType {
   STUDENT
   EMPLOYER
+  /// Admin trả lời trong phiên hỗ trợ. Tách khỏi STUDENT/EMPLOYER vì giao diện
+  /// phải vẽ được ai đang nói — xem migration 20260930090000.
+  ADMIN
   AI
   /// Tin của hệ thống: "Nhà tuyển dụng đã tiếp nhận", "Hội thoại đã kết thúc".
   /// Tách khỏi AI vì nó không tốn lượt và không do model sinh ra.
@@ -977,6 +1057,14 @@ model ChatSession {
   handoffEmployerProfileId String?
   handoffEmployer          EmployerProfile? @relation(fields: [handoffEmployerProfileId], references: [id], onDelete: SetNull)
 
+  /// ADMIN da nhan hoi thoai ho tro. Chi co khi kind = AI_SUPPORT.
+  ///
+  /// Dat luc TIEP NHAN, khong phai luc yeu cau: bat ky admin nao cung nhan
+  /// duoc, nen luc yeu cau chua biet ai. Khac han handoffEmployerProfileId —
+  /// cai do suy ra tu tin nen biet ngay tu dau va dong bang luon.
+  handoffAdminUserId String?
+  handoffAdmin       User?   @relation("ChatAdmin", fields: [handoffAdminUserId], references: [id], onDelete: SetNull)
+
   state ChatSessionState @default(AI_ACTIVE)
 
   /// Bộ đếm thứ tự tin nhắn TRONG phiên này, tăng trong cùng transaction với
@@ -1011,10 +1099,17 @@ model ChatSession {
 
   /// Chống tạo phiên trùng khi bấm hai lần.
   @@unique([ownerUserId, clientSessionId])
+  /// Luật "một sinh viên chỉ MỘT hội thoại đang mở với một nhà tuyển dụng" là
+  /// một chỉ mục UNIQUE MỘT PHẦN:
+  ///   CREATE UNIQUE INDEX ... ON chat_sessions ("ownerUserId", "handoffEmployerProfileId")
+  ///   WHERE state IN ('WAITING_EMPLOYER', 'HUMAN_ACTIVE')
+  /// Prisma không khai được, nên nó nằm trong migration viết tay.
   /// Danh sách phiên của CHỦ — dùng cho cả sinh viên lẫn NTD tự dùng trợ lý.
   @@index([ownerUserId, kind, lastMessageAt])
   /// Hộp thư handoff của NTD lọc đúng theo bộ ba này.
   @@index([handoffEmployerProfileId, state, lastMessageAt])
+  /// Hang doi ho tro: admin loc theo trang thai.
+  @@index([kind, state, lastMessageAt])
   @@map("chat_sessions")
 }
 
@@ -1055,4 +1150,85 @@ model ChatMessage {
   @@unique([sessionId, clientMessageId])
   @@index([sessionId, seq])
   @@map("chat_messages")
+}
+
+/// Vì sao một tin bị báo cáo. Enum ĐÓNG để thống kê được và để người báo cáo
+/// không phải nghĩ ra cách diễn đạt.
+enum JobReportReason {
+  /// Đòi tiền cọc, phí hồ sơ, hoặc dụ chuyển khoản.
+  LUA_DAO
+  /// Lương, ca làm, địa điểm không đúng thực tế.
+  SAI_SU_THAT
+  /// Nội dung phản cảm, phân biệt đối xử, hoặc công việc trái pháp luật.
+  KHONG_PHU_HOP
+  /// Đăng lại nhiều lần, hoặc tin rác.
+  TRUNG_LAP
+  KHAC
+}
+
+enum JobReportStatus {
+  CHO_XU_LY
+  DANG_XEM
+  /// Đã xác nhận vi phạm và xử lý tin.
+  DA_XU_LY
+  /// Xem xong, không đủ căn cứ.
+  BAC_BO
+}
+
+/// Một lượt báo cáo tin tuyển dụng.
+///
+/// ---------------------------------------------------------------------------
+/// VÌ SAO KHÔNG ĐI QUA HỘI THOẠI
+/// ---------------------------------------------------------------------------
+/// Đường handoff duy nhất của trợ lý là chuyển sang CHÍNH nhà tuyển dụng sở hữu
+/// tin. Với một tin lừa đảo thì đó đúng là người cần tránh. Báo cáo vì vậy là
+/// một quy trình RIÊNG, đi thẳng tới admin, và nhà tuyển dụng không bao giờ
+/// nhận được danh tính người báo cáo.
+model JobReport {
+  id String @id @default(cuid())
+
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  reporterUserId String
+  reporter       User   @relation("NguoiBaoCao", fields: [reporterUserId], references: [id], onDelete: Cascade)
+
+  /// Id do client sinh. Gửi lại cùng id thì trả báo cáo cũ, KHÔNG tạo thêm
+  /// bản ghi và KHÔNG bắn thêm thông báo.
+  clientReportId String
+
+  reason JobReportReason
+  moTa   String          @db.Text
+
+  /// ẢNH CHỤP tin tại thời điểm báo cáo.
+  ///
+  /// Nhà tuyển dụng sửa được tin sau khi bị báo cáo — xoá câu đòi tiền cọc đi
+  /// là admin mở ra thấy một tin sạch sẽ và không hiểu vì sao có người báo.
+  /// Không có ảnh chụp thì mọi báo cáo về nội dung đều vô hiệu hoá được bằng
+  /// một lần bấm Sửa.
+  anhChupTin Json
+
+  status          JobReportStatus @default(CHO_XU_LY)
+  handledByUserId String?
+  handledBy       User?           @relation("AdminXuLyBaoCao", fields: [handledByUserId], references: [id], onDelete: SetNull)
+  handledAt       DateTime?
+
+  /// Kết luận của admin. NGƯỜI BÁO CÁO đọc được câu này — báo cáo mà không bao
+  /// giờ biết kết quả thì lần sau không ai báo nữa.
+  ketLuan String? @db.Text
+
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  studentProfile   StudentProfile? @relation(fields: [studentProfileId], references: [id])
+  studentProfileId String?
+
+  /// Gửi lại không tạo bản ghi thứ hai.
+  @@unique([reporterUserId, clientReportId])
+  /// Hàng đợi của admin.
+  @@index([status, createdAt])
+  /// Đếm số lượt báo cáo của một tin.
+  @@index([jobId, status])
+  /// Danh sách báo cáo của chính người gửi.
+  @@index([reporterUserId, createdAt])
+  @@map("job_reports")
 }

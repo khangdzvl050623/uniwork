@@ -1,11 +1,26 @@
 import type { RequestHandler } from 'express'
 import { z } from 'zod'
-import { guiTinNhanSchema, hoiTroLySchema, taoPhienChatSchema } from '@uniwork/shared'
+import {
+  hoiNhaTuyenDungSchema,
+  guiTinNhanSchema,
+  hoiTroLySchema,
+  taoPhienChatSchema,
+  tuChoiYeuCauSchema,
+  yeuCauHoTroSchema,
+} from '@uniwork/shared'
 import { CO_KHOA_THAT, demLuotConLai } from '@uniwork/ai-runtime'
 import { prisma } from '../../lib/prisma.js'
 import { ok } from '../../lib/respond.js'
 import { AppError, badRequest, unauthorized } from '../../lib/errors.js'
-import { batDauLuot, guiTinNhan, layTinNhan, taoPhien } from './chat.service.js'
+import {
+  batDauLuot,
+  guiTinNhan,
+  hoiThoaiCuaToi,
+  layTinNhan,
+  moLuong,
+} from './chat.service.js'
+import * as handoff from './handoff.service.js'
+import * as hoTro from './ho-tro.service.js'
 import { KenhSSE } from './sse.js'
 import { chayLuot, RUNNER_ID } from './tro-ly.service.js'
 
@@ -31,7 +46,12 @@ function nguoiGoi(req: { user?: { id: string; role: 'STUDENT' | 'EMPLOYER' | 'AD
 
 export const taoPhienController: RequestHandler = async (req, res) => {
   const u = nguoiGoi(req)
-  ok(res, await taoPhien(u.id, u.role, parse(taoPhienChatSchema, req.body)), 201)
+  ok(res, await moLuong(u.id, u.role, parse(taoPhienChatSchema, req.body).kind), 201)
+}
+
+/** Hội thoại của CHÍNH người gọi. Không phải hộp thư handoff — xem service. */
+export const hoiThoaiCuaToiController: RequestHandler = async (req, res) => {
+  ok(res, await hoiThoaiCuaToi(nguoiGoi(req).id))
 }
 
 const thamSoId = z.object({ id: z.string().min(1) })
@@ -139,4 +159,77 @@ export const hoiController: RequestHandler = async (req, res) => {
   })
 
   kenh.dongKenh()
+}
+
+/* ============================================================== handoff -- */
+
+/**
+ * Năm chuyển đổi, mỗi cái một endpoint.
+ *
+ * KHÔNG gộp thành `PUT /trang-thai { state }`. Gộp lại thì client tự quyết
+ * trạng thái đích, và mỗi chuyển đổi có điều kiện và hiệu ứng phụ khác hẳn
+ * nhau — kiểm chúng trong một `switch` là dựng lại máy trạng thái ở chỗ dễ sót
+ * nhất. Năm đường riêng thì mỗi đường tự mang luật của nó.
+ */
+/**
+ * Hỏi nhà tuyển dụng về một tin.
+ *
+ * KHÔNG nhận `:id` phiên nữa: `jobId` đã xác định nhà tuyển dụng, và nhà tuyển
+ * dụng xác định luồng. Bắt client gửi thêm một sessionId là mời nó gửi sai.
+ */
+export const chuyenNTDController: RequestHandler = async (req, res) => {
+  const u = nguoiGoi(req)
+  const v = parse(hoiNhaTuyenDungSchema, req.body)
+  ok(res, await handoff.chuyenNhaTuyenDung(u.id, v.jobId, v.loiNhan ?? ''))
+}
+
+export const huyChoController: RequestHandler = async (req, res) => {
+  const u = nguoiGoi(req)
+  ok(res, await handoff.huyCho(u.id, parse(thamSoId, req.params).id))
+}
+
+export const tiepNhanController: RequestHandler = async (req, res) => {
+  const u = nguoiGoi(req)
+  ok(res, await handoff.tiepNhan(u, parse(thamSoId, req.params).id))
+}
+
+export const ketThucController: RequestHandler = async (req, res) => {
+  const u = nguoiGoi(req)
+  ok(res, await handoff.ketThuc(u, parse(thamSoId, req.params).id))
+}
+
+export const hopThuNTDController: RequestHandler = async (req, res) => {
+  const u = nguoiGoi(req)
+  ok(res, await handoff.hopThuNTD(u.id))
+}
+
+/** Nhà tuyển dụng từ chối yêu cầu trao đổi. Đóng hẳn để sinh viên hỏi lại được sau. */
+export const tuChoiYeuCauController: RequestHandler = async (req, res) => {
+  const u = nguoiGoi(req)
+  const { id } = parse(thamSoId, req.params)
+  const v = parse(tuChoiYeuCauSchema, req.body)
+  ok(res, await handoff.tuChoiYeuCau(u, id, v.lyDo))
+}
+
+/* ============================================================== hỗ trợ -- */
+
+export const yeuCauHoTroController: RequestHandler = async (req, res) => {
+  const u = nguoiGoi(req)
+  const { id } = parse(thamSoId, req.params)
+  const v = parse(yeuCauHoTroSchema, req.body)
+  ok(res, await hoTro.yeuCauHoTro(u.id, id, v.moTa))
+}
+
+export const huyYeuCauHoTroController: RequestHandler = async (req, res) => {
+  const u = nguoiGoi(req)
+  ok(res, await hoTro.huyYeuCauHoTro(u.id, parse(thamSoId, req.params).id))
+}
+
+export const tiepNhanHoTroController: RequestHandler = async (req, res) => {
+  const u = nguoiGoi(req)
+  ok(res, await hoTro.tiepNhanHoTro(u.id, parse(thamSoId, req.params).id))
+}
+
+export const hangDoiHoTroController: RequestHandler = async (_req, res) => {
+  ok(res, await hoTro.hangDoiHoTro())
 }

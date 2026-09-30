@@ -21,7 +21,9 @@ describe('layDeNghi', () => {
    */
   it('trả null khi tool từ chối vì không tìm thấy tin', () => {
     expect(
-      layDeNghi([g('deNghiChuyenNhaTuyenDung', { ok: true, deNghi: null, lyDoTuChoi: 'Không tìm thấy' })]),
+      layDeNghi([
+        g('deNghiChuyenNhaTuyenDung', { ok: true, deNghi: null, lyDoTuChoi: 'Không tìm thấy' }),
+      ]),
     ).toBeNull()
   })
 
@@ -47,9 +49,12 @@ describe('suyNhan — telemetry, KHÔNG phải thước đo chất lượng', ()
   })
 
   it('gọi deNghiChuyenNhaTuyenDung thì là CAN_NHA_TUYEN_DUNG', () => {
-    expect(suyNhan([g('timViecLam', { ok: true, tin: [{ id: 'j1' }] }), g('deNghiChuyenNhaTuyenDung', {})])).toBe(
-      'CAN_NHA_TUYEN_DUNG',
-    )
+    expect(
+      suyNhan([
+        g('timViecLam', { ok: true, tin: [{ id: 'j1' }] }),
+        g('deNghiChuyenNhaTuyenDung', {}),
+      ]),
+    ).toBe('CAN_NHA_TUYEN_DUNG')
   })
 
   it('gọi huongDanSuDung thì là HUONG_DAN_SU_DUNG', () => {
@@ -70,6 +75,8 @@ describe('suyNhan — telemetry, KHÔNG phải thước đo chất lượng', ()
   })
 
   it('tool hỏng cũng là KHONG_CO_DU_LIEU, không tính là tra cứu được', () => {
-    expect(suyNhan([g('xemHoSoCuaToi', { ok: false, lyDo: 'Chưa có hồ sơ' })])).toBe('KHONG_CO_DU_LIEU')
+    expect(suyNhan([g('xemHoSoCuaToi', { ok: false, lyDo: 'Chưa có hồ sơ' })])).toBe(
+      'KHONG_CO_DU_LIEU',
+    )
   })
 })

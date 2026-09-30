@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { phongChu, phongNTD } from './chat.access.js'
+import { phongAdmin, phongChu, phongNTD } from './chat.access.js'
 import { dangKyBoPhat, phatToiPhong } from './phat-su-kien.js'
-import { phatTinMoi } from './chat.service.js'
+import { phatTinMoi, phatTrangThai } from './chat.service.js'
 
 vi.mock('../../lib/prisma.js', () => ({ prisma: {} }))
 
@@ -41,19 +41,48 @@ describe('luật phát tin', () => {
    * đổi và test vẫn xanh — trong khi NTD vừa được đưa vào phòng của chủ phiên
    * và bắt đầu nhận mọi tin riêng tư.
    */
-  it('tin riêng tư chỉ vào phòng của chủ phiên', () => {
+  /*
+   * =======================================================================
+   * PHÁT VÀO CẢ BA PHÒNG — TÍNH RIÊNG TƯ DO `quyenTruyCapPhien` GIỮ
+   * =======================================================================
+   * Không còn cờ `choNTD`. Một luồng chỉ có một đối tượng, nên mọi tin trong
+   * luồng đều thuộc về đúng những người vào được luồng ấy.
+   *
+   * Điều đó CHỈ đúng nhờ một bất biến ở nơi khác: đường duy nhất vào phòng
+   * `:ntd` / `:admin` là `quyenTruyCapPhien`, và nó chỉ mở chúng cho đúng
+   * `kind`. Bất biến ấy có test riêng canh ở làn database — ca ở đây chỉ
+   * khẳng định phần phát.
+   */
+  it('phát tới cả ba phòng của luồng, và ba phòng đó KHÁC NHAU', () => {
     const daPhat = batPhat()
-    phatTinMoi('p-1', TIN, false)
+    phatTinMoi('p-1', TIN)
 
-    expect(daPhat).toHaveLength(1)
-    expect(daPhat[0]!.phong).toBe('hoi-thoai:p-1:chu')
+    expect(daPhat.map((d) => d.phong).sort()).toEqual(
+      ['hoi-thoai:p-1:admin', 'hoi-thoai:p-1:chu', 'hoi-thoai:p-1:ntd'].sort(),
+    )
   })
 
-  it('tin đã chia sẻ vào cả hai phòng, và hai phòng đó KHÁC NHAU', () => {
-    const daPhat = batPhat()
-    phatTinMoi('p-1', TIN, true)
+  it('ba phòng của cùng một phiên khác nhau từng đôi một', () => {
+    const ba = [phongChu('p-1'), phongNTD('p-1'), phongAdmin('p-1')]
+    expect(new Set(ba).size).toBe(3)
+  })
 
-    expect(daPhat.map((d) => d.phong)).toEqual(['hoi-thoai:p-1:chu', 'hoi-thoai:p-1:ntd'])
+  /*
+   * =======================================================================
+   * CA NÀY CHẶN "BÊN KIA KHÔNG BIẾT HỘI THOẠI VỪA ĐÓNG"
+   * =======================================================================
+   * Bản trước chỉ phát đổi trạng thái vào phòng RIÊNG của chủ phiên. Nhà
+   * tuyển dụng hay admin đang ngồi trong chính hội thoại đó không nhận được
+   * gì: ô nhập vẫn mở, và họ chỉ biết khi gõ xong rồi nhận lỗi từ server.
+   */
+  it('đổi trạng thái tới cả ba phòng hội thoại VÀ phòng riêng của chủ phiên', () => {
+    const daPhat = batPhat()
+    phatTrangThai('p-1', 'CLOSED', 'u-9')
+
+    expect(daPhat.map((d) => d.phong).sort()).toEqual(
+      ['hoi-thoai:p-1:admin', 'hoi-thoai:p-1:chu', 'hoi-thoai:p-1:ntd', 'user:u-9'].sort(),
+    )
+    expect(daPhat.every((d) => d.ten === 'hoi-thoai:trang-thai')).toBe(true)
   })
 
   it('tên phòng khớp đúng hằng số hai phía cùng dùng', () => {
@@ -77,7 +106,7 @@ describe('luật phát tin', () => {
  */
 describe('khe cắm bộ phát', () => {
   it('chưa ai đăng ký thì không làm gì, không ném', () => {
-    expect(() => phatTinMoi('p-1', TIN, true)).not.toThrow()
+    expect(() => phatTinMoi('p-1', TIN)).not.toThrow()
   })
 
   it('bộ phát ném thì service KHÔNG ném theo', () => {
@@ -87,7 +116,7 @@ describe('khe cắm bộ phát', () => {
         throw new Error('io đã đóng')
       },
     })
-    expect(() => phatTinMoi('p-1', TIN, true)).not.toThrow()
+    expect(() => phatTinMoi('p-1', TIN)).not.toThrow()
   })
 
   it('gỡ bộ phát rồi thì im lặng trở lại', () => {
