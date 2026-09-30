@@ -25,6 +25,7 @@ import { MyApplications } from '@/pages/MyApplications'
 import { TroLy } from '@/pages/TroLy'
 import { HoTro } from '@/pages/HoTro'
 import { HoiThoaiCuaToi } from '@/pages/HoiThoaiCuaToi'
+import { LuongHoiThoai } from '@/pages/LuongHoiThoai'
 import { BaoCaoCuaToi } from '@/pages/BaoCaoCuaToi'
 import { HopThuNTD } from '@/pages/ntd/HopThu'
 import { AdminHoTro } from '@/pages/admin/HoTro'
@@ -87,6 +88,8 @@ export function App() {
             */}
             <Route path="/ho-tro" element={<HoTro />} />
             <Route path="/hoi-thoai" element={<HoiThoaiCuaToi />} />
+            {/* Một luồng người–người: nhà tuyển dụng hoặc hỗ trợ. */}
+            <Route path="/hoi-thoai/:id" element={<LuongHoiThoai />} />
             <Route path="/bao-cao-cua-toi" element={<BaoCaoCuaToi />} />
 
             <Route element={<RequireRole roles={['STUDENT']} />}>

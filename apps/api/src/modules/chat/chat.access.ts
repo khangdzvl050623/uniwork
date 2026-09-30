@@ -48,16 +48,23 @@ export interface QuyenTruyCap {
    */
   trangThai: string
   seqHienTai: number
-  /** Chỉ đọc tin có `seq >= ` mốc này. */
-  docTuSeq: number
-  /** Có thêm điều kiện `visibleToEmployer = true` không. */
-  chiTinChiaSe: boolean
+  /*
+   * =========================================================================
+   * KHÔNG CÒN `docTuSeq` VÀ `chiTinChiaSe` — VÀ ĐÓ LÀ CẢ MỤC ĐÍCH CỦA LUỒNG
+   * =========================================================================
+   * Hai trường đó từng cắt một hàng chứa HAI cuộc trò chuyện: phần sinh viên
+   * hỏi riêng trợ lý, và phần trao đổi với nhà tuyển dụng. Cắt thì cắt đúng,
+   * nhưng nó là một mốc phải nhớ kiểm ở mọi truy vấn và mọi lần phát socket.
+   *
+   * Từ khi mỗi đối tượng một luồng, ai vào được luồng nào thì đọc trọn luồng
+   * ấy. Không còn mốc nào để quên.
+   */
   /**
    * Được GỬI tin ngay bây giờ không.
    *
-   * Trường RIÊNG, không gộp vào quyền đọc. Đọc và gửi là hai câu hỏi khác nhau:
-   * NTD đọc được lịch sử kể cả khi phiên đã quay về AI_ACTIVE, nhưng không gửi
-   * được lúc đó. Gộp hai câu hỏi chính là nguồn của mâu thuẫn nói ở trên.
+   * Trường RIÊNG, không gộp vào quyền đọc. Đọc và gửi là hai câu hỏi khác
+   * nhau: nhà tuyển dụng vẫn đọc lại được luồng đã đóng, nhưng không gửi được
+   * vào đó. Gộp hai câu hỏi là nguồn của mâu thuẫn nói ở đầu file.
    */
   duocGui: boolean
 }
@@ -81,7 +88,6 @@ export async function quyenTruyCapPhien(
       ownerUserId: true,
       state: true,
       messageSeq: true,
-      employerVisibleFromSeq: true,
       handoffEmployerProfileId: true,
       handoffAdminUserId: true,
     },
@@ -100,13 +106,26 @@ export async function quyenTruyCapPhien(
       ...chung,
       vai: 'CHU',
       phong: phongChu(p.id),
-      docTuSeq: 1,
-      chiTinChiaSe: false,
       duocGui: p.state === 'HUMAN_ACTIVE',
     }
   }
 
-  if (p.handoffEmployerProfileId !== null && user.role === 'EMPLOYER') {
+  /*
+   * ===========================================================================
+   * NHÀ TUYỂN DỤNG ĐỌC CẢ LUỒNG, TỪ SEQ 1 — VÀ ĐÓ LÀ THU HẸP, KHÔNG PHẢI NỚI
+   * ===========================================================================
+   * Nghe như mở rộng quyền, nhưng ngược lại. Luồng `NTD` CHỈ chứa trao đổi
+   * giữa đúng hai người này: nó ra đời lúc sinh viên bấm hỏi nơi này, và đoạn
+   * họ hỏi riêng trợ lý nằm ở một hàng khác hẳn.
+   *
+   * Bản trước nhồi cả hai cuộc trò chuyện vào MỘT hàng rồi cắt bằng
+   * `employerVisibleFromSeq` cộng cờ `visibleToEmployer` trên từng tin. Cắt thì
+   * cắt đúng, nhưng nó là một mốc phải nhớ kiểm ở mọi truy vấn và mọi lần phát
+   * socket — quên một chỗ là rò, và không test nào ở chỗ còn lại bắt được.
+   *
+   * Hai hàng khác nhau thì không còn gì để quên.
+   */
+  if (p.kind === 'NTD' && p.handoffEmployerProfileId !== null && user.role === 'EMPLOYER') {
     const laCuaHo = await prisma.employerProfile.findFirst({
       where: { id: p.handoffEmployerProfileId, userId: user.id },
       select: { id: true },
@@ -116,16 +135,6 @@ export async function quyenTruyCapPhien(
         ...chung,
         vai: 'NTD_NHAN_HANDOFF',
         phong: phongNTD(p.id),
-        /*
-         * Neo vào `employerVisibleFromSeq`, KHÔNG vào `state`.
-         *
-         * Sinh viên chuyển cho NTD ở seq 10, rồi bấm "quay lại AI" và hỏi riêng
-         * 5 câu. Lúc đó `state` về AI_ACTIVE — nhưng lịch sử NTD đã đọc không
-         * biến mất, và họ vẫn phải mở lại xem được. Cột mốc đã đóng băng từ lần
-         * chuyển đầu, nên nó là thứ đáng neo vào.
-         */
-        docTuSeq: p.employerVisibleFromSeq ?? Number.MAX_SAFE_INTEGER,
-        chiTinChiaSe: true,
         duocGui: p.state === 'HUMAN_ACTIVE',
       }
     }
@@ -148,8 +157,6 @@ export async function quyenTruyCapPhien(
       ...chung,
       vai: 'ADMIN_HO_TRO',
       phong: phongAdmin(p.id),
-      docTuSeq: 1,
-      chiTinChiaSe: false,
       duocGui: p.state === 'HUMAN_ACTIVE' && p.handoffAdminUserId === user.id,
     }
   }

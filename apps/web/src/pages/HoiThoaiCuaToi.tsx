@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Bot, Headset, Loader2, MessagesSquare, Plus } from 'lucide-react'
+import { Bot, Headset, Loader2, MessagesSquare, Search } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import {
@@ -7,7 +7,6 @@ import {
   type LoaiKenh,
   type MucHoiThoaiCuaToi,
 } from '@/hooks/useHoiThoaiCuaToi'
-import { doiClientSessionId } from '@/lib/phien-chat'
 
 /**
  * Danh sách hội thoại của chính người dùng.
@@ -30,6 +29,7 @@ const TEN_KENH: Record<LoaiKenh, { chu: string; icon: typeof Bot }> = {
   AI_STUDENT: { chu: 'Trợ lý AI', icon: Bot },
   AI_EMPLOYER: { chu: 'Trợ lý AI', icon: Bot },
   AI_SUPPORT: { chu: 'Hỗ trợ UniWork', icon: Headset },
+  NTD: { chu: 'Nhà tuyển dụng', icon: MessagesSquare },
 }
 
 const NHAN_TRANG_THAI: Record<
@@ -64,19 +64,21 @@ export function HoiThoaiCuaToi() {
             Hội thoại của tôi
           </h1>
           <p className="mt-1 text-sm text-slate-500">
-            Mỗi nhà tuyển dụng là một hội thoại riêng — nơi này không đọc được nội dung của nơi
-            kia.
+            Mỗi nhà tuyển dụng là một hội thoại riêng, sống mãi — nơi này không đọc được nội
+            dung của nơi kia.
           </p>
         </div>
 
         {/*
-          "Hội thoại mới" = đổi `clientSessionId` rồi mở `/tro-ly`.
-          Phiên cũ KHÔNG mất, nó vẫn nằm trong chính danh sách này.
+          KHÔNG còn nút "Hội thoại mới", và đó là điểm chính của cả thay đổi.
+          Không ai tạo hội thoại — người ta mở hội thoại VỚI MỘT NGƯỜI. Muốn
+          hỏi một nhà tuyển dụng thì bấm "Hỏi nhà tuyển dụng" ở trang tin của
+          họ; luồng tự mở, và nếu đã có thì tin nhắn vào đúng luồng cũ.
         */}
-        <Link to="/tro-ly" onClick={() => doiClientSessionId('tro-ly')}>
+        <Link to="/viec-lam">
           <Button variant="outline" size="sm">
-            <Plus size={15} aria-hidden="true" />
-            Hội thoại mới
+            <Search size={15} aria-hidden="true" />
+            Tìm việc để hỏi
           </Button>
         </Link>
       </header>
@@ -120,8 +122,8 @@ function MotHoiThoai({ m }: { m: MucHoiThoaiCuaToi }) {
    */
   const tieuDe = m.congTy ?? m.tenTin ?? kenh.chu
 
-  const duongDan =
-    m.kind === 'AI_SUPPORT' ? '/ho-tro' : `/tro-ly?phien=${encodeURIComponent(m.sessionId)}`
+  /* Luồng trợ lý về trang trợ lý; hai kênh còn lại là người–người. */
+  const duongDan = m.kind === 'NTD' || m.kind === 'AI_SUPPORT' ? `/hoi-thoai/${m.sessionId}` : '/tro-ly'
 
   return (
     <li>

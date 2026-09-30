@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
 import { ApiClientError, apiFetch } from '@/lib/api'
-import { doiClientSessionId, layClientSessionId } from '@/lib/phien-chat'
 import { useKenhHoiThoai } from '@/hooks/useKenhHoiThoai'
 
 /**
@@ -40,36 +39,32 @@ export function useHoTro() {
   const [dangMo, setDangMo] = useState(true)
 
   /*
-   * Mở phiên hỗ trợ.
+   * Mở luồng hỗ trợ.
    *
    * =========================================================================
-   * `clientSessionId` Ở ĐÂY CHỈ LÀ GỢI Ý, SERVER MỚI QUYẾT
+   * CLIENT KHÔNG CÒN CHỌN LUỒNG NÀO CẢ
    * =========================================================================
-   * Với kênh hỗ trợ, `POST /api/hoi-thoai` trả về ticket ĐANG MỞ của người
-   * dùng bất kể client gửi khoá gì — xem `taoPhien`. Nhờ vậy mở máy khác, đổi
-   * trình duyệt hay xoá localStorage đều về đúng cuộc trò chuyện đang dang dở.
+   * `POST /api/hoi-thoai { kind }` — không có `clientSessionId`. Server suy
+   * luồng từ `kind` cộng người đang đăng nhập, và mỗi người chỉ có MỘT luồng
+   * hỗ trợ, vĩnh viễn.
    *
-   * Trước đây client tự chọn bằng khoá này, và khi khoá không khớp thì server
-   * tạo phiên THỨ HAI: người dùng nhìn một hội thoại trống trong khi quản trị
-   * viên đang trả lời họ ở hội thoại thật.
+   * Bản trước client chọn bằng một khoá trong localStorage. Khoá không khớp —
+   * đổi máy, đổi trình duyệt, cửa sổ ẩn danh, xoá storage — là server tạo
+   * luồng THỨ HAI, và người dùng nhìn một hội thoại trống trong khi quản trị
+   * viên đang trả lời họ ở luồng thật. Đã xảy ra đúng như vậy.
    *
-   * Khoá vẫn cần cho lần TẠO MỚI (nó là khoá chống trùng khi bấm hai lần), và
-   * vẫn phải đổi khi phiên cũ đã `CLOSED` — lúc đó không còn ticket mở nào,
-   * server rơi xuống tra theo khoá và sẽ trả lại đúng hàng đã đóng ấy.
+   * Cũng không còn phải xoay khoá khi luồng `CLOSED`: `yeuCauHoTro` mở lại
+   * chính luồng ấy, mang theo lịch sử.
    */
   useEffect(() => {
     let huy = false
 
     void (async () => {
-      const mo = (csid: string) =>
-        apiFetch<PhienResponse>('/api/hoi-thoai', {
-          method: 'POST',
-          body: JSON.stringify({ kind: 'AI_SUPPORT', clientSessionId: csid }),
-        })
-
       try {
-        let phien = await mo(layClientSessionId('ho-tro'))
-        if (phien.state === 'CLOSED') phien = await mo(doiClientSessionId('ho-tro'))
+        const phien = await apiFetch<PhienResponse>('/api/hoi-thoai', {
+          method: 'POST',
+          body: JSON.stringify({ kind: 'AI_SUPPORT' }),
+        })
         if (huy) return
         setSessionId(phien.sessionId)
         datTrangThai(phien.state)

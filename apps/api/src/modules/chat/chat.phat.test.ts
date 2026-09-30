@@ -42,48 +42,24 @@ describe('luật phát tin', () => {
    * và bắt đầu nhận mọi tin riêng tư.
    */
   /*
-   * Điều được canh ở đây là "NTD KHÔNG nhận tin riêng tư", chứ không phải
-   * "đúng một lần phát". Nên khẳng định trên chính phòng của NTD.
-   *
-   * Bản trước viết `toHaveLength(1)`, và nó bó buộc sai chỗ: thêm phòng admin
-   * (phòng mà NTD không bao giờ vào được) làm test đỏ, trong khi tính chất
-   * riêng tư vẫn nguyên vẹn.
-   */
-  it('tin riêng tư KHÔNG vào phòng của nhà tuyển dụng', () => {
-    const daPhat = batPhat()
-    phatTinMoi('p-1', TIN, false)
-
-    const phong = daPhat.map((d) => d.phong)
-    expect(phong).toContain('hoi-thoai:p-1:chu')
-    expect(phong).not.toContain('hoi-thoai:p-1:ntd')
-  })
-
-  it('tin đã chia sẻ vào cả phòng chủ lẫn phòng NTD, và hai phòng đó KHÁC NHAU', () => {
-    const daPhat = batPhat()
-    phatTinMoi('p-1', TIN, true)
-
-    const phong = daPhat.map((d) => d.phong)
-    expect(phong).toContain('hoi-thoai:p-1:chu')
-    expect(phong).toContain('hoi-thoai:p-1:ntd')
-    expect(new Set(phong).size).toBe(phong.length)
-  })
-
-  /*
    * =======================================================================
-   * CA NÀY CHẶN "ADMIN GÕ XONG KHÔNG THẤY GÌ, PHẢI F5"
+   * PHÁT VÀO CẢ BA PHÒNG — TÍNH RIÊNG TƯ DO `quyenTruyCapPhien` GIỮ
    * =======================================================================
-   * `phatTinMoi` viết khi hệ chỉ có hai phòng. Kênh hỗ trợ thêm phòng thứ ba
-   * nhưng chỗ phát không đổi, nên `guiTinNhan` — đường mà MỌI tin nhắn thật
-   * đi qua — không bao giờ chạm tới admin.
+   * Không còn cờ `choNTD`. Một luồng chỉ có một đối tượng, nên mọi tin trong
+   * luồng đều thuộc về đúng những người vào được luồng ấy.
    *
-   * Phát vô điều kiện là an toàn vì phòng admin chỉ vào được qua
-   * `quyenTruyCapPhien`, và hàm đó chỉ mở nó cho `kind = 'AI_SUPPORT'`.
+   * Điều đó CHỈ đúng nhờ một bất biến ở nơi khác: đường duy nhất vào phòng
+   * `:ntd` / `:admin` là `quyenTruyCapPhien`, và nó chỉ mở chúng cho đúng
+   * `kind`. Bất biến ấy có test riêng canh ở làn database — ca ở đây chỉ
+   * khẳng định phần phát.
    */
-  it('mọi tin đều vào phòng admin — kể cả tin KHÔNG chia sẻ cho NTD', () => {
+  it('phát tới cả ba phòng của luồng, và ba phòng đó KHÁC NHAU', () => {
     const daPhat = batPhat()
-    phatTinMoi('p-1', TIN, false)
+    phatTinMoi('p-1', TIN)
 
-    expect(daPhat.map((d) => d.phong)).toContain('hoi-thoai:p-1:admin')
+    expect(daPhat.map((d) => d.phong).sort()).toEqual(
+      ['hoi-thoai:p-1:admin', 'hoi-thoai:p-1:chu', 'hoi-thoai:p-1:ntd'].sort(),
+    )
   })
 
   it('ba phòng của cùng một phiên khác nhau từng đôi một', () => {
@@ -130,7 +106,7 @@ describe('luật phát tin', () => {
  */
 describe('khe cắm bộ phát', () => {
   it('chưa ai đăng ký thì không làm gì, không ném', () => {
-    expect(() => phatTinMoi('p-1', TIN, true)).not.toThrow()
+    expect(() => phatTinMoi('p-1', TIN)).not.toThrow()
   })
 
   it('bộ phát ném thì service KHÔNG ném theo', () => {
@@ -140,7 +116,7 @@ describe('khe cắm bộ phát', () => {
         throw new Error('io đã đóng')
       },
     })
-    expect(() => phatTinMoi('p-1', TIN, true)).not.toThrow()
+    expect(() => phatTinMoi('p-1', TIN)).not.toThrow()
   })
 
   it('gỡ bộ phát rồi thì im lặng trở lại', () => {

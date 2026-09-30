@@ -59,7 +59,12 @@ export function HoTro() {
         </div>
       )}
 
-      {!dangMo && trangThai === 'AI_ACTIVE' && (
+      {/*
+        Luồng ĐÃ ĐÓNG cũng hiện form, không hiện một hội thoại chết.
+        `yeuCauHoTro` mở lại chính luồng ấy, nên lịch sử cũ không mất — người
+        dùng đọc lại được ở `/hoi-thoai/<id>`.
+      */}
+      {!dangMo && (trangThai === 'AI_ACTIVE' || trangThai === 'CLOSED') && (
         <form onSubmit={gui} className="rounded-xl border border-slate-200 bg-white p-5">
           <label htmlFor="mo-ta-ho-tro" className="font-medium text-slate-900">
             Bạn cần hỗ trợ việc gì?
@@ -95,18 +100,15 @@ export function HoTro() {
         </form>
       )}
 
-      {!dangMo && trangThai !== 'AI_ACTIVE' && trangThai !== '' && (
+      {!dangMo && (trangThai === 'WAITING_ADMIN' || trangThai === 'HUMAN_ACTIVE') && (
         <div className="flex min-h-[28rem] flex-col rounded-xl border border-slate-200 bg-white p-4">
           <KhungChat
             kenh={kenh}
             bien="sang"
             tenHo="Hỗ trợ UniWork"
             placeholder="Nhắn cho quản trị viên…"
-            lyDoKhoa={
-              trangThai === 'WAITING_ADMIN'
-                ? 'Yêu cầu đã vào hàng đợi. Bạn nhắn được ngay khi có quản trị viên tiếp nhận.'
-                : 'Phiên hỗ trợ đã kết thúc. Tải lại trang để mở yêu cầu mới.'
-            }
+            lyDoKhoa="Yêu cầu đã vào hàng đợi. Bạn nhắn được ngay khi có quản trị viên tiếp nhận."
+
             dauTrang={
               <div
                 role="status"
@@ -116,7 +118,6 @@ export function HoTro() {
                 <p className="text-sm text-slate-700">
                   {trangThai === 'WAITING_ADMIN' && 'Đang chờ quản trị viên tiếp nhận…'}
                   {trangThai === 'HUMAN_ACTIVE' && 'Bạn đang nhắn với quản trị viên UniWork.'}
-                  {trangThai === 'CLOSED' && 'Phiên hỗ trợ đã kết thúc.'}
                 </p>
 
                 {trangThai === 'WAITING_ADMIN' && (

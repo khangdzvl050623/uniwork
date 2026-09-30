@@ -11,7 +11,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ApiClientError, apiFetch } from '@/lib/api'
-import { layClientSessionId } from '@/lib/phien-chat'
 
 const TRAN = 500
 
@@ -19,16 +18,13 @@ const TRAN = 500
  * Hỏi thẳng nhà tuyển dụng về một tin, không qua trợ lý.
  *
  * ===========================================================================
- * VÌ SAO NÚT NÀY KHÔNG PHẢI "NHẮN TIN"
+ * MỘT LUỒNG CHO MỖI NHÀ TUYỂN DỤNG, VÀ NÓ SỐNG MÃI
  * ===========================================================================
- * Nó không mở một hộp chat tự do — nó CHUYỂN phiên trợ lý của sinh viên sang
- * nhà tuyển dụng sở hữu tin, đúng cùng đường mà trợ lý đề nghị. Một đường duy
- * nhất nghĩa là một bộ luật duy nhất: một hội thoại đang mở cho mỗi cặp
- * (sinh viên, nhà tuyển dụng), mốc `employerVisibleFromSeq` đóng băng ở lần
- * chuyển đầu, và nhà tuyển dụng chỉ đọc được từ mốc đó trở đi.
+ * Bấm nút này lần đầu thì luồng mở ra. Bấm lại sau vài tháng — hoặc sau khi
+ * hai bên đã kết thúc — thì CHÍNH luồng ấy mở lại, mang theo toàn bộ lịch sử.
  *
- * Mở một đường thứ hai "nhắn trực tiếp" là dựng lại toàn bộ những luật ấy ở
- * chỗ thứ hai, và chúng sẽ lệch nhau.
+ * Không có "hội thoại mới" nào cả, đúng như mọi ứng dụng nhắn tin: danh tính
+ * cuộc trò chuyện là NGƯỜI ở đầu kia, không phải lần bấm.
  *
  * ---------------------------------------------------------------------------
  * SERVER CÓ THỂ TỪ CHỐI, VÀ ĐÓ LÀ CÂU TRẢ LỜI ĐÚNG
@@ -59,17 +55,16 @@ export function DialogHoiNTD({
     setLoi(null)
     setDangGui(true)
     try {
-      /* Mở phiên trợ lý (idempotent theo `clientSessionId`) rồi chuyển đi. */
-      const phien = await apiFetch<{ sessionId: string }>('/api/hoi-thoai', {
-        method: 'POST',
-        body: JSON.stringify({ kind: 'AI_STUDENT', clientSessionId: layClientSessionId('tro-ly') }),
-      })
-      await apiFetch(`/api/hoi-thoai/${phien.sessionId}/chuyen-ntd`, {
+      /*
+       * Một lời gọi duy nhất. `jobId` xác định nhà tuyển dụng, nhà tuyển dụng
+       * xác định luồng — server mở luồng nếu chưa có, mở LẠI nếu đã đóng.
+       */
+      const kq = await apiFetch<{ sessionId: string }>('/api/hoi-thoai/hoi-ntd', {
         method: 'POST',
         body: JSON.stringify({ jobId, loiNhan: loiNhan.trim() }),
       })
       onOpenChange(false)
-      dieuHuong('/tro-ly')
+      dieuHuong(`/hoi-thoai/${kq.sessionId}`)
     } catch (e) {
       setLoi(e instanceof ApiClientError ? e.message : 'Không gửi được yêu cầu')
     } finally {
@@ -91,9 +86,9 @@ export function DialogHoiNTD({
         </DialogHeader>
 
         <p className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-600">
-          Nhà tuyển dụng thấy tên viết tắt của bạn và những tin nhắn <strong>từ lúc này trở
-          đi</strong> — không thấy đoạn bạn đã hỏi trợ lý trước đó. Tên đầy đủ và liên hệ chỉ mở
-          khi bạn nộp đơn và được chuyển vào vòng trong.
+          Nhà tuyển dụng thấy tên viết tắt của bạn và <strong>chỉ cuộc trò chuyện này</strong> —
+          không thấy đoạn bạn hỏi trợ lý, cũng không thấy bạn nói gì với nơi khác. Tên đầy đủ và
+          liên hệ chỉ mở khi bạn nộp đơn và được chuyển vào vòng trong.
         </p>
 
         <div>

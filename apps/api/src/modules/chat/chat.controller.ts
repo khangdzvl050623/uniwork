@@ -1,7 +1,7 @@
 import type { RequestHandler } from 'express'
 import { z } from 'zod'
 import {
-  chuyenNTDSchema,
+  hoiNhaTuyenDungSchema,
   guiTinNhanSchema,
   hoiTroLySchema,
   taoPhienChatSchema,
@@ -17,7 +17,7 @@ import {
   guiTinNhan,
   hoiThoaiCuaToi,
   layTinNhan,
-  taoPhien,
+  moLuong,
 } from './chat.service.js'
 import * as handoff from './handoff.service.js'
 import * as hoTro from './ho-tro.service.js'
@@ -46,7 +46,7 @@ function nguoiGoi(req: { user?: { id: string; role: 'STUDENT' | 'EMPLOYER' | 'AD
 
 export const taoPhienController: RequestHandler = async (req, res) => {
   const u = nguoiGoi(req)
-  ok(res, await taoPhien(u.id, u.role, parse(taoPhienChatSchema, req.body)), 201)
+  ok(res, await moLuong(u.id, u.role, parse(taoPhienChatSchema, req.body).kind), 201)
 }
 
 /** Hội thoại của CHÍNH người gọi. Không phải hộp thư handoff — xem service. */
@@ -171,11 +171,16 @@ export const hoiController: RequestHandler = async (req, res) => {
  * nhau — kiểm chúng trong một `switch` là dựng lại máy trạng thái ở chỗ dễ sót
  * nhất. Năm đường riêng thì mỗi đường tự mang luật của nó.
  */
+/**
+ * Hỏi nhà tuyển dụng về một tin.
+ *
+ * KHÔNG nhận `:id` phiên nữa: `jobId` đã xác định nhà tuyển dụng, và nhà tuyển
+ * dụng xác định luồng. Bắt client gửi thêm một sessionId là mời nó gửi sai.
+ */
 export const chuyenNTDController: RequestHandler = async (req, res) => {
   const u = nguoiGoi(req)
-  const { id } = parse(thamSoId, req.params)
-  const v = parse(chuyenNTDSchema, req.body)
-  ok(res, await handoff.chuyenNhaTuyenDung(u.id, id, v.jobId, v.loiNhan ?? ''))
+  const v = parse(hoiNhaTuyenDungSchema, req.body)
+  ok(res, await handoff.chuyenNhaTuyenDung(u.id, v.jobId, v.loiNhan ?? ''))
 }
 
 export const huyChoController: RequestHandler = async (req, res) => {
@@ -186,11 +191,6 @@ export const huyChoController: RequestHandler = async (req, res) => {
 export const tiepNhanController: RequestHandler = async (req, res) => {
   const u = nguoiGoi(req)
   ok(res, await handoff.tiepNhan(u, parse(thamSoId, req.params).id))
-}
-
-export const quayLaiAiController: RequestHandler = async (req, res) => {
-  const u = nguoiGoi(req)
-  ok(res, await handoff.quayLaiAi(u.id, parse(thamSoId, req.params).id))
 }
 
 export const ketThucController: RequestHandler = async (req, res) => {

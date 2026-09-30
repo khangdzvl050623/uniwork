@@ -3,7 +3,13 @@ import { prisma } from '../../lib/prisma.js'
 import { badRequest, conflict, notFound } from '../../lib/errors.js'
 import { createNotification } from '../notifications/notifications.service.js'
 import { phongHopThuNTD, quyenTruyCapPhien } from './chat.access.js'
-import { ghiTinHeThong, phatTinMoi, phatTrangThai, type TinNhanItem } from './chat.service.js'
+import {
+  ghiTinHeThong,
+  moLuongNTD,
+  phatTinMoi,
+  phatTrangThai,
+  type TinNhanItem,
+} from './chat.service.js'
 import { phatToiPhong } from './phat-su-kien.js'
 
 /**
@@ -43,7 +49,6 @@ async function phienCuaChu(userId: string, sessionId: string) {
       state: true,
       jobId: true,
       messageSeq: true,
-      employerVisibleFromSeq: true,
       handoffEmployerProfileId: true,
       activeAiRunId: true,
     },
@@ -52,56 +57,37 @@ async function phienCuaChu(userId: string, sessionId: string) {
   return p
 }
 
-/**
- * Dịch lỗi trùng khoá của chỉ mục `chat_mot_handoff_moi_ntd` thành một câu
- * người dùng đọc hiểu.
- *
- * Chỉ mục là LỚP THẬT chặn spam: kiểm bằng `findFirst` rồi `if` thì hai
- * request song song đều đọc thấy "chưa có" và cả hai đều tạo. Nhưng P2002 của
- * Prisma đọc lên là "Unique constraint failed" — không nói được gì cho người
- * đang bấm nút.
- */
-async function chayVaDichLoiTrung<T>(fn: () => Promise<T>): Promise<T> {
-  try {
-    return await fn()
-  } catch (e) {
-    const trung =
-      typeof e === 'object' && e !== null && 'code' in e && (e as { code: string }).code === 'P2002'
-    if (!trung) throw e
-    throw conflict(
-      'Bạn đang có một hội thoại mở với nhà tuyển dụng này. Mở lại hội thoại đó để hỏi tiếp.',
-    )
-  }
-}
 
 /* ========================================== A — sinh viên chuyển sang NTD -- */
 
 /**
- * `AI_ACTIVE` → `WAITING_EMPLOYER`.
+ * Mở (hoặc mở lại) luồng với nhà tuyển dụng sở hữu tin.
+ *
+ * ===========================================================================
+ * KHÔNG CÒN "CHUYỂN" LUỒNG NÀO CẢ
+ * ===========================================================================
+ * Bản trước BIẾN chính luồng trợ lý của sinh viên thành luồng với nhà tuyển
+ * dụng. Nên hỏi nơi thứ hai là phải đẻ một luồng trợ lý mới, và lịch sử trò
+ * chuyện với AI bị cắt thành nhiều mảnh rời.
+ *
+ * Giờ luồng trợ lý đứng yên, còn đây mở một luồng RIÊNG cho cặp (sinh viên,
+ * nhà tuyển dụng). Hỏi nơi thứ hai là mở luồng thứ hai — không ảnh hưởng gì
+ * tới luồng thứ nhất, và không ai phải "tạo hội thoại mới".
  *
  * ---------------------------------------------------------------------------
- * NGƯỜI NHẬN HANDOFF ĐÓNG BĂNG Ở LẦN CHUYỂN ĐẦU
+ * MỞ LẠI LUỒNG ĐÃ ĐÓNG LÀ CHUYỆN BÌNH THƯỜNG
  * ---------------------------------------------------------------------------
- * Đổi sang nhà tuyển dụng khác sẽ khiến người mới đọc được những gì đã chia sẻ
- * với người cũ. Muốn hỏi nơi khác thì tạo phiên mới. Nên lần chuyển thứ hai chỉ
- * hợp lệ khi trỏ về ĐÚNG nhà tuyển dụng cũ.
+ * Nhà tuyển dụng từ chối hoặc hai bên kết thúc → luồng `CLOSED`. Sinh viên hỏi
+ * lại nơi đó vài tháng sau thì CHÍNH luồng ấy mở lại, mang theo cả lịch sử cũ.
  *
- * `employerVisibleFromSeq` cũng chỉ đặt khi đang `null`, không dịch lên ở lần
- * chuyển sau: dịch lên thì đoạn đã từng chia sẻ biến mất khỏi màn hình NTD;
- * xoá đi thì họ đọc được cả đoạn sinh viên nói riêng với AI ở giữa. Giữ nguyên
- * là đúng cả hai phía — phần riêng tư ở giữa đã có cờ `visibleToEmployer` lo.
+ * Đó là điều mọi ứng dụng nhắn tin làm, và nó cũng xoá luôn câu hỏi "đã đóng
+ * thì chỉ mục còn giữ không" — câu hỏi đã sinh ra hai lỗi thật ở bản trước.
  */
 export async function chuyenNhaTuyenDung(
   userId: string,
-  sessionId: string,
   jobId: string,
   loiNhan: string,
 ): Promise<KetQuaChuyen> {
-  const phien = await phienCuaChu(userId, sessionId)
-  if (phien.kind !== 'AI_STUDENT') {
-    throw badRequest('Phiên trợ lý của nhà tuyển dụng không chuyển đi đâu được')
-  }
-
   /*
    * Tin phải đang mở VÀ nhà tuyển dụng phải đã được xác minh. Sinh viên không
    * nên bị đẩy sang nói chuyện với một doanh nghiệp chưa ai kiểm giấy tờ.
@@ -120,68 +106,70 @@ export async function chuyenNhaTuyenDung(
     throw badRequest('Nhà tuyển dụng này chưa được xác minh')
   }
 
-  const daChuyen = phien.handoffEmployerProfileId
-  if (daChuyen !== null && daChuyen !== tin.employerProfileId) {
-    throw conflict(
-      'Hội thoại này đã chuyển cho một nhà tuyển dụng khác. Mở hội thoại mới để hỏi nơi này.',
-    )
-  }
+  const hoSo = await prisma.studentProfile.findUnique({
+    where: { userId },
+    select: { id: true },
+  })
+  if (!hoSo) throw notFound('Chưa có hồ sơ sinh viên')
 
-  const kq = await chayVaDichLoiTrung(async () =>
-    prisma.$transaction(async (tx) => {
+  const luong = await moLuongNTD({
+    userId,
+    studentProfileId: hoSo.id,
+    employerProfileId: tin.employerProfileId,
+    jobId: tin.id,
+  })
+  const sessionId = luong.sessionId
+
+  const kq = await prisma.$transaction(async (tx) => {
+    /*
+     * Chỉ luồng ĐANG ĐÓNG mới cần mở lại. Đang chờ hoặc đang trao đổi thì bấm
+     * thêm lần nữa là trùng — báo rõ thay vì lặng lẽ ghi thêm một lời nhắn mở
+     * đầu thứ hai vào giữa cuộc trò chuyện.
+     *
+     * `vuaTao` là thứ phân biệt được hai ca giống hệt nhau qua `state`: luồng
+     * NTD ra đời đã ở `WAITING_EMPLOYER` (CHECK cấm `AI_ACTIVE`), nên thiếu cờ
+     * này thì chính lần bấm ĐẦU TIÊN bị báo trùng.
+     */
+    if (!luong.vuaTao && luong.state === 'WAITING_EMPLOYER') {
+      throw conflict('Bạn đã gửi yêu cầu và đang chờ nhà tuyển dụng này trả lời.')
+    }
+    if (luong.state === 'HUMAN_ACTIVE') {
+      throw conflict('Bạn đang trao đổi trực tiếp với nhà tuyển dụng này rồi.')
+    }
+
+    if (luong.state === 'CLOSED') {
       const doi = await tx.chatSession.updateMany({
-        where: { id: sessionId, state: 'AI_ACTIVE' },
+        where: { id: sessionId, state: 'CLOSED' },
         data: {
           state: 'WAITING_EMPLOYER',
-          handoffEmployerProfileId: tin.employerProfileId,
-          /*
-           * `jobId` chỉ đặt LẦN ĐẦU, cùng lý do với người nhận.
-           *
-           * Bản trước ghi đè mỗi lần chuyển. Hệ quả: hội thoại bàn về tin A,
-           * sinh viên hỏi tiếp về tin B của cùng nhà tuyển dụng, và cả luồng
-           * lặng lẽ đổi thành "về tin B" — hộp thư NTD hiện tên tin B cho một
-           * cuộc trao đổi phần lớn nói về tin A. Không ai thấy nó xảy ra.
-           *
-           * Tin sau đi vào NGỮ CẢNH của lời nhắn mở đầu, không thay cột này.
-           */
-          ...(phien.jobId === null ? { jobId: tin.id } : {}),
           handoffRequestedAt: new Date(),
-          /*
-           * Xoá cờ lượt AI đang chạy. Đây là lớp BỊ ĐỘNG chặn câu trả lời tới
-           * muộn: `ghiTraLoi` đòi `activeAiRunId` khớp, nên lượt đang chạy dở sẽ
-           * bị bỏ câu trả lời. Lớp chủ động (abort) chỉ tiết kiệm token.
-           */
-          activeAiRunId: null,
-          ...(phien.employerVisibleFromSeq === null
-            ? { employerVisibleFromSeq: phien.messageSeq + 1 }
-            : {}),
+          closedAt: null,
+          closedByUserId: null,
         },
       })
-      if (doi.count === 0) {
-        throw conflict('Hội thoại không còn ở trạng thái nói chuyện với trợ lý')
-      }
-
-      /* Tin mở đầu là tin ĐẦU TIÊN nhà tuyển dụng đọc được, nên `choNTD = true`. */
-      const tinMo = await ghiTinHeThong(
-        tx,
-        sessionId,
-        dungLoiMoDau(loiNhan, phien.jobId, tin),
-        true,
-      )
-
-      await createNotification(tx, {
-        userId: tin.employerProfile.userId,
-        type: 'CHAT_HANDOFF_REQUESTED',
-        title: 'Có sinh viên muốn trao đổi',
-        body: `Một sinh viên đang chờ bạn trả lời về tin “${tin.title}”.`,
-        link: `/ntd/hoi-thoai`,
+      if (doi.count === 0) throw conflict('Luồng vừa đổi trạng thái, thử lại giúp tôi')
+    } else {
+      /* Luồng vừa được tạo ở `WAITING_EMPLOYER`; chỉ cần đóng dấu thời điểm. */
+      await tx.chatSession.update({
+        where: { id: sessionId },
+        data: { handoffRequestedAt: new Date() },
       })
+    }
 
-      return tinMo
-    }),
-  )
+    const tinMo = await ghiTinHeThong(tx, sessionId, dungLoiMoDau(loiNhan, tin))
 
-  phatTinMoi(sessionId, kq, true)
+    await createNotification(tx, {
+      userId: tin.employerProfile.userId,
+      type: 'CHAT_HANDOFF_REQUESTED',
+      title: 'Có sinh viên muốn trao đổi',
+      body: `Một sinh viên đang chờ bạn trả lời về tin “${tin.title}”.`,
+      link: `/ntd/hoi-thoai`,
+    })
+
+    return tinMo
+  })
+
+  phatTinMoi(sessionId, kq)
   phatTrangThai(sessionId, 'WAITING_EMPLOYER', userId)
   phatToiPhong(phongHopThuNTD(tin.employerProfileId), 'ntd:hoi-thoai-cho', {
     sessionId,
@@ -194,43 +182,48 @@ export async function chuyenNhaTuyenDung(
 }
 
 /**
- * Lời nhắn mở đầu, có đính kèm ngữ cảnh tin khi cần.
+ * Lời nhắn mở đầu, LUÔN đính kèm tên tin.
  *
- * Hỏi về một tin KHÁC tin đã gắn thì phải nói rõ ở đây: nhà tuyển dụng cần
- * biết đang được hỏi về cái gì, mà cột `jobId` đã đóng băng ở lần chuyển đầu.
+ * Một luồng NTD sống lâu và có thể bàn về nhiều tin của cùng nơi đó — cột
+ * `jobId` chỉ ghi tin ĐẦU TIÊN. Nên mỗi lần mở lại phải nói rõ lần này hỏi về
+ * cái gì, nếu không nhà tuyển dụng đọc một câu hỏi lơ lửng giữa một cuộc trò
+ * chuyện cũ.
+ *
+ * Bản trước chỉ đính kèm khi tin KHÁC tin đã gắn. Đúng với mô hình cũ (một
+ * luồng một lần trao đổi), sai với luồng vĩnh viễn.
  */
-function dungLoiMoDau(
-  loiNhan: string,
-  jobIdDaGan: string | null,
-  tin: { id: string; title: string },
-): string {
+function dungLoiMoDau(loiNhan: string, tin: { id: string; title: string }): string {
   const than = loiNhan === '' ? 'Sinh viên muốn trao đổi trực tiếp với bạn.' : loiNhan
-  const doiTin = jobIdDaGan !== null && jobIdDaGan !== tin.id
-  return doiTin
-    ? `${than}
+  return `${than}
 (Về tin: ${tin.title})`
-    : than
 }
 
 /* ================================================= B — sinh viên huỷ chờ -- */
 
-/** `WAITING_EMPLOYER` → `AI_ACTIVE`. Không báo cho nhà tuyển dụng. */
+/**
+ * `WAITING_EMPLOYER` → `CLOSED`. Không báo cho nhà tuyển dụng.
+ *
+ * ĐÓNG chứ không về `AI_ACTIVE`: luồng NTD không có trợ lý nào để quay về, và
+ * `chat_trang_thai_theo_kenh` cấm trạng thái đó ở kênh này. Sinh viên đổi ý
+ * thì luồng đóng lại — hỏi lại nơi đó lần sau chính là mở lại luồng này, mang
+ * theo cả lịch sử.
+ */
 export async function huyCho(userId: string, sessionId: string): Promise<KetQuaChuyen> {
   await phienCuaChu(userId, sessionId)
 
   const tin = await prisma.$transaction(async (tx) => {
     const doi = await tx.chatSession.updateMany({
       where: { id: sessionId, state: 'WAITING_EMPLOYER' },
-      data: { state: 'AI_ACTIVE', handoffRequestedAt: null },
+      data: { state: 'CLOSED', handoffRequestedAt: null, closedAt: new Date() },
     })
     if (doi.count === 0) throw conflict('Hội thoại không còn ở trạng thái chờ')
 
-    return ghiTinHeThong(tx, sessionId, 'Bạn đã huỷ yêu cầu trao đổi với nhà tuyển dụng.', false)
+    return ghiTinHeThong(tx, sessionId, 'Bạn đã huỷ yêu cầu trao đổi với nhà tuyển dụng.')
   })
 
-  phatTinMoi(sessionId, tin, false)
-  phatTrangThai(sessionId, 'AI_ACTIVE', userId)
-  return { sessionId, state: 'AI_ACTIVE', tin }
+  phatTinMoi(sessionId, tin)
+  phatTrangThai(sessionId, 'CLOSED', userId)
+  return { sessionId, state: 'CLOSED', tin }
 }
 
 /* ==================================================== C — NTD tiếp nhận -- */
@@ -261,76 +254,39 @@ export async function tiepNhan(
     })
     if (doi.count === 0) throw conflict('Hội thoại này vừa được tiếp nhận hoặc đã huỷ')
 
-    const tinMo = await ghiTinHeThong(tx, sessionId, 'Nhà tuyển dụng đã tiếp nhận.', true)
+    const tinMo = await ghiTinHeThong(tx, sessionId, 'Nhà tuyển dụng đã tiếp nhận.')
 
     await createNotification(tx, {
       userId: phien.ownerUserId,
       type: 'CHAT_HANDOFF_ACCEPTED',
       title: 'Nhà tuyển dụng đã trả lời',
       body: 'Bạn có thể nhắn trực tiếp với nhà tuyển dụng ngay bây giờ.',
-      link: '/tro-ly',
+      link: '/hoi-thoai',
     })
 
     return tinMo
   })
 
-  phatTinMoi(sessionId, tin, true)
+  phatTinMoi(sessionId, tin)
   phatTrangThai(sessionId, 'HUMAN_ACTIVE', phien.ownerUserId)
   return { sessionId, state: 'HUMAN_ACTIVE', tin }
 }
 
-/* ============================================ E — sinh viên quay lại AI -- */
-
-/**
- * `HUMAN_ACTIVE` → `AI_ACTIVE`.
+/*
+ * ============================================================================
+ * KHÔNG CÒN "QUAY LẠI HỎI TRỢ LÝ"
+ * ============================================================================
+ * `quayLaiAi` từng đưa luồng từ `HUMAN_ACTIVE` về `AI_ACTIVE` — nó tồn tại chỉ
+ * vì một hàng phải kiêm cả hai cuộc trò chuyện.
  *
- * Nhà tuyển dụng GIỮ NGUYÊN quyền đọc phần cũ — quyền neo vào
- * `handoffEmployerProfileId`, không vào `state`. Nhưng họ không đọc được phần
- * mới, vì mọi tin trong giai đoạn AI đều `visibleToEmployer = false`, và socket
- * của họ ở phòng `:ntd` cũng không nhận gì.
+ * Giờ luồng trợ lý là một hàng riêng, luôn sống. Sinh viên muốn hỏi trợ lý thì
+ * mở luồng trợ lý; luồng với nhà tuyển dụng đứng nguyên đó và không ai phải
+ * đổi trạng thái gì.
+ *
+ * Hàm ấy cũng từng là một lỗ: nó không kiểm `kind`, nên gọi được trên một
+ * ticket hỗ trợ đang mở và làm chỉ mục chống trùng nhả hàng ra. Xoá hàm là
+ * xoá luôn lỗ.
  */
-export async function quayLaiAi(userId: string, sessionId: string): Promise<KetQuaChuyen> {
-  const phien = await phienCuaChu(userId, sessionId)
-
-  /*
-   * =========================================================================
-   * CHẶN KÊNH HỖ TRỢ, VÀ ĐÂY KHÔNG PHẢI CHUYỆN NGỮ NGHĨA
-   * =========================================================================
-   * Phiên `AI_SUPPORT` KHÔNG BAO GIỜ có trợ lý — người dùng bấm "liên hệ hỗ
-   * trợ" chính vì trợ lý không giải quyết được. "Quay lại hỏi trợ lý" ở đó là
-   * quay lại một chỗ chưa từng tồn tại.
-   *
-   * Nhưng cái hại thật nằm ở chỉ mục chống trùng. `chat_mot_ho_tro_dang_mo`
-   * phủ `state IN ('WAITING_ADMIN','HUMAN_ACTIVE')`. Gọi được hàm này trên
-   * một ticket đang được admin trả lời thì state về `AI_ACTIVE`, chỉ mục NHẢ
-   * hàng đó ra — trong khi `handoffAdminUserId` vẫn còn nguyên.
-   *
-   * Người dùng lặp lại: xin hỗ trợ → admin nhận → quay lại AI → xin tiếp.
-   * Mỗi vòng một ticket mới, tất cả cùng mở, hàng đợi admin ngập.
-   *
-   * Đây đúng bằng lỗi đã sửa cho `chat_mot_handoff_moi_ntd` ở migration
-   * 20260928130000 — neo vào `state` thay vì neo vào sự thật nghiệp vụ. Lần
-   * đó chỉ sửa chỉ mục của NTD, chỉ mục hỗ trợ bị bỏ quên.
-   */
-  if (phien.kind !== 'AI_STUDENT') {
-    throw badRequest('Kênh này không có trợ lý để quay lại')
-  }
-
-  const tin = await prisma.$transaction(async (tx) => {
-    const doi = await tx.chatSession.updateMany({
-      where: { id: sessionId, state: 'HUMAN_ACTIVE' },
-      data: { state: 'AI_ACTIVE' },
-    })
-    if (doi.count === 0) throw conflict('Hội thoại không ở trạng thái nhắn trực tiếp')
-
-    /* `choNTD = true`: NTD nên biết vì sao sinh viên ngừng trả lời. */
-    return ghiTinHeThong(tx, sessionId, 'Sinh viên quay lại hỏi trợ lý.', true)
-  })
-
-  phatTinMoi(sessionId, tin, true)
-  phatTrangThai(sessionId, 'AI_ACTIVE', userId)
-  return { sessionId, state: 'AI_ACTIVE', tin }
-}
 
 /* ================================================== D — cả hai kết thúc -- */
 
@@ -372,10 +328,10 @@ export async function ketThuc(
      * vô nghĩa — admin đọc theo `kind` — nên để `false` cho khỏi gán nhầm một
      * ý nghĩa không tồn tại.
      */
-    return ghiTinHeThong(tx, sessionId, NOI[quyen.vai], quyen.vai !== 'ADMIN_HO_TRO')
+    return ghiTinHeThong(tx, sessionId, NOI[quyen.vai])
   })
 
-  phatTinMoi(sessionId, tin, quyen.vai !== 'ADMIN_HO_TRO')
+  phatTinMoi(sessionId, tin)
   phatTrangThai(sessionId, 'CLOSED', quyen.ownerUserId)
   return { sessionId, state: 'CLOSED', tin }
 }
@@ -417,7 +373,7 @@ export async function tuChoiYeuCau(
       lyDo.trim() === ''
         ? 'Nhà tuyển dụng chưa thể trao đổi lúc này.'
         : `Nhà tuyển dụng chưa thể trao đổi lúc này: ${lyDo.trim()}`
-    const tinMo = await ghiTinHeThong(tx, sessionId, than, true)
+    const tinMo = await ghiTinHeThong(tx, sessionId, than)
 
     await createNotification(tx, {
       userId: phien.ownerUserId,
@@ -430,7 +386,7 @@ export async function tuChoiYeuCau(
     return tinMo
   })
 
-  phatTinMoi(sessionId, tin, true)
+  phatTinMoi(sessionId, tin)
   phatTrangThai(sessionId, 'CLOSED', phien.ownerUserId)
 
   return { sessionId, state: 'CLOSED', tin }
@@ -482,11 +438,10 @@ export async function donYeuCauQuaHan(): Promise<number> {
           laHoTro
             ? `Yêu cầu hỗ trợ đã tự đóng sau ${GIO_CHO_TOI_DA} giờ không có phản hồi.`
             : `Yêu cầu đã tự đóng sau ${GIO_CHO_TOI_DA} giờ nhà tuyển dụng chưa phản hồi.`,
-          !laHoTro,
         )
       })
       if (tin) {
-        phatTinMoi(p.id, tin, !laHoTro)
+        phatTinMoi(p.id, tin)
         phatTrangThai(p.id, 'CLOSED', p.ownerUserId)
       }
     } catch (e) {
@@ -529,8 +484,19 @@ export async function hopThuNTD(userId: string): Promise<{ hoiThoai: MucHopThu[]
   })
   if (!hoSo) throw notFound('Chưa có hồ sơ nhà tuyển dụng')
 
+  /*
+   * Lọc thêm `kind: 'NTD'` dù `handoffEmployerProfileId` đã đủ hẹp.
+   *
+   * `chat_ntd_du_doi_tuong` bảo đảm cột kia chỉ khác NULL ở luồng NTD, nên hai
+   * điều kiện trùng nhau hôm nay. Viết cả hai là để truy vấn tự nói rõ nó tìm
+   * cái gì — và để nó vẫn đúng nếu sau này có kênh khác mượn cột ấy.
+   *
+   * Vẫn lọc theo `state`: hộp thư là việc CẦN LÀM, không phải kho lưu trữ.
+   * Luồng đã đóng nằm ở lịch sử, không đứng chắn giữa những yêu cầu đang chờ.
+   */
   const ds = await prisma.chatSession.findMany({
     where: {
+      kind: 'NTD',
       handoffEmployerProfileId: hoSo.id,
       state: { in: ['WAITING_EMPLOYER', 'HUMAN_ACTIVE'] },
     },

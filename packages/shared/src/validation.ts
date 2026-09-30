@@ -906,14 +906,28 @@ export const applicantQuerySchema = z.object({
  */
 const idDoClientSinh = z.string().trim().min(8, 'Id quá ngắn').max(64, 'Id quá dài')
 
+/**
+ * Mở luồng với một đối tượng.
+ *
+ * KHÔNG còn `clientSessionId`. Danh tính luồng là ĐỐI TƯỢNG, và server suy ra
+ * từ `kind` cộng người đang đăng nhập — client không có gì để chọn, nên cũng
+ * không có gì để chọn sai.
+ *
+ * Suốt 2026-09-30 có hai lỗi thật đều từ việc để trình duyệt quyết mở luồng
+ * nào: xoá localStorage, đổi máy hay cửa sổ ẩn danh là người dùng rơi vào một
+ * hội thoại trống trong khi cuộc trò chuyện thật nằm ở hàng khác.
+ *
+ * `NTD` không có ở đây: không ai "mở luồng với nhà tuyển dụng", họ bấm hỏi về
+ * một tin và `chuyenNhaTuyenDung` lo phần còn lại.
+ */
 export const taoPhienChatSchema = z.object({
-  /**
-   * `AI_SUPPORT` mở được bởi CẢ HAI vai — sinh viên và nhà tuyển dụng đều cần
-   * hỗ trợ. Hai kind kia thì gắn chặt với vai, và service kiểm điều đó.
-   */
   kind: z.enum(['AI_STUDENT', 'AI_EMPLOYER', 'AI_SUPPORT']),
-  clientSessionId: idDoClientSinh,
-  jobId: z.string().trim().min(1).max(40).optional(),
+})
+
+/** Sinh viên hỏi nhà tuyển dụng về một tin. `jobId` xác định luôn luồng nào. */
+export const hoiNhaTuyenDungSchema = z.object({
+  jobId: z.string().trim().min(1, 'Chưa chọn tin tuyển dụng').max(40),
+  loiNhan: z.string().trim().max(500, 'Lời nhắn tối đa 500 ký tự').optional(),
 })
 
 /** Yêu cầu gặp quản trị viên. Mô tả không bắt buộc — lịch sử hội thoại là ngữ cảnh. */
@@ -955,17 +969,6 @@ export const guiTinNhanSchema = z.object({
     .max(2000, 'Tin nhắn tối đa 2000 ký tự'),
 })
 
-/**
- * Chuyển hội thoại sang nhà tuyển dụng.
- *
- * `jobId` BẮT BUỘC: thiếu nó thì nhà tuyển dụng nhận một hội thoại không biết
- * đang nói về tin nào, và CHECK `chat_handoff_du_thong_tin` trong database
- * cũng từ chối.
- */
-export const chuyenNTDSchema = z.object({
-  jobId: z.string().trim().min(1, 'Chưa chọn tin tuyển dụng').max(40),
-  loiNhan: z.string().trim().max(500, 'Lời nhắn tối đa 500 ký tự').optional(),
-})
 
 /* ============================================= Bao cao tin (Sprint 5) ==== */
 

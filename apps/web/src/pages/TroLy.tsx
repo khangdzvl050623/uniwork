@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Loader2, MessagesSquare, SendHorizontal, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { BongChat } from '@/components/tro-ly/BongChat'
@@ -18,16 +18,17 @@ const CAU_MOI = [
 ]
 
 export function TroLy() {
+  const dieuHuong = useNavigate()
   /*
-   * `?phien=<id>` mở ĐÚNG hội thoại đó, bỏ qua khoá trong localStorage.
+   * KHÔNG nhận tham số phiên nào.
    *
-   * Đây là đường duy nhất để quay lại một hội thoại cũ — sinh viên có thể có
-   * nhiều phiên song song, mỗi nhà tuyển dụng một phiên, mà localStorage chỉ
-   * nhớ được đúng một cái. Danh sách ở `/hoi-thoai` sinh ra các link này.
+   * Trang này là LUỒNG TRỢ LÝ — một luồng cho mỗi người, vĩnh viễn. Mở ra là
+   * thấy lại đúng cuộc trò chuyện hôm qua, kể cả trên máy khác, vì server suy
+   * luồng từ tài khoản chứ không từ một khoá trình duyệt gửi lên.
+   *
+   * Luồng với nhà tuyển dụng nằm ở `/hoi-thoai/:id` — trang khác, vì đầu kia
+   * là người chứ không phải model.
    */
-  const [thamSo] = useSearchParams()
-  const phienChiDinh = thamSo.get('phien') ?? undefined
-
   const {
     tinNhan,
     dangChay,
@@ -35,15 +36,11 @@ export function TroLy() {
     deNghi,
     loi,
     coTheGuiLai,
-    trangThai,
-    duocGui,
     gui,
     guiLai,
-    guiTinNguoi,
     chuyenNhaTuyenDung,
-    ketThuc,
     boDeNghi,
-  } = useTroLy(phienChiDinh)
+  } = useTroLy()
   const { data: luot } = useLuotConLai()
 
   const [noiDung, setNoiDung] = useState('')
@@ -70,16 +67,21 @@ export function TroLy() {
    * lượt AI, nên hạn mức ngày không khoá ô nhập. Trộn hai luật vào một biến là
    * chỗ sẽ khoá nhầm: hết lượt hỏi trợ lý mà cũng không nhắn được người thật.
    */
-  const noiNguoiThat = trangThai === 'HUMAN_ACTIVE' && duocGui
-  const daDong = trangThai === 'CLOSED'
-  const khoa = daDong || dangChay || (!noiNguoiThat && (hetLuot || chuaSanSang))
+  /*
+   * Ô nhập chỉ còn MỘT vai: hỏi trợ lý.
+   *
+   * Bản trước nó đổi vai theo `state` — cùng một ô lúc thì gửi cho model, lúc
+   * thì gửi cho nhà tuyển dụng. Hết rồi: nói chuyện với người có trang riêng
+   * (`/hoi-thoai/:id`), nên chỗ này không còn nhánh nào để đi nhầm.
+   */
+  const khoa = dangChay || hetLuot || chuaSanSang
 
   function guiDi(e: FormEvent) {
     e.preventDefault()
     const cau = noiDung.trim()
     if (cau === '' || khoa) return
     setNoiDung('')
-    void (noiNguoiThat ? guiTinNguoi(cau) : gui(cau))
+    void gui(cau)
   }
 
   return (
@@ -127,29 +129,6 @@ export function TroLy() {
         </p>
       </header>
 
-      {/*
-        Băng trạng thái. Chỉ hiện khi phiên KHÔNG còn ở AI_ACTIVE — lúc bình
-        thường thì nó là nhiễu, và nhiễu thường trực làm người dùng ngừng đọc.
-      */}
-      {trangThai !== 'AI_ACTIVE' && (
-        <div
-          role="status"
-          aria-atomic="true"
-          className="mt-4 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5"
-        >
-          <p className="text-sm text-slate-700">
-            {trangThai === 'WAITING_EMPLOYER' && 'Đang chờ nhà tuyển dụng tiếp nhận…'}
-            {trangThai === 'HUMAN_ACTIVE' && 'Bạn đang nhắn trực tiếp với nhà tuyển dụng.'}
-            {trangThai === 'CLOSED' && 'Hội thoại đã kết thúc.'}
-          </p>
-          {trangThai !== 'CLOSED' && (
-            <Button variant="ghost" size="sm" onClick={() => void ketThuc()}>
-              Kết thúc
-            </Button>
-          )}
-        </div>
-      )}
-
       <div className="mt-6 flex-1 space-y-3 overflow-y-auto">
         {tinNhan.length === 0 && !dangChay && (
           <div className="rounded-xl border border-dashed border-slate-300 p-5">
@@ -180,7 +159,11 @@ export function TroLy() {
           <TheDeNghiNTD
             deNghi={deNghi}
             onBo={boDeNghi}
-            onChuyen={() => void chuyenNhaTuyenDung(deNghi.jobId, deNghi.lyDo)}
+            onChuyen={() => {
+              void chuyenNhaTuyenDung(deNghi.jobId, deNghi.lyDo).then((id) => {
+                if (id) dieuHuong(`/hoi-thoai/${id}`)
+              })
+            }}
           />
         )}
 
@@ -202,15 +185,10 @@ export function TroLy() {
       </div>
 
       <form onSubmit={guiDi} className="mt-4">
-        {!noiNguoiThat && !daDong && chuaSanSang && (
+        {chuaSanSang && (
           <p className="mb-2 text-sm text-slate-500">Trợ lý chưa được cấu hình trên máy chủ này.</p>
         )}
-        {daDong && (
-          <p className="mb-2 text-sm text-slate-500">
-            Hội thoại này đã kết thúc. Tải lại trang để mở hội thoại mới.
-          </p>
-        )}
-        {!noiNguoiThat && !daDong && hetLuot && !chuaSanSang && (
+        {hetLuot && !chuaSanSang && (
           <p className="mb-2 text-sm text-slate-500">
             Bạn đã dùng hết {luot?.tong} lượt hỏi hôm nay. Mai quay lại nhé.
           </p>
@@ -219,7 +197,7 @@ export function TroLy() {
         <div className="flex items-end gap-2">
           <div className="min-w-0 flex-1">
             <label htmlFor="cau-hoi" className="sr-only">
-              {noiNguoiThat ? 'Tin nhắn cho nhà tuyển dụng' : 'Câu hỏi cho trợ lý'}
+              Câu hỏi cho trợ lý
             </label>
             <textarea
               id="cau-hoi"
@@ -232,11 +210,7 @@ export function TroLy() {
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) guiDi(e)
               }}
-              placeholder={
-                noiNguoiThat
-                  ? 'Nhắn cho nhà tuyển dụng…'
-                  : 'Hỏi trợ lý về việc làm, lịch rảnh, hồ sơ…'
-              }
+              placeholder="Hỏi trợ lý về việc làm, lịch rảnh, hồ sơ…"
               className="w-full resize-none rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition-colors focus:border-brand-500 disabled:bg-slate-50 disabled:text-slate-400"
             />
           </div>

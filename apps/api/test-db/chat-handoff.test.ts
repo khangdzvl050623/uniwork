@@ -7,17 +7,26 @@ import {
   hopThuNTD,
   huyCho,
   ketThuc,
-  quayLaiAi,
   tiepNhan,
 } from '../src/modules/chat/handoff.service.js'
 
 /**
- * Máy trạng thái handoff — PostgreSQL thật.
+ * Luồng trao đổi với nhà tuyển dụng — PostgreSQL thật.
  *
- * Thứ duy nhất chỉ database mới dựng lại được: **hai `UPDATE` tranh nhau một
- * hàng**. Sinh viên bấm huỷ chờ đúng lúc nhà tuyển dụng bấm tiếp nhận. Mock
- * Prisma trả về đúng thứ ta bảo nó trả, nên nó không có khái niệm "ai tới
- * trước" — mà đó chính là điều đang cần khẳng định.
+ * ===========================================================================
+ * MỘT LUỒNG CHO MỖI CẶP (SINH VIÊN, NHÀ TUYỂN DỤNG)
+ * ===========================================================================
+ * Luồng trợ lý của sinh viên KHÔNG đổi trạng thái khi họ hỏi một nhà tuyển
+ * dụng — nó đứng yên, và một luồng `NTD` riêng mở ra. Hỏi nơi thứ hai là mở
+ * luồng thứ hai.
+ *
+ * Đó là khác biệt lớn nhất so với bản trước, nơi `chuyenNhaTuyenDung` BIẾN
+ * chính luồng trợ lý thành luồng với nhà tuyển dụng. Nhiều ca dưới đây tồn tại
+ * để canh rằng hai luồng thật sự tách biệt.
+ *
+ * Thứ chỉ database mới dựng lại được: **hai `UPDATE` tranh nhau một hàng** —
+ * sinh viên bấm huỷ chờ đúng lúc nhà tuyển dụng bấm tiếp nhận. Mock Prisma trả
+ * về đúng thứ ta bảo nó trả, nên nó không có khái niệm "ai tới trước".
  *
  * Chạy: pnpm --filter @uniwork/api test:db
  */
@@ -28,9 +37,11 @@ let sv: { id: string; role: 'STUDENT' }
 let ntd: { id: string; role: 'EMPLOYER' }
 let ntdKhac: { id: string; role: 'EMPLOYER' }
 let employerProfileId: string
+let employerKhacId: string
 let jobId: string
 let jobKhacId: string
-let sessionId: string
+/** Luồng TRỢ LÝ của sinh viên. Vĩnh viễn, không bao giờ rời `AI_ACTIVE`. */
+let luongAi: string
 
 async function taoUser(email: string, role: 'STUDENT' | 'EMPLOYER') {
   const u = await prisma.user.upsert({
@@ -56,7 +67,7 @@ async function taoNTD(email: string, ten: string, daXacMinh: boolean) {
       data: {
         employerProfileId: hs.id,
         title: `Tin của ${ten}`,
-        description: 'x',
+        description: 'Mô tả đủ dài cho ràng buộc của bảng Job.',
         city: 'Hà Nội',
         district: 'Cầu Giấy',
         salaryUnit: 'HOUR',
@@ -81,6 +92,7 @@ async function dungDuLieu() {
 
   const b = await taoNTD('handoff-ntd-khac@test.local', 'Quán B', true)
   ntdKhac = b.user as typeof ntdKhac
+  employerKhacId = b.employerProfileId
   jobKhacId = b.jobId
 
   const hs = await prisma.studentProfile.upsert({
@@ -90,95 +102,77 @@ async function dungDuLieu() {
     select: { id: true },
   })
 
-  const p = await prisma.chatSession.upsert({
-    where: { ownerUserId_clientSessionId: { ownerUserId: sv.id, clientSessionId: 'cs-handoff' } },
-    update: {
-      state: 'AI_ACTIVE',
-      messageSeq: 0,
-      activeAiRunId: null,
-      employerVisibleFromSeq: null,
-      handoffEmployerProfileId: null,
-      jobId: null,
-      handoffRequestedAt: null,
-      handoffAcceptedAt: null,
-      closedAt: null,
-      closedByUserId: null,
-    },
-    create: {
+  /*
+   * Dọn SẠCH mọi luồng của sinh viên trước mỗi ca.
+   *
+   * Không liệt kê `clientSessionId` cụ thể như bản trước: giờ mỗi nhà tuyển
+   * dụng sinh ra một luồng riêng, nên danh sách khoá sẽ luôn thiếu một cái.
+   * Đã dính đúng chuyện đó ở `chat-ho-tro.test.ts` — lần chạy đầu xanh, lần
+   * thứ hai đỏ, và người đỏ là ca không liên quan.
+   */
+  const cu = await prisma.chatSession.findMany({
+    where: { ownerUserId: sv.id },
+    select: { id: true },
+  })
+  if (cu.length > 0) {
+    const ids = cu.map((c) => c.id)
+    await prisma.chatMessage.deleteMany({ where: { sessionId: { in: ids } } })
+    await prisma.chatSession.deleteMany({ where: { id: { in: ids } } })
+  }
+
+  const p = await prisma.chatSession.create({
+    data: {
       kind: 'AI_STUDENT',
       ownerUserId: sv.id,
-      clientSessionId: 'cs-handoff',
+      clientSessionId: 'luong:tro-ly',
       studentProfileId: hs.id,
     },
     select: { id: true },
   })
-  sessionId = p.id
-  await prisma.chatMessage.deleteMany({ where: { sessionId } })
+  luongAi = p.id
 
-  /*
-   * Dọn phiên phụ ở ĐÂY chứ không ở cuối từng ca.
-   *
-   * Bản đầu gọi `delete` ở dòng cuối mỗi ca. Khi một `expect` hỏng thì dòng
-   * đó KHÔNG chạy, phiên phụ ở lại với handoff đang mở, và ca sau bị chặn bởi
-   * chính chỉ mục đang được kiểm — một ca đỏ kéo theo ca khác xanh giả.
-   *
-   * Phát hiện lúc chạy đột biến: bỏ chỉ mục lẽ ra hai ca đỏ, nhưng chỉ một ca
-   * đỏ.
-   */
-  await prisma.chatSession.deleteMany({
-    where: { ownerUserId: sv.id, clientSessionId: { in: ['cs-spam', 'cs-quaylai', 'cs-huy'] } },
-  })
   await prisma.notification.deleteMany({ where: { userId: { in: [sv.id, ntd.id] } } })
 }
 
-const doc = () => prisma.chatSession.findUniqueOrThrow({ where: { id: sessionId } })
-const chuyen = (job = jobId) => chuyenNhaTuyenDung(sv.id, sessionId, job, '')
+const doc = (id: string) => prisma.chatSession.findUniqueOrThrow({ where: { id } })
+const chuyen = (job = jobId) => chuyenNhaTuyenDung(sv.id, job, '')
 
-/** Một tin do NGƯỜI gõ, để phân biệt với tin hệ thống khi kiểm phần xem trước. */
-const guiTinNguoi = (noiDung: string) =>
-  guiTinNhan(sv, sessionId, `cm-${noiDung.length}-${Date.now()}`, noiDung)
+/** Mở luồng với Quán A và trả về id của chính luồng đó. */
+async function moLuongA(): Promise<string> {
+  return (await chuyen()).sessionId
+}
 
 beforeEach(dungDuLieu)
 
 afterAll(async () => {
-  await prisma.chatMessage.deleteMany({ where: { sessionId } })
   await prisma.$disconnect()
 })
 
 /* ===================================================================== */
 
-describe('A — sinh viên chuyển sang nhà tuyển dụng', () => {
-  it('đổi trạng thái, đóng băng người nhận và tin, đặt mốc đọc', async () => {
-    await chuyen()
-    const p = await doc()
+describe('mở luồng với nhà tuyển dụng', () => {
+  it('tạo luồng RIÊNG, luồng trợ lý không hề đổi', async () => {
+    const id = await moLuongA()
 
-    expect(p.state).toBe('WAITING_EMPLOYER')
-    expect(p.handoffEmployerProfileId).toBe(employerProfileId)
-    expect(p.jobId).toBe(jobId)
-    expect(p.employerVisibleFromSeq).toBe(1)
-    expect(p.handoffRequestedAt).not.toBeNull()
+    expect(id).not.toBe(luongAi)
+
+    const ntdThread = await doc(id)
+    expect(ntdThread.kind).toBe('NTD')
+    expect(ntdThread.state).toBe('WAITING_EMPLOYER')
+    expect(ntdThread.handoffEmployerProfileId).toBe(employerProfileId)
+    expect(ntdThread.jobId).toBe(jobId)
+
+    /* Khẳng định quan trọng nhất của cả mô hình mới. */
+    const ai = await doc(luongAi)
+    expect(ai.kind).toBe('AI_STUDENT')
+    expect(ai.state).toBe('AI_ACTIVE')
+    expect(ai.handoffEmployerProfileId).toBeNull()
   })
 
-  it('tin mở đầu là tin ĐẦU TIÊN nhà tuyển dụng đọc được', async () => {
+  it('tin mở đầu là tin hệ thống, có kèm tên tin', async () => {
     const kq = await chuyen()
-    const tin = await prisma.chatMessage.findUniqueOrThrow({
-      where: { sessionId_seq: { sessionId, seq: kq.tin.seq } },
-    })
-    expect(tin.senderType).toBe('SYSTEM')
-    expect(tin.visibleToEmployer).toBe(true)
-  })
-
-  /*
-   * Lớp BỊ ĐỘNG chặn câu trả lời AI tới muộn. `ghiTraLoi` đòi `activeAiRunId`
-   * khớp, nên xoá cờ ở đây là câu trả lời của lượt đang chạy dở sẽ bị bỏ.
-   */
-  it('xoá cờ lượt AI đang chạy', async () => {
-    await prisma.chatSession.update({
-      where: { id: sessionId },
-      data: { activeAiRunId: 'turn-dang-chay' },
-    })
-    await chuyen()
-    expect((await doc()).activeAiRunId).toBeNull()
+    expect(kq.tin.senderType).toBe('SYSTEM')
+    expect(kq.tin.body).toContain('Quán A')
   })
 
   it('báo cho nhà tuyển dụng', async () => {
@@ -188,54 +182,56 @@ describe('A — sinh viên chuyển sang nhà tuyển dụng', () => {
   })
 
   /*
-   * ---------------------------------------------------------------------
-   * NGƯỜI NHẬN ĐÓNG BĂNG — CA QUAN TRỌNG NHẤT CỦA CHUYỂN ĐỔI A
-   * ---------------------------------------------------------------------
-   * Cho đổi sang nhà tuyển dụng khác nghĩa là người mới đọc được toàn bộ những
-   * gì đã chia sẻ với người cũ. Không có màn hình nào cảnh báo điều đó, và
-   * sinh viên không có cách nào lấy lại.
+   * =====================================================================
+   * HAI NƠI = HAI LUỒNG, VÀ ĐÓ LÀ CẢ LÝ DO TÁCH
+   * =====================================================================
+   * Bản trước từ chối lần chuyển thứ hai sang nhà tuyển dụng KHÁC, vì cả hai
+   * cuộc trò chuyện phải chen vào một hàng. Nay chúng là hai hàng, nên hỏi nơi
+   * thứ hai là chuyện bình thường — và nơi B không đọc được gì của nơi A.
    */
-  it('chuyển lần hai sang NTD KHÁC bị từ chối', async () => {
-    await chuyen()
-    await huyCho(sv.id, sessionId)
+  it('hỏi nơi thứ hai mở luồng thứ hai, hai luồng tách hẳn', async () => {
+    const a = await moLuongA()
+    const b = (await chuyen(jobKhacId)).sessionId
 
-    await expect(chuyen(jobKhacId)).rejects.toMatchObject({ code: 'CONFLICT' })
-    expect((await doc()).handoffEmployerProfileId).toBe(employerProfileId)
+    expect(b).not.toBe(a)
+    expect((await doc(b)).handoffEmployerProfileId).toBe(employerKhacId)
+
+    /* Quán B không với được vào luồng của Quán A, và ngược lại. */
+    expect(await quyenTruyCapPhien(ntdKhac, a)).toBeNull()
+    expect(await quyenTruyCapPhien(ntd, b)).toBeNull()
   })
 
-  it('chuyển lại cho ĐÚNG NTD cũ thì được, và mốc đọc KHÔNG dịch lên', async () => {
-    await chuyen()
-    const mocDau = (await doc()).employerVisibleFromSeq
+  it('bấm lại khi đang chờ thì báo trùng, không ghi thêm lời mở đầu', async () => {
+    const id = await moLuongA()
+    const truoc = (await doc(id)).messageSeq
 
-    await huyCho(sv.id, sessionId)
-
-    /* Sinh viên nói riêng với AI vài câu ở giữa hai lần chuyển. */
-    const truoc = (await doc()).messageSeq
-    await prisma.chatMessage.createMany({
-      data: [1, 2].map((i) => ({
-        sessionId,
-        seq: truoc + i,
-        senderType: 'STUDENT' as const,
-        body: `riêng ${i}`,
-        visibleToEmployer: false,
-      })),
-    })
-    await prisma.chatSession.update({
-      where: { id: sessionId },
-      data: { messageSeq: { increment: 2 } },
-    })
-
-    await chuyen()
-    expect((await doc()).employerVisibleFromSeq).toBe(mocDau)
+    await expect(chuyen()).rejects.toMatchObject({ code: 'CONFLICT' })
+    expect((await doc(id)).messageSeq).toBe(truoc)
   })
 
-  it('tin đã đóng thì không chuyển được', async () => {
+  /*
+   * Luồng đã đóng MỞ LẠI, mang theo lịch sử. Đây là điều làm nó giống một hộp
+   * thư thật chứ không phải một phiếu dùng một lần.
+   */
+  it('luồng đã đóng thì mở lại được, và lịch sử còn nguyên', async () => {
+    const id = await moLuongA()
+    await ketThuc(sv, id)
+    const soTinCu = await prisma.chatMessage.count({ where: { sessionId: id } })
+
+    const lai = await chuyen()
+
+    expect(lai.sessionId).toBe(id)
+    expect((await doc(id)).state).toBe('WAITING_EMPLOYER')
+    expect(await prisma.chatMessage.count({ where: { sessionId: id } })).toBe(soTinCu + 1)
+  })
+
+  it('tin đã đóng thì không mở luồng được', async () => {
     await prisma.job.update({ where: { id: jobId }, data: { status: 'CLOSED' } })
     await expect(chuyen()).rejects.toMatchObject({ status: 404 })
     await prisma.job.update({ where: { id: jobId }, data: { status: 'OPEN' } })
   })
 
-  it('nhà tuyển dụng chưa xác minh thì không chuyển được', async () => {
+  it('nhà tuyển dụng chưa xác minh thì không mở luồng được', async () => {
     await prisma.employerProfile.update({
       where: { id: employerProfileId },
       data: { verifiedAt: null },
@@ -248,22 +244,23 @@ describe('A — sinh viên chuyển sang nhà tuyển dụng', () => {
   })
 })
 
-describe('B, C, D, E — các chuyển đổi còn lại', () => {
-  it('huỷ chờ đưa về AI_ACTIVE và KHÔNG báo nhà tuyển dụng', async () => {
-    await chuyen()
+describe('các chuyển đổi còn lại', () => {
+  it('huỷ chờ ĐÓNG luồng và KHÔNG báo nhà tuyển dụng', async () => {
+    const id = await moLuongA()
     await prisma.notification.deleteMany({ where: { userId: ntd.id } })
 
-    await huyCho(sv.id, sessionId)
+    await huyCho(sv.id, id)
 
-    expect((await doc()).state).toBe('AI_ACTIVE')
+    /* `CLOSED` chứ không `AI_ACTIVE`: luồng NTD không có trợ lý để quay về. */
+    expect((await doc(id)).state).toBe('CLOSED')
     expect(await prisma.notification.count({ where: { userId: ntd.id } })).toBe(0)
   })
 
   it('tiếp nhận đưa sang HUMAN_ACTIVE và báo sinh viên', async () => {
-    await chuyen()
-    await tiepNhan(ntd, sessionId)
+    const id = await moLuongA()
+    await tiepNhan(ntd, id)
 
-    const p = await doc()
+    const p = await doc(id)
     expect(p.state).toBe('HUMAN_ACTIVE')
     expect(p.handoffAcceptedAt).not.toBeNull()
     const tb = await prisma.notification.findFirst({
@@ -273,47 +270,45 @@ describe('B, C, D, E — các chuyển đổi còn lại', () => {
   })
 
   it('NTD khác không tiếp nhận được', async () => {
-    await chuyen()
-    await expect(tiepNhan(ntdKhac, sessionId)).rejects.toMatchObject({ status: 404 })
+    const id = await moLuongA()
+    await expect(tiepNhan(ntdKhac, id)).rejects.toMatchObject({ status: 404 })
   })
 
   it('tiếp nhận lần hai bị từ chối', async () => {
-    await chuyen()
-    await tiepNhan(ntd, sessionId)
-    await expect(tiepNhan(ntd, sessionId)).rejects.toMatchObject({ code: 'CONFLICT' })
-  })
-
-  /*
-   * Quyền ĐỌC neo vào `handoffEmployerProfileId`, không vào `state`. Quay lại
-   * AI thì NTD vẫn mở xem được phần đã chia sẻ — nhưng không gửi được nữa, và
-   * phần mới đều `visibleToEmployer = false`.
-   */
-  it('quay lại AI: NTD còn đọc được, hết gửi được', async () => {
-    await chuyen()
-    await tiepNhan(ntd, sessionId)
-    await quayLaiAi(sv.id, sessionId)
-
-    expect((await doc()).state).toBe('AI_ACTIVE')
-    const q = await quyenTruyCapPhien(ntd, sessionId)
-    expect(q?.vai).toBe('NTD_NHAN_HANDOFF')
-    expect(q?.duocGui).toBe(false)
+    const id = await moLuongA()
+    await tiepNhan(ntd, id)
+    await expect(tiepNhan(ntd, id)).rejects.toMatchObject({ code: 'CONFLICT' })
   })
 
   it('cả hai bên đều kết thúc được, và ghi đúng ai đóng', async () => {
-    await chuyen()
-    await tiepNhan(ntd, sessionId)
-    const kq = await ketThuc(ntd, sessionId)
+    const id = await moLuongA()
+    await tiepNhan(ntd, id)
+    const kq = await ketThuc(ntd, id)
 
-    const p = await doc()
+    const p = await doc(id)
     expect(p.state).toBe('CLOSED')
     expect(p.closedByUserId).toBe(ntd.id)
     expect(kq.tin.body).toContain('Nhà tuyển dụng')
   })
 
   it('kết thúc lần hai bị từ chối', async () => {
-    await chuyen()
-    await ketThuc(sv.id === '' ? ntd : sv, sessionId)
-    await expect(ketThuc(sv, sessionId)).rejects.toMatchObject({ code: 'CONFLICT' })
+    const id = await moLuongA()
+    await ketThuc(sv, id)
+    await expect(ketThuc(sv, id)).rejects.toMatchObject({ code: 'CONFLICT' })
+  })
+
+  /*
+   * Đóng rồi thì nhà tuyển dụng VẪN đọc lại được — quyền đọc neo vào `kind` và
+   * người sở hữu, không vào `state`. Chỉ quyền GỬI mới tắt.
+   */
+  it('luồng đã đóng: NTD còn đọc được, hết gửi được', async () => {
+    const id = await moLuongA()
+    await tiepNhan(ntd, id)
+    await ketThuc(sv, id)
+
+    const q = await quyenTruyCapPhien(ntd, id)
+    expect(q?.vai).toBe('NTD_NHAN_HANDOFF')
+    expect(q?.duocGui).toBe(false)
   })
 })
 
@@ -325,16 +320,16 @@ describe('B, C, D, E — các chuyển đổi còn lại', () => {
  * `updateMany` xuất phát từ `WAITING_EMPLOYER`.
  *
  * Nếu viết bằng `findUnique` → kiểm `state` → `update` thì cả hai đều đọc thấy
- * WAITING_EMPLOYER, cả hai đều ghi, và trạng thái cuối tuỳ thuộc ai ghi sau —
- * không ai nhận lỗi, và một bên tin sai về chuyện vừa xảy ra.
+ * WAITING_EMPLOYER, cả hai đều ghi, và trạng thái cuối tuỳ ai ghi sau — không
+ * ai nhận lỗi, và một bên tin sai về chuyện vừa xảy ra.
  */
 describe('ca đua', () => {
   it('huỷ chờ và tiếp nhận cùng lúc: đúng MỘT bên thắng', async () => {
     for (let lan = 0; lan < 5; lan += 1) {
       await dungDuLieu()
-      await chuyen()
+      const id = await moLuongA()
 
-      const kq = await Promise.allSettled([huyCho(sv.id, sessionId), tiepNhan(ntd, sessionId)])
+      const kq = await Promise.allSettled([huyCho(sv.id, id), tiepNhan(ntd, id)])
       const thang = kq.filter((r) => r.status === 'fulfilled')
       const thua = kq.filter((r) => r.status === 'rejected')
 
@@ -342,41 +337,63 @@ describe('ca đua', () => {
       expect(thua, `lần ${lan}`).toHaveLength(1)
 
       /* Trạng thái cuối phải là MỘT trong hai, không bao giờ là thứ lai. */
-      expect(['AI_ACTIVE', 'HUMAN_ACTIVE']).toContain((await doc()).state)
+      expect(['CLOSED', 'HUMAN_ACTIVE']).toContain((await doc(id)).state)
     }
   })
 
   it('hai NTD cùng tiếp nhận: người thứ hai nhận 409, không phải lỗi khó hiểu', async () => {
-    await chuyen()
-    const kq = await Promise.allSettled([tiepNhan(ntd, sessionId), tiepNhan(ntd, sessionId)])
+    const id = await moLuongA()
+    const kq = await Promise.allSettled([tiepNhan(ntd, id), tiepNhan(ntd, id)])
 
     expect(kq.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
     const hong = kq.find((r) => r.status === 'rejected')
     expect((hong as PromiseRejectedResult).reason).toMatchObject({ code: 'CONFLICT' })
   })
+
+  /*
+   * Hai lần bấm hỏi cùng lúc KHÔNG được sinh hai luồng.
+   *
+   * Khoá tự nhiên `(ownerUserId, clientSessionId)` là thứ chặn, và nó chặn ở
+   * tầng DATABASE — không phải bằng một câu `if` nào trong service.
+   */
+  it('bấm hỏi hai lần cùng lúc chỉ ra MỘT luồng', async () => {
+    await Promise.allSettled([chuyen(), chuyen()])
+
+    const soLuong = await prisma.chatSession.count({
+      where: { ownerUserId: sv.id, kind: 'NTD' },
+    })
+    expect(soLuong).toBe(1)
+  })
 })
 
 describe('hộp thư nhà tuyển dụng', () => {
-  it('hiện hội thoại đang chờ, và chỉ tên viết tắt', async () => {
-    await chuyen()
+  it('hiện luồng đang chờ, và chỉ tên viết tắt', async () => {
+    const id = await moLuongA()
     const { hoiThoai } = await hopThuNTD(ntd.id)
 
-    const muc = hoiThoai.find((h) => h.sessionId === sessionId)
+    const muc = hoiThoai.find((h) => h.sessionId === id)
     expect(muc).toMatchObject({ state: 'WAITING_EMPLOYER', hoTenVietTat: 'N.V.A' })
     expect(JSON.stringify(muc)).not.toContain('Nguyễn Văn An')
   })
 
-  it('NTD khác không thấy hội thoại này', async () => {
-    await chuyen()
+  it('NTD khác không thấy luồng này', async () => {
+    const id = await moLuongA()
     const { hoiThoai } = await hopThuNTD(ntdKhac.id)
-    expect(hoiThoai.find((h) => h.sessionId === sessionId)).toBeUndefined()
+    expect(hoiThoai.find((h) => h.sessionId === id)).toBeUndefined()
   })
 
-  it('hội thoại đã kết thúc rời khỏi hộp thư', async () => {
-    await chuyen()
-    await ketThuc(sv, sessionId)
+  it('luồng đã kết thúc rời khỏi hộp thư', async () => {
+    const id = await moLuongA()
+    await ketThuc(sv, id)
     const { hoiThoai } = await hopThuNTD(ntd.id)
-    expect(hoiThoai.find((h) => h.sessionId === sessionId)).toBeUndefined()
+    expect(hoiThoai.find((h) => h.sessionId === id)).toBeUndefined()
+  })
+
+  /* Luồng trợ lý KHÔNG BAO GIỜ được lọt vào hộp thư của bất kỳ ai. */
+  it('luồng trợ lý không nằm trong hộp thư nào', async () => {
+    await moLuongA()
+    const { hoiThoai } = await hopThuNTD(ntd.id)
+    expect(hoiThoai.find((h) => h.sessionId === luongAi)).toBeUndefined()
   })
 })
 
@@ -384,248 +401,52 @@ describe('hộp thư nhà tuyển dụng', () => {
  * =====================================================================
  * DANH SÁCH HỘI THOẠI CỦA CHÍNH MÌNH
  * =====================================================================
- * Thiết kế cho phép sinh viên có nhiều phiên song song — mỗi nhà tuyển dụng
- * một phiên. Nhưng giao diện buộc `/tro-ly` vào đúng MỘT `clientSessionId`
- * trong localStorage, nên hội thoại thứ hai trở đi không có đường mở lại.
- * Đường này là cách duy nhất tìm lại chúng.
- *
  * Hai ranh giới phải canh, và ranh giới thứ hai mới là ranh giới riêng tư:
- *   thấy ĐỦ hội thoại mình là chủ
- *   KHÔNG thấy hội thoại của người khác, kể cả khi mình là bên nhận handoff
+ *   thấy ĐỦ luồng mình là chủ
+ *   KHÔNG thấy luồng của người khác, kể cả khi mình là bên nhận
  */
 describe('hội thoại của tôi', () => {
-  it('sinh viên thấy hội thoại của mình, kèm nơi đã chuyển tới', async () => {
-    await chuyen()
-    const { hoiThoai } = await hoiThoaiCuaToi(sv.id)
+  it('thấy cả luồng trợ lý lẫn từng luồng nhà tuyển dụng', async () => {
+    const a = await moLuongA()
+    const b = (await chuyen(jobKhacId)).sessionId
 
-    const muc = hoiThoai.find((h) => h.sessionId === sessionId)
-    expect(muc).toMatchObject({ kind: 'AI_STUDENT', state: 'WAITING_EMPLOYER' })
-    expect(muc?.congTy).not.toBeNull()
+    const { hoiThoai } = await hoiThoaiCuaToi(sv.id)
+    const ids = hoiThoai.map((h) => h.sessionId)
+
+    expect(ids).toContain(luongAi)
+    expect(ids).toContain(a)
+    expect(ids).toContain(b)
   })
 
-  /*
-   * Ca quan trọng nhất của cả describe.
-   *
-   * Nhà tuyển dụng ĐANG nhận handoff ở phiên này — họ đọc được nội dung qua
-   * `hopThuNTD`. Nhưng phiên đó KHÔNG phải của họ, nên nó không được xuất
-   * hiện trong "hội thoại của tôi". Trộn hai danh sách là mở cho họ đúng
-   * những quyền mà `quyenTruyCapPhien` đang cắt.
-   */
-  it('nhà tuyển dụng nhận handoff KHÔNG thấy phiên đó là của mình', async () => {
-    await chuyen()
+  it('nhà tuyển dụng nhận luồng KHÔNG thấy nó là của mình', async () => {
+    const id = await moLuongA()
     const { hoiThoai } = await hoiThoaiCuaToi(ntd.id)
-    expect(hoiThoai.find((h) => h.sessionId === sessionId)).toBeUndefined()
+    expect(hoiThoai.find((h) => h.sessionId === id)).toBeUndefined()
   })
 
-  it('hội thoại đã đóng VẪN còn trong danh sách, để đọc lại', async () => {
-    await chuyen()
-    await ketThuc(sv, sessionId)
+  it('luồng đã đóng VẪN còn trong danh sách, để đọc lại', async () => {
+    const id = await moLuongA()
+    await ketThuc(sv, id)
 
     const { hoiThoai } = await hoiThoaiCuaToi(sv.id)
-    expect(hoiThoai.find((h) => h.sessionId === sessionId)?.state).toBe('CLOSED')
+    expect(hoiThoai.find((h) => h.sessionId === id)?.state).toBe('CLOSED')
   })
 
   /*
    * Xem trước phải là câu NGƯỜI nói, không phải tin hệ thống.
    *
-   * Sau mỗi chuyển đổi, tin mới nhất luôn là tin SYSTEM ("Nhà tuyển dụng đã
-   * tiếp nhận."). Lấy nó thì cả danh sách hiện cùng một câu và không phân
-   * biệt được hội thoại nào với hội thoại nào — đúng lỗi đã gặp ở `moTaDau`
-   * của hàng đợi hỗ trợ.
+   * `ketThuc` ghi một tin SYSTEM với seq CAO NHẤT — thứ tự này là bắt buộc:
+   * đặt tin người sau cùng thì nó là tin cuối theo cả hai cách lọc, và ca kiểm
+   * luôn xanh dù có bộ lọc hay không. Đã viết sai đúng như vậy một lần, chỉ lộ
+   * ra khi chạy đột biến.
    */
   it('xem trước bỏ qua tin hệ thống', async () => {
-    await chuyen()
-    await tiepNhan(ntd, sessionId)
-    await guiTinNguoi('em hỏi thêm một câu')
-
-    /*
-     * `ketThuc` ghi một tin SYSTEM với seq CAO NHẤT. Thứ tự này là bắt buộc:
-     * đặt tin người sau cùng thì nó là tin cuối theo cả hai cách lọc, và ca
-     * kiểm luôn xanh dù có bộ lọc hay không.
-     *
-     * Đã viết sai đúng như vậy ở bản đầu, và chỉ lộ ra khi chạy đột biến —
-     * bỏ `where: { senderType: { not: 'SYSTEM' } }` mà test vẫn xanh.
-     */
-    await ketThuc(sv, sessionId)
+    const id = await moLuongA()
+    await tiepNhan(ntd, id)
+    await guiTinNhan(sv, id, 'cm-xem-truoc', 'em hỏi thêm một câu')
+    await ketThuc(sv, id)
 
     const { hoiThoai } = await hoiThoaiCuaToi(sv.id)
-    const muc = hoiThoai.find((h) => h.sessionId === sessionId)
-
-    expect(muc?.tinCuoi).toBe('em hỏi thêm một câu')
-  })
-})
-
-/*
- * =====================================================================
- * CHỐNG SPAM — LỚP THẬT LÀ CHỈ MỤC, KHÔNG PHẢI RATE LIMIT
- * =====================================================================
- * Handoff KHÔNG gọi model nên hạn mức ngày không chạm tới đường này. Không có
- * chỉ mục `chat_mot_handoff_moi_ntd` thì một tài khoản sinh viên tạo bao nhiêu
- * phiên cũng được (mỗi `clientSessionId` một phiên) và đổ bấy nhiêu yêu cầu
- * vào hộp thư một nhà tuyển dụng.
- *
- * Rate limit ở tầng route là lưới; nó không chạy trong các ca này vì chúng gọi
- * thẳng service — và đó chính là điều cần kiểm: lớp dưới cùng có giữ không.
- */
-describe('chống spam handoff', () => {
-  /** Phiên thứ hai của CÙNG sinh viên, như khi họ đổi clientSessionId. */
-  async function phienThuHai() {
-    const hs = await prisma.studentProfile.findUniqueOrThrow({
-      where: { userId: sv.id },
-      select: { id: true },
-    })
-    const p = await prisma.chatSession.upsert({
-      where: { ownerUserId_clientSessionId: { ownerUserId: sv.id, clientSessionId: 'cs-spam' } },
-      update: {
-        state: 'AI_ACTIVE',
-        messageSeq: 0,
-        handoffEmployerProfileId: null,
-        jobId: null,
-        employerVisibleFromSeq: null,
-      },
-      create: {
-        kind: 'AI_STUDENT',
-        ownerUserId: sv.id,
-        clientSessionId: 'cs-spam',
-        studentProfileId: hs.id,
-      },
-      select: { id: true },
-    })
-    return p.id
-  }
-
-  it('phiên thứ hai tới CÙNG nhà tuyển dụng bị chặn', async () => {
-    await chuyen()
-    const hai = await phienThuHai()
-
-    await expect(chuyenNhaTuyenDung(sv.id, hai, jobId, '')).rejects.toMatchObject({
-      code: 'CONFLICT',
-    })
-  })
-
-  it('thông điệp nói rõ phải mở lại hội thoại cũ, không phải lỗi khoá trùng', async () => {
-    await chuyen()
-    const hai = await phienThuHai()
-
-    await expect(chuyenNhaTuyenDung(sv.id, hai, jobId, '')).rejects.toThrow(/hội thoại mở/)
-  })
-
-  /* Chỉ mục MỘT PHẦN: hội thoại đã đóng không được chặn lần sau. */
-  it('đóng hội thoại cũ rồi thì mở lại được với chính NTD đó', async () => {
-    await chuyen()
-    await ketThuc(sv, sessionId)
-
-    const hai = await phienThuHai()
-    await expect(chuyenNhaTuyenDung(sv.id, hai, jobId, '')).resolves.toMatchObject({
-      state: 'WAITING_EMPLOYER',
-    })
-  })
-
-  it('nhà tuyển dụng KHÁC thì không bị chặn', async () => {
-    await chuyen()
-    const hai = await phienThuHai()
-
-    await expect(chuyenNhaTuyenDung(sv.id, hai, jobKhacId, '')).resolves.toMatchObject({
-      state: 'WAITING_EMPLOYER',
-    })
-  })
-})
-
-/*
- * =====================================================================
- * BA LỖI TÌM RA KHI RÀ LẠI PLAN — không phải khi viết code
- * =====================================================================
- * Cả ba đều qua sạch bộ test cũ. Chúng là loại lỗi "code làm đúng thứ nó
- * viết, nhưng thứ nó viết không phải nghiệp vụ".
- */
-describe('chống trùng neo vào nghiệp vụ, không vào state', () => {
-  async function phienPhu(ten: string) {
-    const hs = await prisma.studentProfile.findUniqueOrThrow({
-      where: { userId: sv.id },
-      select: { id: true },
-    })
-    const p = await prisma.chatSession.upsert({
-      where: { ownerUserId_clientSessionId: { ownerUserId: sv.id, clientSessionId: ten } },
-      update: {
-        state: 'AI_ACTIVE',
-        messageSeq: 0,
-        handoffEmployerProfileId: null,
-        jobId: null,
-        employerVisibleFromSeq: null,
-      },
-      create: {
-        kind: 'AI_STUDENT',
-        ownerUserId: sv.id,
-        clientSessionId: ten,
-        studentProfileId: hs.id,
-      },
-      select: { id: true },
-    })
-    return p.id
-  }
-
-  /*
-   * ---------------------------------------------------------------------
-   * "QUAY LẠI AI" KHÔNG PHẢI LÀ KẾT THÚC
-   * ---------------------------------------------------------------------
-   * Chỉ mục bản đầu dùng `WHERE state IN ('WAITING_EMPLOYER','HUMAN_ACTIVE')`.
-   * Quay lại AI thì state về AI_ACTIVE trong khi `handoffEmployerProfileId`
-   * vẫn giữ — hội thoại chỉ TẠM DỪNG. Lúc đó chỉ mục hết phủ và sinh viên mở
-   * được luồng thứ hai tới cùng nhà tuyển dụng.
-   */
-  it('quay lại AI rồi thì VẪN không mở được hội thoại thứ hai với NTD đó', async () => {
-    await chuyen()
-    await tiepNhan(ntd, sessionId)
-    await quayLaiAi(sv.id, sessionId)
-    expect((await doc()).state).toBe('AI_ACTIVE')
-
-    const hai = await phienPhu('cs-quaylai')
-    await expect(chuyenNhaTuyenDung(sv.id, hai, jobId, '')).rejects.toMatchObject({
-      code: 'CONFLICT',
-    })
-  })
-
-  it('huỷ chờ rồi cũng vậy — chưa đóng thì chưa mở luồng mới được', async () => {
-    await chuyen()
-    await huyCho(sv.id, sessionId)
-
-    const hai = await phienPhu('cs-huy')
-    await expect(chuyenNhaTuyenDung(sv.id, hai, jobId, '')).rejects.toMatchObject({
-      code: 'CONFLICT',
-    })
-  })
-})
-
-describe('jobId đóng băng, tin sau đi vào ngữ cảnh', () => {
-  /*
-   * Ghi đè `jobId` làm hộp thư NTD hiện tên tin B cho một cuộc trao đổi phần
-   * lớn nói về tin A — và không ai thấy nó xảy ra.
-   */
-  it('chuyển lại với tin KHÁC của cùng NTD thì jobId KHÔNG đổi', async () => {
-    const job2 = await prisma.job.create({
-      data: {
-        employerProfileId,
-        title: 'Tin thứ hai của Quán A',
-        description: 'y',
-        city: 'Hà Nội',
-        district: 'Đống Đa',
-        salaryUnit: 'HOUR',
-        salaryNegotiable: true,
-        scheduleType: 'RECURRING',
-        deadline: new Date(Date.now() + 30 * 86_400_000),
-        status: 'OPEN',
-        publishedAt: new Date(),
-      },
-      select: { id: true },
-    })
-
-    await chuyen()
-    await huyCho(sv.id, sessionId)
-    const kq = await chuyenNhaTuyenDung(sv.id, sessionId, job2.id, 'hỏi thêm')
-
-    expect((await doc()).jobId).toBe(jobId)
-    expect(kq.tin.body).toContain('Tin thứ hai của Quán A')
-
-    await prisma.job.delete({ where: { id: job2.id } })
+    expect(hoiThoai.find((h) => h.sessionId === id)?.tinCuoi).toBe('em hỏi thêm một câu')
   })
 })

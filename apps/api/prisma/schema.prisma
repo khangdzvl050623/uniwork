@@ -934,19 +934,42 @@ model AiTurn {
 // ---------------------------------------------------------------------------
 
 /// Loại phiên. Quyết định ai là chủ, và có handoff được không.
+/// `kind` trả lời đúng MỘT câu: luồng này nói chuyện với AI, với quản trị viên,
+/// hay với một nhà tuyển dụng cụ thể.
+///
+/// ===========================================================================
+/// DANH TÍNH LUỒNG LÀ ĐỐI TƯỢNG, KHÔNG PHẢI LẦN TẠO
+/// ===========================================================================
+/// Bản trước để `AI_STUDENT` kiêm hai vai: khởi đầu là hỏi trợ lý, rồi
+/// `chuyenNhaTuyenDung` BIẾN chính hàng đó thành hội thoại với nhà tuyển dụng.
+///
+/// Hệ quả là muốn hỏi nơi thứ hai thì phải đẻ một luồng AI mới — và lịch sử
+/// trò chuyện với trợ lý bị cắt thành nhiều mảnh rời. Đo thật 2026-09-30: một
+/// tài khoản có TÁM luồng `AI_STUDENT`, bốn trong số đó có tin nhắn.
+///
+/// Tách ra thì mỗi luồng có một khoá tự nhiên và sống vĩnh viễn, đúng cách mọi
+/// ứng dụng nhắn tin làm: không ai "tạo hội thoại", người ta mở hội thoại với
+/// một người.
 enum ChatKind {
-  /// Sinh viên hỏi trợ lý. CÓ THỂ chuyển sang nhà tuyển dụng.
+  /// Sinh viên hỏi trợ lý. MỘT luồng cho mỗi sinh viên, không bao giờ đóng.
   AI_STUDENT
   /// Nhà tuyển dụng hỏi trợ lý về dữ liệu tuyển dụng của mình.
-  /// KHÔNG có handoff — không có ai để chuyển tới.
   AI_EMPLOYER
 
-  /// Hoi thoai HO TRO. Ca sinh vien lan NTD deu mo duoc.
+  /// Hoi thoai HO TRO voi quan tri vien. MOT luong cho moi nguoi dung.
   ///
-  /// Kenh RIENG chu khong phai mot trang thai cua hai kind tren: thiet ke
-  /// handoff dua vao viec nguoi nhan DONG BANG. Cho mot hoi thoai doi doi
-  /// tuong giua chung la pha chinh tinh chat do.
+  /// Kenh RIENG chu khong phai mot trang thai cua hai kind tren: quan tri vien
+  /// doc tu seq 1, nen gop vao luong AI la giao cho ho ca doan nguoi dung hoi
+  /// rieng tro ly.
   AI_SUPPORT
+
+  /// Trao đổi với MỘT nhà tuyển dụng. Một luồng cho mỗi cặp (người dùng, NTD).
+  ///
+  /// `handoffEmployerProfileId` là nửa còn lại của khoá tự nhiên, và nó là lý
+  /// do luồng này tách khỏi `AI_STUDENT`: nơi B không được đọc những gì đã
+  /// trao đổi với nơi A, mà cách chắc chắn nhất để bảo đảm điều đó là chúng
+  /// nằm ở hai hàng khác nhau — không phải một cột mốc phải nhớ kiểm.
+  NTD
 }
 
 enum ChatSessionState {

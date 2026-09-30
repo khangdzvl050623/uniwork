@@ -11,7 +11,7 @@ import { apiFetch } from '@/lib/api'
 
 export const KHOA_HOI_THOAI_CUA_TOI = ['hoi-thoai', 'cua-toi'] as const
 
-export type LoaiKenh = 'AI_STUDENT' | 'AI_EMPLOYER' | 'AI_SUPPORT'
+export type LoaiKenh = 'AI_STUDENT' | 'AI_EMPLOYER' | 'AI_SUPPORT' | 'NTD'
 
 export interface MucHoiThoaiCuaToi {
   sessionId: string

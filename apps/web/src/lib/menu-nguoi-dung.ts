@@ -36,6 +36,7 @@ export const MENU_THEO_VAI: Record<Role, { to: string; label: string; icon: type
       { to: '/ntd/ho-so', label: 'Hồ sơ doanh nghiệp', icon: UserRound },
       { to: '/ntd/quan-ly', label: 'Tin đăng của tôi', icon: LayoutDashboard },
       { to: '/ntd/hoi-thoai', label: 'Hộp thư trao đổi', icon: MessagesSquare },
+      { to: '/hoi-thoai', label: 'Hội thoại của tôi', icon: MessagesSquare },
       { to: '/ho-tro', label: 'Liên hệ hỗ trợ', icon: Headset },
       { to: '/bao-cao-cua-toi', label: 'Báo cáo của tôi', icon: Flag },
     ],

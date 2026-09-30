@@ -90,11 +90,25 @@ export async function yeuCauHoTro(
 
   const tin = await dichLoiTrungHoTro(async () =>
     prisma.$transaction(async (tx) => {
+      /*
+       * Nhận CẢ `CLOSED`, không riêng `AI_ACTIVE`.
+       *
+       * Luồng hỗ trợ là vĩnh viễn: đóng một ticket không xoá luồng, nó chỉ
+       * ngừng nhận tin. Xin hỗ trợ lần sau là MỞ LẠI chính luồng ấy, mang
+       * theo cả lịch sử — người dùng đọc lại được quản trị viên đã trả lời gì
+       * hôm trước.
+       *
+       * Thiếu `CLOSED` ở đây thì sau ticket đầu tiên, người dùng vĩnh viễn
+       * không xin hỗ trợ được nữa: chỉ mục chỉ cho họ một luồng, mà luồng ấy
+       * lại không mở lại được.
+       */
       const doi = await tx.chatSession.updateMany({
-        where: { id: sessionId, state: 'AI_ACTIVE' },
+        where: { id: sessionId, state: { in: ['AI_ACTIVE', 'CLOSED'] } },
         data: {
           state: 'WAITING_ADMIN',
           handoffRequestedAt: new Date(),
+          closedAt: null,
+          closedByUserId: null,
           /* Cùng lý do với handoff NTD: chặn câu trả lời AI tới muộn. */
           activeAiRunId: null,
         },
@@ -105,12 +119,11 @@ export async function yeuCauHoTro(
         tx,
         sessionId,
         moTa.trim() === '' ? 'Người dùng xin gặp quản trị viên.' : moTa.trim(),
-        false,
       )
     }),
   )
 
-  phatTinMoi(sessionId, tin, false)
+  phatTinMoi(sessionId, tin)
   phatTrangThai(sessionId, 'WAITING_ADMIN', userId)
   /* Hàng đợi chung — mọi admin đang mở màn hình đều thấy ngay. */
   phatToiPhong(PHONG_ADMIN_HO_TRO, 'ho-tro:yeu-cau-moi', {
@@ -132,10 +145,10 @@ export async function huyYeuCauHoTro(userId: string, sessionId: string): Promise
     })
     if (doi.count === 0) throw conflict('Yêu cầu không còn ở trạng thái chờ')
 
-    return ghiTinHeThong(tx, sessionId, 'Bạn đã huỷ yêu cầu hỗ trợ.', false)
+    return ghiTinHeThong(tx, sessionId, 'Bạn đã huỷ yêu cầu hỗ trợ.')
   })
 
-  phatTinMoi(sessionId, tin, false)
+  phatTinMoi(sessionId, tin)
   phatTrangThai(sessionId, 'AI_ACTIVE', userId)
   return { sessionId, state: 'AI_ACTIVE', tin }
 }
@@ -168,7 +181,7 @@ export async function tiepNhanHoTro(adminUserId: string, sessionId: string): Pro
     })
     if (doi.count === 0) throw conflict('Yêu cầu này vừa được người khác tiếp nhận hoặc đã huỷ')
 
-    const tinMo = await ghiTinHeThong(tx, sessionId, 'Quản trị viên đã tiếp nhận.', false)
+    const tinMo = await ghiTinHeThong(tx, sessionId, 'Quản trị viên đã tiếp nhận.')
 
     await createNotification(tx, {
       userId: p.ownerUserId,
@@ -182,7 +195,7 @@ export async function tiepNhanHoTro(adminUserId: string, sessionId: string): Pro
   })
 
   /* `phatTinMoi` đã lo cả phòng admin — xem ghi chú bất biến trong hàm đó. */
-  phatTinMoi(sessionId, tin, false)
+  phatTinMoi(sessionId, tin)
   phatTrangThai(sessionId, 'HUMAN_ACTIVE', p.ownerUserId)
 
   return { sessionId, state: 'HUMAN_ACTIVE', tin }

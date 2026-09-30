@@ -17,141 +17,157 @@ import { PROMPT_VERSION } from './prompts/he-thong-sinh-vien.js'
 
 /* ================================================================ phiên -- */
 
-export interface TaoPhienInput {
-  kind: ChatKind
-  clientSessionId: string
-  jobId?: string
-}
+/** Kênh mà người dùng tự mở được. Luồng NTD KHÔNG nằm ở đây — xem `moLuongNTD`. */
+export type KenhTuMo = 'AI_STUDENT' | 'AI_EMPLOYER' | 'AI_SUPPORT'
 
 export interface PhienResponse {
   sessionId: string
   kind: ChatKind
   state: string
   jobId: string | null
+  /**
+   * Luồng này vừa được tạo trong chính lời gọi đó.
+   *
+   * Nơi gọi CẦN biết: luồng NTD ra đời ở `WAITING_EMPLOYER` (CHECK cấm nó ở
+   * `AI_ACTIVE`), nên chỉ nhìn `state` thì không phân biệt được "vừa mở" với
+   * "đã gửi yêu cầu từ trước". Thiếu cờ này, lần bấm ĐẦU TIÊN đã bị báo trùng.
+   */
+  vuaTao: boolean
 }
 
 /**
- * Tạo phiên, hoặc trả lại phiên đã có.
+ * `clientSessionId` giờ là KHOÁ TỰ NHIÊN viết thành chuỗi, không phải id do
+ * trình duyệt sinh.
+ *
+ * ===========================================================================
+ * VÌ SAO GIỮ CỘT NÀY THAY VÌ BỎ
+ * ===========================================================================
+ * `@@unique([ownerUserId, clientSessionId])` đã có sẵn trong bảng. Đổ khoá tự
+ * nhiên vào đó thì chính ràng buộc ấy trở thành thứ cưỡng chế "một luồng cho
+ * mỗi đối tượng" — không phải thêm ràng buộc, mà là cuối cùng cũng dùng đúng
+ * cái đang có.
+ *
+ * Client thôi gửi giá trị này. Đó là điểm chính: suốt ngày 2026-09-30 có hai
+ * lỗi thật đều từ việc để trình duyệt quyết mở luồng nào — xoá localStorage,
+ * đổi máy, hay cửa sổ ẩn danh là người dùng rơi vào một hội thoại trống trong
+ * khi cuộc trò chuyện thật nằm ở hàng khác.
+ */
+const KHOA_LUONG: Record<KenhTuMo, string> = {
+  AI_STUDENT: 'luong:tro-ly',
+  AI_EMPLOYER: 'luong:tro-ly',
+  AI_SUPPORT: 'luong:ho-tro',
+}
+
+export const khoaLuongNTD = (employerProfileId: string) => `luong:ntd:${employerProfileId}`
+
+/**
+ * Mở luồng của người dùng với MỘT đối tượng. Có rồi thì trả lại, chưa có thì tạo.
  *
  * ---------------------------------------------------------------------------
  * VÌ SAO TÁCH KHỎI `/api/tro-ly/hoi`
  * ---------------------------------------------------------------------------
- * Endpoint này RẺ: không chạm model, không tốn lượt, gọi lại bao nhiêu lần cũng
- * ra cùng một kết quả. Gộp việc tạo phiên vào lượt hỏi thì mỗi lần thử lại
- * (mạng chập chờn, người dùng bấm hai lần) đều có nguy cơ sinh thêm một phiên —
- * và khoá chống trùng trên tin nhắn không cứu được, vì `sessionId` đã khác nhau
- * thì hai tin không còn đụng nhau nữa.
+ * Đường này RẺ: không chạm model, không tốn lượt, gọi bao nhiêu lần cũng ra
+ * cùng một kết quả. Gộp vào lượt hỏi thì mỗi lần thử lại (mạng chập chờn,
+ * bấm hai lần) đều có nguy cơ sinh thêm một luồng.
  *
- * `clientSessionId` do trình duyệt sinh và giữ nguyên qua mọi lần thử lại.
+ * Giờ nó idempotent theo ĐỐI TƯỢNG chứ không theo một id client gửi lên, nên
+ * "gọi bao nhiêu lần cũng vậy" đúng kể cả khi đổi máy.
  */
-export async function taoPhien(
+export async function moLuong(
   userId: string,
   role: Role,
-  input: TaoPhienInput,
+  kind: KenhTuMo,
 ): Promise<PhienResponse> {
-  if (input.kind === 'AI_STUDENT' && role !== 'STUDENT') {
-    throw forbidden('Phiên trợ lý sinh viên chỉ dành cho tài khoản sinh viên')
+  if (kind === 'AI_STUDENT' && role !== 'STUDENT') {
+    throw forbidden('Luồng trợ lý sinh viên chỉ dành cho tài khoản sinh viên')
   }
-  if (input.kind === 'AI_EMPLOYER' && role !== 'EMPLOYER') {
-    throw forbidden('Phiên trợ lý nhà tuyển dụng chỉ dành cho tài khoản nhà tuyển dụng')
+  if (kind === 'AI_EMPLOYER' && role !== 'EMPLOYER') {
+    throw forbidden('Luồng trợ lý nhà tuyển dụng chỉ dành cho tài khoản nhà tuyển dụng')
   }
 
   /*
-   * ===========================================================================
-   * KÊNH HỖ TRỢ: SERVER QUYẾT MỞ PHIÊN NÀO, KHÔNG PHẢI `clientSessionId`
-   * ===========================================================================
-   * Hai kênh kia cho phép nhiều hội thoại song song, nên `clientSessionId` —
-   * do trình duyệt sinh và giữ — là khoá đúng: nó cho phiên sống qua F5.
-   *
-   * Hỗ trợ thì khác hẳn: chỉ mục `chat_mot_ho_tro_dang_mo` cưỡng chế MỘT
-   * ticket đang mở cho mỗi người. Để client chọn phiên bằng một khoá trong
-   * localStorage là đặt luật ở hai nơi, và hai nơi đó bất đồng ngay khi:
-   *
-   *   người dùng mở máy khác, đổi trình duyệt, hay vào cửa sổ ẩn danh
-   *   localStorage bị xoá, hoặc khoá đổi tên theo một lần nâng cấp
-   *
-   * Lúc đó `clientSessionId` không khớp hàng nào, server tạo phiên THỨ HAI, và
-   * người dùng nhìn một hội thoại trống trong khi quản trị viên đang trả lời
-   * họ ở hội thoại thật. Bấm gửi yêu cầu thì đụng chỉ mục và nhận về
-   * "Dữ liệu đã tồn tại" — một câu không nói được gì.
-   *
-   * Đã xảy ra đúng như vậy (2026-09-30): một tài khoản có hai phiên AI_SUPPORT,
-   * một HUMAN_ACTIVE seq 7 và một AI_ACTIVE seq 0.
-   *
-   * Nên với kênh này, server trả về ticket ĐANG MỞ của người đó, bất kể client
-   * đưa khoá gì. Một nguồn sự thật, và nó nằm cùng chỗ với chỉ mục.
-   */
-  if (input.kind === 'AI_SUPPORT') {
-    const dangMo = await prisma.chatSession.findFirst({
-      where: { ownerUserId: userId, kind: 'AI_SUPPORT', state: { not: 'CLOSED' } },
-      /*
-       * Ưu tiên phiên ĐÃ xin hỗ trợ — đó chính là hàng mà chỉ mục đang giữ, và
-       * là hàng quản trị viên nhìn thấy. Một phiên `AI_ACTIVE` chưa gửi yêu cầu
-       * chỉ là nháp; trả nó về là lặp lại đúng lỗi đang sửa.
-       */
-      orderBy: [
-        { handoffRequestedAt: { sort: 'desc', nulls: 'last' } },
-        { lastMessageAt: 'desc' },
-      ],
-      select: { id: true, kind: true, state: true, jobId: true },
-    })
-    if (dangMo) {
-      return { sessionId: dangMo.id, kind: dangMo.kind, state: dangMo.state, jobId: dangMo.jobId }
-    }
-  }
-
-  const daCo = await prisma.chatSession.findUnique({
-    where: {
-      ownerUserId_clientSessionId: { ownerUserId: userId, clientSessionId: input.clientSessionId },
-    },
-    select: { id: true, kind: true, state: true, jobId: true },
-  })
-  if (daCo) return { sessionId: daCo.id, kind: daCo.kind, state: daCo.state, jobId: daCo.jobId }
-
-  /*
-   * CHECK constraint `chat_kind_student_profile` đòi AI_STUDENT phải có
-   * studentProfileId. Tra ở đây chứ không để database ném: lỗi CHECK của
-   * Postgres đọc lên là "new row violates check constraint" — không nói được
-   * cho người dùng điều gì.
+   * CHECK `chat_kind_student_profile` đòi AI_STUDENT phải có studentProfileId.
+   * Tra ở đây chứ không để database ném: lỗi CHECK của Postgres đọc lên là
+   * "new row violates check constraint" — không nói được gì cho người dùng.
    */
   let studentProfileId: string | null = null
-  if (input.kind === 'AI_STUDENT') {
+  if (kind === 'AI_STUDENT') {
     const hoSo = await prisma.studentProfile.findUnique({ where: { userId }, select: { id: true } })
     if (!hoSo) throw notFound('Chưa có hồ sơ sinh viên')
     studentProfileId = hoSo.id
   }
 
+  return timHoacTao({
+    userId,
+    clientSessionId: KHOA_LUONG[kind],
+    tao: { kind, ownerUserId: userId, clientSessionId: KHOA_LUONG[kind], studentProfileId },
+  })
+}
+
+/**
+ * Mở luồng với MỘT nhà tuyển dụng. Gọi từ `chuyenNhaTuyenDung`, không phải từ
+ * endpoint tạo phiên — người dùng không tự mở luồng NTD, họ bấm hỏi một tin.
+ */
+export async function moLuongNTD(v: {
+  userId: string
+  studentProfileId: string
+  employerProfileId: string
+  jobId: string
+}): Promise<PhienResponse> {
+  return timHoacTao({
+    userId: v.userId,
+    clientSessionId: khoaLuongNTD(v.employerProfileId),
+    tao: {
+      kind: 'NTD',
+      ownerUserId: v.userId,
+      clientSessionId: khoaLuongNTD(v.employerProfileId),
+      studentProfileId: v.studentProfileId,
+      handoffEmployerProfileId: v.employerProfileId,
+      jobId: v.jobId,
+      /* Luồng NTD không bao giờ ở `AI_ACTIVE` — CHECK `chat_trang_thai_theo_kenh` cấm. */
+      state: 'WAITING_EMPLOYER',
+    },
+  })
+}
+
+const CHON_PHIEN = { id: true, kind: true, state: true, jobId: true } satisfies Prisma.ChatSessionSelect
+
+async function timHoacTao(v: {
+  userId: string
+  clientSessionId: string
+  tao: Prisma.ChatSessionUncheckedCreateInput
+}): Promise<PhienResponse> {
+  const khoa = {
+    ownerUserId_clientSessionId: {
+      ownerUserId: v.userId,
+      clientSessionId: v.clientSessionId,
+    },
+  }
+
+  const daCo = await prisma.chatSession.findUnique({ where: khoa, select: CHON_PHIEN })
+  if (daCo) return { ...goi(daCo), vuaTao: false }
+
   try {
-    const p = await prisma.chatSession.create({
-      data: {
-        kind: input.kind,
-        ownerUserId: userId,
-        clientSessionId: input.clientSessionId,
-        studentProfileId,
-        jobId: input.jobId ?? null,
-      },
-      select: { id: true, kind: true, state: true, jobId: true },
-    })
-    return { sessionId: p.id, kind: p.kind, state: p.state, jobId: p.jobId }
+    const p = await prisma.chatSession.create({ data: v.tao, select: CHON_PHIEN })
+    return { ...goi(p), vuaTao: true }
   } catch (e) {
     /*
-     * Hai request tạo phiên chạy song song: cái thứ hai đụng
-     * `@@unique([ownerUserId, clientSessionId])`. Đó là ĐÚNG Ý — đọc lại phiên
-     * cái thứ nhất vừa tạo và trả về, không báo lỗi.
+     * Hai request song song: cái thứ hai đụng khoá. Đó là ĐÚNG Ý — đọc lại
+     * luồng cái thứ nhất vừa tạo và trả về, không báo lỗi.
      */
     if (!laTrungKhoa(e)) throw e
-    const lai = await prisma.chatSession.findUniqueOrThrow({
-      where: {
-        ownerUserId_clientSessionId: {
-          ownerUserId: userId,
-          clientSessionId: input.clientSessionId,
-        },
-      },
-      select: { id: true, kind: true, state: true, jobId: true },
-    })
-    return { sessionId: lai.id, kind: lai.kind, state: lai.state, jobId: lai.jobId }
+    const lai = await prisma.chatSession.findUniqueOrThrow({ where: khoa, select: CHON_PHIEN })
+    return { ...goi(lai), vuaTao: false }
   }
 }
+
+type HangPhien = { id: string; kind: ChatKind; state: string; jobId: string | null }
+const goi = (p: HangPhien) => ({
+  sessionId: p.id,
+  kind: p.kind,
+  state: p.state,
+  jobId: p.jobId,
+})
 
 /**
  * `Role` của tài khoản → nhãn người gửi ghi vào tin nhắn.
@@ -301,14 +317,18 @@ export async function layTinNhan(
   const quyen = await quyenTruyCapPhien(user, sessionId)
   if (!quyen) throw notFound('Không tìm thấy hội thoại')
 
-  const tu = Math.max(quyen.docTuSeq, moCursor(cursor) + 1)
+  /*
+   * Ai vào được luồng thì đọc TRỌN luồng — không còn mốc `docTuSeq` và không
+   * còn bộ lọc `visibleToEmployer`.
+   *
+   * Cả hai từng cần vì một hàng chứa hai cuộc trò chuyện. Từ khi mỗi đối tượng
+   * một luồng, chúng là hai hàng khác nhau và `quyenTruyCapPhien` đã quyết
+   * xong ai đọc được hàng nào.
+   */
+  const tu = moCursor(cursor) + 1
 
   const ds = await prisma.chatMessage.findMany({
-    where: {
-      sessionId,
-      seq: { gte: tu },
-      ...(quyen.chiTinChiaSe ? { visibleToEmployer: true } : {}),
-    },
+    where: { sessionId, seq: { gte: tu } },
     orderBy: { seq: 'asc' },
     take: TRAN_TAI_BU,
     select: { id: true, seq: true, senderType: true, body: true, createdAt: true },
@@ -423,7 +443,6 @@ export async function batDauLuot(v: BatDauLuotInput): Promise<KetQuaBatDau> {
           senderUserId: v.userId,
           clientMessageId: v.clientMessageId,
           body: v.noiDung,
-          visibleToEmployer: false,
         },
       })
 
@@ -514,7 +533,6 @@ export async function ghiTraLoi(
         seq: phien.messageSeq,
         senderType: 'AI',
         body: noiDung,
-        visibleToEmployer: false,
       },
     })
     return { ghi: true, seq: phien.messageSeq }
@@ -615,14 +633,6 @@ export async function guiTinNhan(
           senderUserId: user.id,
           clientMessageId,
           body: noiDung,
-          /*
-           * `true` — và đây là chỗ DUY NHẤT trong dự án đặt cờ này thành true.
-           *
-           * `duocGui` chỉ đúng khi state = HUMAN_ACTIVE, tức hai người đang nói
-           * trực tiếp với nhau. Tin nói trực tiếp thì cả hai bên phải thấy.
-           * Mọi tin khác — hỏi trợ lý, trả lời của AI — giữ mặc định `false`.
-           */
-          visibleToEmployer: true,
         },
         select: { id: true, seq: true, senderType: true, body: true, createdAt: true },
       })
@@ -637,7 +647,7 @@ export async function guiTinNhan(
      * Phát bên trong thì một rollback ở dòng cuối vẫn để lại một tin nhắn đã
      * hiện trên màn hình người kia — và nó biến mất ở lần tải lại tiếp theo.
      */
-    phatTinMoi(sessionId, message, true)
+    phatTinMoi(sessionId, message)
 
     return { message, cursor: dongCursor(seqHienTai), daCo: false }
   } catch (e) {
@@ -663,22 +673,27 @@ export async function guiTinNhan(
  * Luật phát, một chỗ.
  *
  * ===========================================================================
- * HAI PHÒNG, KHÔNG PHẢI MỘT
+ * BA PHÒNG, PHÁT VÀO CẢ BA — AN TOÀN NHỜ MỘT BẤT BIẾN
  * ===========================================================================
- * Một phòng chung nghĩa là mọi `emit` tới cả hai bên. Khi phiên quay về
- * AI_ACTIVE, NTD đang ngồi trong phòng đó sẽ nhận realtime TỪNG CÂU sinh viên
- * nói với trợ lý — dù truy vấn REST chặn họ đọc đúng những tin ấy.
+ * Không còn cờ `choNTD` nào ở đây, và đó là hệ quả trực tiếp của việc tách
+ * luồng: một luồng chỉ có một đối tượng, nên mọi tin trong luồng đều thuộc về
+ * đúng những người vào được luồng ấy.
  *
- * Không test REST nào bắt được, vì REST hoàn toàn đúng.
+ * Bất biến làm cho việc phát vô điều kiện là an toàn:
  *
- * Cùng một cờ `visibleToEmployer` quyết định cả câu truy vấn REST lẫn phòng
- * socket. Một nguồn sự thật, hai đường dùng.
+ *   Đường DUY NHẤT vào `hoi-thoai:<id>:ntd` hay `:admin` là `hoi-thoai:vao` →
+ *   `quyenTruyCapPhien`. Hàm đó chỉ mở phòng `:ntd` cho luồng `kind = 'NTD'`
+ *   của đúng nhà tuyển dụng sở hữu, và phòng `:admin` cho luồng
+ *   `kind = 'AI_SUPPORT'`. Với luồng trợ lý thì cả hai phòng RỖNG một cách
+ *   chứng minh được — có test canh.
+ *
+ * Bản trước phải mang cờ vì một hàng chứa hai cuộc trò chuyện, và cờ đó là
+ * thứ phải nhớ đặt đúng ở CHÍN chỗ gọi. Quên một chỗ là rò realtime mà không
+ * test REST nào bắt được.
  */
-export function phatTinMoi(sessionId: string, message: TinNhanItem, choNTD: boolean): void {
+export function phatTinMoi(sessionId: string, message: TinNhanItem): void {
   phatToiPhong(phongChu(sessionId), 'hoi-thoai:tin-moi', { sessionId, message })
-  if (choNTD) {
-    phatToiPhong(phongNTD(sessionId), 'hoi-thoai:tin-moi', { sessionId, message })
-  }
+  phatToiPhong(phongNTD(sessionId), 'hoi-thoai:tin-moi', { sessionId, message })
   /*
    * =========================================================================
    * PHÒNG ADMIN: PHÁT VÔ ĐIỀU KIỆN, VÀ ĐIỀU ĐÓ AN TOÀN
@@ -751,18 +766,17 @@ export async function quyenPhien(
  * Ghi một tin `SYSTEM` và tăng `seq`, trong CÙNG transaction với việc đổi
  * trạng thái.
  *
- * Ở đây chứ không ở `handoff.service`: cả năm chuyển đổi handoff NTD lẫn ba
- * chuyển đổi kênh hỗ trợ đều cần nó, và `seq` phải cấp bằng `increment` chứ
- * không phải `max()+1` — xem `batDauLuot` về lý do.
+ * Ở đây chứ không ở `handoff.service`: mọi chuyển đổi của cả hai kênh đều cần
+ * nó, và `seq` phải cấp bằng `increment` chứ không phải `max()+1` — xem
+ * `batDauLuot` về lý do.
  *
- * `choNTD` chỉ có nghĩa với kênh `AI_STUDENT`. Kênh hỗ trợ luôn truyền `false`:
- * admin đọc theo `kind`, không theo cờ này.
+ * KHÔNG còn tham số `choNTD`. Tin hệ thống nằm trong luồng nào thì thuộc về
+ * mọi người vào được luồng ấy — đó là điều việc tách luồng bảo đảm.
  */
 export async function ghiTinHeThong(
   tx: Prisma.TransactionClient,
   sessionId: string,
   body: string,
-  choNTD: boolean,
 ): Promise<TinNhanItem> {
   const sau = await tx.chatSession.update({
     where: { id: sessionId },
@@ -776,7 +790,6 @@ export async function ghiTinHeThong(
       seq: sau.messageSeq,
       senderType: 'SYSTEM',
       body,
-      visibleToEmployer: choNTD,
     },
     select: { id: true, seq: true, senderType: true, body: true, createdAt: true },
   })

@@ -29,69 +29,25 @@ const NGAY = new Date(`${ngayVN()}T00:00:00.000Z`)
 
 let userId: string
 let sessionId: string
-let employerProfileId: string
-let jobId: string
 
-async function dungNhaTuyenDung() {
-  const u = await prisma.user.upsert({
-    where: { email: 'chat-luot-ntd@test.local' },
-    update: {},
-    create: { email: 'chat-luot-ntd@test.local', role: 'EMPLOYER', passwordHash: null },
-    select: { id: true },
-  })
-  const hs = await prisma.employerProfile.upsert({
-    where: { userId: u.id },
-    update: {},
-    create: { userId: u.id, companyName: 'Quán Thử Nghiệm' },
-    select: { id: true },
-  })
-  const j =
-    (await prisma.job.findFirst({ where: { employerProfileId: hs.id }, select: { id: true } })) ??
-    (await prisma.job.create({
-      data: {
-        employerProfileId: hs.id,
-        title: 'Pha chế ca tối',
-        description: 'Quán cần người',
-        city: 'Hà Nội',
-        district: 'Cầu Giấy',
-        salaryUnit: 'HOUR',
-        salaryMin: 25000,
-        salaryMax: 30000,
-        scheduleType: 'RECURRING',
-        deadline: new Date(Date.now() + 30 * 86_400_000),
-        /*
-         * DRAFT, không phải OPEN.
-         *
-         * CHECK `chat_handoff_du_thong_tin` chỉ đòi `jobId` khác null, không
-         * đòi tin đang mở. Để OPEN thì tin giả này nằm lại trong database dev
-         * và hiện lên ở `/viec-lam` — đã xảy ra thật: `thu-tro-ly` chạy lần đầu
-         * và trợ lý gợi ý "Quán Thử Nghiệm" cho người dùng.
-         */
-        status: 'DRAFT',
-      },
-      select: { id: true },
-    }))
-  return { employerProfileId: hs.id, jobId: j.id }
-}
 
 /*
- * Chuyển phiên sang nhà tuyển dụng ĐÚNG như luồng thật sẽ làm.
+ * Vô hiệu lượt AI đang chạy — ĐÚNG như mọi chuyển đổi thật sẽ làm.
  *
- * Không đặt được mỗi `state`: CHECK `chat_handoff_du_thong_tin` đòi đủ ba cột —
- * người nhận, tin, và mốc đọc. Đó chính là ràng buộc của bước 3 làm việc, và
- * test phải đi qua nó chứ không lách.
+ * ===========================================================================
+ * KHÔNG CÒN CÁCH "ĐỔI TRẠNG THÁI PHIÊN" ĐỂ HUỶ LƯỢT
+ * ===========================================================================
+ * Bản trước chuyển chính luồng trợ lý sang `WAITING_EMPLOYER` để dựng cảnh
+ * "câu trả lời tới muộn". Giờ luồng trợ lý không rời `AI_ACTIVE` được nữa —
+ * CHECK `chat_trang_thai_theo_kenh` cấm, và đó là điều làm nó vĩnh viễn.
+ *
+ * Cơ chế chặn câu trả lời muộn thì KHÔNG đổi: `ghiTraLoi` đòi `activeAiRunId`
+ * khớp. Nên test dựng cảnh bằng chính cái cờ ấy, không đi vòng qua `state`.
  */
-async function chuyenSangNTD(seqHienTai: number) {
+async function voHieuLuot() {
   await prisma.chatSession.update({
     where: { id: sessionId },
-    data: {
-      state: 'WAITING_EMPLOYER',
-      handoffEmployerProfileId: employerProfileId,
-      jobId,
-      employerVisibleFromSeq: seqHienTai,
-      activeAiRunId: null,
-      handoffRequestedAt: new Date(),
-    },
+    data: { activeAiRunId: null },
   })
 }
 
@@ -157,7 +113,6 @@ async function don() {
 }
 
 beforeEach(async () => {
-  ;({ employerProfileId, jobId } = await dungNhaTuyenDung())
   ;({ userId, sessionId } = await dungDuLieu())
   await don()
 })
@@ -259,9 +214,35 @@ describe('batDauLuot — ba việc, một transaction', () => {
     await expect(hoi('cm-1')).rejects.toMatchObject({ code: 'AI_BUSY' })
   })
 
-  it('phiên đã chuyển sang người thật thì không hỏi AI được nữa', async () => {
-    await chuyenSangNTD(0)
-    await expect(hoi('cm-1')).rejects.toMatchObject({ code: 'CONFLICT', status: 409 })
+  /*
+   * Luồng HỖ TRỢ rời `AI_ACTIVE` được (nó có hàng đợi admin), và lúc đó không
+   * hỏi trợ lý được nữa. Luồng trợ lý thì không bao giờ rời — nên cảnh này chỉ
+   * dựng được trên kênh hỗ trợ.
+   */
+  it('luồng đã chuyển sang người thật thì không hỏi AI được nữa', async () => {
+    const hoTro = await prisma.chatSession.create({
+      data: {
+        kind: 'AI_SUPPORT',
+        ownerUserId: userId,
+        clientSessionId: 'luong:ho-tro',
+        state: 'WAITING_ADMIN',
+        handoffRequestedAt: new Date(),
+      },
+      select: { id: true },
+    })
+
+    await expect(
+      batDauLuot({
+        userId,
+        role: 'STUDENT',
+        sessionId: hoTro.id,
+        clientMessageId: 'cm-ho-tro',
+        noiDung: 'x',
+        runnerId: 'p-test',
+      }),
+    ).rejects.toMatchObject({ code: 'CONFLICT', status: 409 })
+
+    await prisma.chatSession.delete({ where: { id: hoTro.id } })
   })
 
   it('người khác không mở được phiên của mình, và nhận 404 chứ không 403', async () => {
@@ -295,10 +276,10 @@ describe('ghiTraLoi — ghi CÓ ĐIỀU KIỆN', () => {
    * (abort) có thể lỡ — message tới trễ, hoặc stream sắp xong. Lớp này là lớp
    * CHẮC CHẮN ĐÚNG, và nó phải đứng một mình được.
    */
-  it('phiên đã chuyển đi giữa chừng → BỎ câu trả lời', async () => {
+  it('lượt bị vô hiệu giữa chừng → BỎ câu trả lời', async () => {
     const dau = await hoi('cm-1')
     if (dau.loai !== 'moi') throw new Error('mong đợi lượt mới')
-    await chuyenSangNTD(1)
+    await voHieuLuot()
 
     expect(await ghiTraLoi(sessionId, dau.turnId, 'câu trả lời muộn')).toEqual({ ghi: false })
     expect(await demTin()).toBe(1)
@@ -313,7 +294,7 @@ describe('ghiTraLoi — ghi CÓ ĐIỀU KIỆN', () => {
   it('không tăng messageSeq khi bỏ câu trả lời', async () => {
     const dau = await hoi('cm-1')
     if (dau.loai !== 'moi') throw new Error('mong đợi lượt mới')
-    await chuyenSangNTD(1)
+    await voHieuLuot()
     await ghiTraLoi(sessionId, dau.turnId, 'muộn')
     const p = await prisma.chatSession.findUniqueOrThrow({ where: { id: sessionId } })
     expect(p.messageSeq).toBe(1)

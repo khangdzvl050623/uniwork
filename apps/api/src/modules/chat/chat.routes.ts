@@ -13,7 +13,6 @@ import {
   hoiController,
   layTinNhanController,
   luotConLaiController,
-  quayLaiAiController,
   taoPhienController,
   tiepNhanController,
   tiepNhanHoTroController,
@@ -97,9 +96,12 @@ hoiThoaiRoutes.post('/:id/tin-nhan', guiTinNhanController)
  * `ket-thuc` là ngoại lệ duy nhất — cả hai bên đều đóng được, và service tự
  * phân biệt ai đóng để ghi đúng câu vào tin hệ thống.
  */
-hoiThoaiRoutes.post('/:id/chuyen-ntd', chuyenLimit, requireRole('STUDENT'), chuyenNTDController)
+/*
+ * Không có `:id` — `jobId` trong body đã xác định nhà tuyển dụng, và nhà tuyển
+ * dụng xác định luồng. Đường này MỞ luồng chứ không chuyển đổi một luồng có sẵn.
+ */
+hoiThoaiRoutes.post('/hoi-ntd', chuyenLimit, requireRole('STUDENT'), chuyenNTDController)
 hoiThoaiRoutes.post('/:id/huy-cho', requireRole('STUDENT'), huyChoController)
-hoiThoaiRoutes.post('/:id/quay-lai-ai', requireRole('STUDENT'), quayLaiAiController)
 hoiThoaiRoutes.post('/:id/tiep-nhan', requireRole('EMPLOYER'), tiepNhanController)
 hoiThoaiRoutes.post('/:id/tu-choi', requireRole('EMPLOYER'), tuChoiYeuCauController)
 hoiThoaiRoutes.post('/:id/ket-thuc', ketThucController)

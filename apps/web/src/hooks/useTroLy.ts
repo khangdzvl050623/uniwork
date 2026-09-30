@@ -3,7 +3,6 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError, apiFetch } from '@/lib/api'
 import { danhDauXong, danhSoTin, gopChu } from '@/lib/gop-tin'
 import { moKenhSSE } from '@/lib/sse'
-import { layClientSessionId } from '@/lib/phien-chat'
 import { useKenhHoiThoai } from '@/hooks/useKenhHoiThoai'
 
 /**
@@ -56,10 +55,10 @@ export function useLuotConLai() {
   })
 }
 
-export function useTroLy(phienChiDinh?: string) {
+export function useTroLy() {
   const queryClient = useQueryClient()
 
-  const [sessionId, setSessionId] = useState<string | null>(phienChiDinh ?? null)
+  const [sessionId, setSessionId] = useState<string | null>(null)
 
   /* Lịch sử, phòng socket, gửi tin cho người thật — một bản dùng chung. */
   const kenh = useKenhHoiThoai(sessionId)
@@ -90,16 +89,12 @@ export function useTroLy(phienChiDinh?: string) {
    * ===========================================================================
    * HAI CÁCH MỞ, VÀ VÌ SAO PHẢI CÓ CẢ HAI
    * ===========================================================================
-   * `phienChiDinh` — mở ĐÚNG hội thoại đó, không tạo gì. Dùng khi người dùng
-   * bấm từ danh sách "Hội thoại của tôi".
+   * Mở LUỒNG TRỢ LÝ — một luồng cho mỗi người, vĩnh viễn, nên không cần khoá
+   * nào từ client. Đó là lý do trang trợ lý mở ra là thấy lại đúng cuộc trò
+   * chuyện hôm qua, kể cả trên máy khác.
    *
-   * Không có nó thì mở hội thoại theo `clientSessionId` trong localStorage.
-   *
-   * Cách thứ hai MỘT MÌNH là không đủ, và đó không phải chuyện tiện nghi:
-   * thiết kế cho phép sinh viên có nhiều phiên `AI_STUDENT` song song (mỗi nhà
-   * tuyển dụng một phiên — xem `chat_mot_handoff_moi_ntd`). Buộc màn hình vào
-   * đúng một khoá thì mọi hội thoại còn lại không có đường mở lại: chúng vẫn
-   * sống, vẫn nhận tin realtime, và chủ của chúng không bao giờ thấy nữa.
+   * Luồng với nhà tuyển dụng KHÔNG đi qua hook này — nó là một hàng riêng,
+   * mở ở `/hoi-thoai/:id`.
    *
    * CHỈ mở phiên — lịch sử do `useKenhHoiThoai` tải ngay khi `sessionId` có
    * giá trị. Gộp hai việc vào một effect thì mỗi màn hình mới lại phải chép
@@ -108,19 +103,11 @@ export function useTroLy(phienChiDinh?: string) {
   useEffect(() => {
     let huy = false
 
-    if (phienChiDinh) {
-      setSessionId(phienChiDinh)
-      return
-    }
-
     void (async () => {
       try {
         const phien = await apiFetch<PhienResponse>('/api/hoi-thoai', {
           method: 'POST',
-          body: JSON.stringify({
-            kind: 'AI_STUDENT',
-            clientSessionId: layClientSessionId('tro-ly'),
-          }),
+          body: JSON.stringify({ kind: 'AI_STUDENT' }),
         })
         if (huy) return
         setSessionId(phien.sessionId)
@@ -133,7 +120,7 @@ export function useTroLy(phienChiDinh?: string) {
     return () => {
       huy = true
     }
-  }, [phienChiDinh, datLoi, datTrangThai])
+  }, [datLoi, datTrangThai])
 
   const chay = useCallback(
     async (clientMessageId: string, noiDung: string) => {
@@ -237,47 +224,37 @@ export function useTroLy(phienChiDinh?: string) {
 
   /* ------------------------------------------------------ hành động ----- */
 
-  /** AI chỉ ĐỀ NGHỊ; tin chỉ sang nhà tuyển dụng khi người dùng bấm nút này. */
+  /**
+   * AI chỉ ĐỀ NGHỊ; luồng chỉ mở khi người dùng bấm nút này.
+   *
+   * Không đụng gì tới luồng trợ lý — nó mở một luồng RIÊNG với nhà tuyển dụng
+   * và trả id về để trang gọi điều hướng sang đó. Cuộc trò chuyện với trợ lý
+   * vẫn nằm nguyên chỗ cũ.
+   */
   const chuyenNhaTuyenDung = useCallback(
-    async (jobId: string, loiNhan: string) => {
-      if (!sessionId) return
+    async (jobId: string, loiNhan: string): Promise<string | null> => {
       try {
-        const kq = await apiFetch<{ state: string }>(`/api/hoi-thoai/${sessionId}/chuyen-ntd`, {
+        const kq = await apiFetch<{ sessionId: string }>('/api/hoi-thoai/hoi-ntd', {
           method: 'POST',
           body: JSON.stringify({ jobId, loiNhan }),
         })
-        datTrangThai(kq.state)
         setDeNghi(null)
+        return kq.sessionId
       } catch (e) {
-        datLoi(e instanceof ApiClientError ? e.message : 'Không chuyển được')
+        datLoi(e instanceof ApiClientError ? e.message : 'Không mở được hội thoại')
+        return null
       }
     },
-    [sessionId, datTrangThai, datLoi],
+    [datLoi],
   )
 
-  const huyCho = useCallback(async () => {
-    if (!sessionId) return
-    try {
-      const kq = await apiFetch<{ state: string }>(`/api/hoi-thoai/${sessionId}/huy-cho`, {
-        method: 'POST',
-      })
-      datTrangThai(kq.state)
-    } catch (e) {
-      datLoi(e instanceof ApiClientError ? e.message : 'Không huỷ được')
-    }
-  }, [sessionId, datTrangThai, datLoi])
-
-  const ketThuc = useCallback(async () => {
-    if (!sessionId) return
-    try {
-      const kq = await apiFetch<{ state: string }>(`/api/hoi-thoai/${sessionId}/ket-thuc`, {
-        method: 'POST',
-      })
-      datTrangThai(kq.state)
-    } catch (e) {
-      datLoi(e instanceof ApiClientError ? e.message : 'Không kết thúc được')
-    }
-  }, [sessionId, datTrangThai, datLoi])
+  /*
+   * KHÔNG còn `huyCho` và `ketThuc` ở đây.
+   *
+   * Luồng trợ lý không rời `AI_ACTIVE` được — CHECK `chat_trang_thai_theo_kenh`
+   * cấm, và đó chính là điều làm nó vĩnh viễn. Hai hành động ấy thuộc về luồng
+   * người–người, và nằm ở `useChuyenDoiLuong`.
+   */
 
   const huy = useCallback(() => dungLai.current?.abort(), [])
 
@@ -291,15 +268,10 @@ export function useTroLy(phienChiDinh?: string) {
     deNghi,
     loi: kenh.loi,
     coTheGuiLai: chuaXong !== null && !dangChay,
-    trangThai: kenh.trangThai,
-    duocGui: kenh.duocGui,
     gui,
     guiLai,
     huy,
-    guiTinNguoi: kenh.guiTin,
     chuyenNhaTuyenDung,
-    huyCho,
-    ketThuc,
     boDeNghi: () => setDeNghi(null),
   }
 }
