@@ -12,7 +12,13 @@ import { CO_KHOA_THAT, demLuotConLai } from '@uniwork/ai-runtime'
 import { prisma } from '../../lib/prisma.js'
 import { ok } from '../../lib/respond.js'
 import { AppError, badRequest, unauthorized } from '../../lib/errors.js'
-import { batDauLuot, guiTinNhan, layTinNhan, taoPhien } from './chat.service.js'
+import {
+  batDauLuot,
+  guiTinNhan,
+  hoiThoaiCuaToi,
+  layTinNhan,
+  taoPhien,
+} from './chat.service.js'
 import * as handoff from './handoff.service.js'
 import * as hoTro from './ho-tro.service.js'
 import { KenhSSE } from './sse.js'
@@ -41,6 +47,11 @@ function nguoiGoi(req: { user?: { id: string; role: 'STUDENT' | 'EMPLOYER' | 'AD
 export const taoPhienController: RequestHandler = async (req, res) => {
   const u = nguoiGoi(req)
   ok(res, await taoPhien(u.id, u.role, parse(taoPhienChatSchema, req.body)), 201)
+}
+
+/** Hội thoại của CHÍNH người gọi. Không phải hộp thư handoff — xem service. */
+export const hoiThoaiCuaToiController: RequestHandler = async (req, res) => {
+  ok(res, await hoiThoaiCuaToi(nguoiGoi(req).id))
 }
 
 const thamSoId = z.object({ id: z.string().min(1) })

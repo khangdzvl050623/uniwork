@@ -5,6 +5,7 @@ import {
   chuyenNTDController,
   guiTinNhanController,
   hangDoiHoTroController,
+  hoiThoaiCuaToiController,
   hopThuNTDController,
   huyChoController,
   huyYeuCauHoTroController,
@@ -69,6 +70,20 @@ const chuyenLimit = rateLimit({
 
 /* ADMIN là bên HỖ TRỢ, không phải bên dùng trợ lý — không tạo phiên. */
 hoiThoaiRoutes.post('/', requireRole('STUDENT', 'EMPLOYER'), taoPhienLimit, taoPhienController)
+
+/*
+ * Danh sách hội thoại của chính người gọi.
+ *
+ * Khai TRƯỚC `/:id/...` — Express so khớp theo thứ tự, và `/` không đụng
+ * `/:id` nên thực ra không bắt buộc; đặt ở đây là để đọc file thấy ngay hai
+ * đường trên cùng một tài nguyên nằm cạnh nhau.
+ *
+ * ADMIN cũng gọi được và sẽ nhận về danh sách RỖNG: họ không tạo phiên nào,
+ * và `hoiThoaiCuaToi` lọc theo `ownerUserId`. Không cần chặn thêm — chặn chỉ
+ * để tránh một truy vấn trả về mảng rỗng là thêm một luật phải nhớ.
+ */
+hoiThoaiRoutes.get('/', hoiThoaiCuaToiController)
+
 hoiThoaiRoutes.get('/:id/tin-nhan', layTinNhanController)
 hoiThoaiRoutes.post('/:id/tin-nhan', guiTinNhanController)
 

@@ -172,6 +172,94 @@ const NGUOI_GUI: Record<Role, ChatSenderType> = {
   ADMIN: 'ADMIN',
 }
 
+/* ================================================ hội thoại của tôi -- */
+
+export interface MucHoiThoaiCuaToi {
+  sessionId: string
+  kind: ChatKind
+  state: string
+  jobId: string | null
+  /** Tin tuyển dụng đang bàn tới, nếu hội thoại đã gắn với một tin. */
+  tenTin: string | null
+  /** Nơi đã nhận handoff. `null` khi chưa chuyển đi đâu. */
+  congTy: string | null
+  /** Câu cuối cùng, để nhận ra hội thoại nào là hội thoại nào. */
+  tinCuoi: string | null
+  lastMessageAt: string
+}
+
+/**
+ * Mọi hội thoại của CHÍNH người đang đăng nhập.
+ *
+ * ===========================================================================
+ * VÌ SAO ĐƯỜNG NÀY LÀ BẮT BUỘC, KHÔNG PHẢI TIỆN NGHI
+ * ===========================================================================
+ * Thiết kế CHO PHÉP một sinh viên có nhiều phiên `AI_STUDENT` cùng lúc — chỉ
+ * mục `chat_mot_handoff_moi_ntd` khoá theo cặp (sinh viên, nhà tuyển dụng),
+ * nên mỗi nơi họ hỏi là một hội thoại riêng. Đó là chủ ý: nhà tuyển dụng B
+ * không được đọc những gì đã chia sẻ với A.
+ *
+ * Nhưng giao diện lại buộc `/tro-ly` vào ĐÚNG MỘT `clientSessionId` trong
+ * localStorage. Hệ quả: hội thoại thứ hai trở đi không có đường nào mở lại
+ * được — chúng vẫn nằm trong database, vẫn nhận tin nhắn realtime, và chủ của
+ * chúng không bao giờ nhìn thấy nữa.
+ *
+ * Chính server cũng đang bảo người dùng làm một việc bất khả: khi chuyển sang
+ * nhà tuyển dụng thứ hai, nó trả về "Mở hội thoại mới để hỏi nơi này" — trong
+ * khi không có nút nào mở được.
+ *
+ * ---------------------------------------------------------------------------
+ * CHỈ TRẢ VỀ HỘI THOẠI MÌNH LÀ CHỦ
+ * ---------------------------------------------------------------------------
+ * KHÔNG gộp hộp thư của nhà tuyển dụng vào đây. Một tài khoản EMPLOYER vừa có
+ * thể là chủ phiên của chính mình, vừa là người nhận handoff ở phiên của sinh
+ * viên — hai vai, hai quyền đọc khác hẳn nhau (xem `chat.access.ts`). Trộn
+ * chung một danh sách là mời người viết màn hình quên mất điều đó.
+ */
+export async function hoiThoaiCuaToi(userId: string): Promise<{ hoiThoai: MucHoiThoaiCuaToi[] }> {
+  const ds = await prisma.chatSession.findMany({
+    where: { ownerUserId: userId },
+    orderBy: { lastMessageAt: 'desc' },
+    take: 50,
+    select: {
+      id: true,
+      kind: true,
+      state: true,
+      jobId: true,
+      lastMessageAt: true,
+      job: { select: { title: true } },
+      handoffEmployer: { select: { companyName: true } },
+      /*
+       * Bỏ tin SYSTEM khỏi phần xem trước.
+       *
+       * Tin hệ thống là câu mới nhất ở gần như mọi hội thoại đã có chuyển đổi
+       * ("Nhà tuyển dụng đã tiếp nhận."). Lấy nó thì cả danh sách hiện cùng
+       * một câu và không phân biệt được gì — đúng lỗi vừa sửa ở `moTaDau` của
+       * hàng đợi hỗ trợ.
+       */
+      messages: {
+        where: { senderType: { not: 'SYSTEM' } },
+        orderBy: { seq: 'desc' },
+        take: 1,
+        select: { body: true },
+      },
+    },
+  })
+
+  return {
+    hoiThoai: ds.map((p) => ({
+      sessionId: p.id,
+      kind: p.kind,
+      state: p.state,
+      jobId: p.jobId,
+      tenTin: p.job?.title ?? null,
+      congTy: p.handoffEmployer?.companyName ?? null,
+      tinCuoi: p.messages[0]?.body ?? null,
+      lastMessageAt: p.lastMessageAt.toISOString(),
+    })),
+  }
+}
+
 export interface TinNhanItem {
   id: string
   seq: number

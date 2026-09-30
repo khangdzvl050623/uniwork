@@ -24,6 +24,7 @@ import { SavedJobs } from '@/pages/SavedJobs'
 import { MyApplications } from '@/pages/MyApplications'
 import { TroLy } from '@/pages/TroLy'
 import { HoTro } from '@/pages/HoTro'
+import { HoiThoaiCuaToi } from '@/pages/HoiThoaiCuaToi'
 import { BaoCaoCuaToi } from '@/pages/BaoCaoCuaToi'
 import { HopThuNTD } from '@/pages/ntd/HopThu'
 import { AdminHoTro } from '@/pages/admin/HoTro'
@@ -85,6 +86,7 @@ export function App() {
               Đặt ngoài `RequireRole` chứ không nhân đôi vào từng nhánh.
             */}
             <Route path="/ho-tro" element={<HoTro />} />
+            <Route path="/hoi-thoai" element={<HoiThoaiCuaToi />} />
             <Route path="/bao-cao-cua-toi" element={<BaoCaoCuaToi />} />
 
             <Route element={<RequireRole roles={['STUDENT']} />}>

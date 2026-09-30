@@ -28,6 +28,7 @@ export const MENU_THEO_VAI: Record<Role, { to: string; label: string; icon: type
       { to: '/tin-da-luu', label: 'Tin đã lưu', icon: Bookmark },
       { to: '/don-ung-tuyen', label: 'Đơn của tôi', icon: BriefcaseBusiness },
       { to: '/tro-ly', label: 'Trợ lý AI', icon: Sparkles },
+      { to: '/hoi-thoai', label: 'Hội thoại của tôi', icon: MessagesSquare },
       { to: '/ho-tro', label: 'Liên hệ hỗ trợ', icon: Headset },
       { to: '/bao-cao-cua-toi', label: 'Báo cáo của tôi', icon: Flag },
     ],

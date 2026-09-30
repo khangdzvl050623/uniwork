@@ -56,10 +56,10 @@ export function useLuotConLai() {
   })
 }
 
-export function useTroLy() {
+export function useTroLy(phienChiDinh?: string) {
   const queryClient = useQueryClient()
 
-  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [sessionId, setSessionId] = useState<string | null>(phienChiDinh ?? null)
 
   /* Lịch sử, phòng socket, gửi tin cho người thật — một bản dùng chung. */
   const kenh = useKenhHoiThoai(sessionId)
@@ -87,18 +87,40 @@ export function useTroLy() {
   /*
    * Mở phiên. Rẻ, không chạm model, gọi lại bao nhiêu lần cũng được.
    *
-   * CHỈ tạo phiên — lịch sử do `useKenhHoiThoai` tải ngay khi `sessionId` có
+   * ===========================================================================
+   * HAI CÁCH MỞ, VÀ VÌ SAO PHẢI CÓ CẢ HAI
+   * ===========================================================================
+   * `phienChiDinh` — mở ĐÚNG hội thoại đó, không tạo gì. Dùng khi người dùng
+   * bấm từ danh sách "Hội thoại của tôi".
+   *
+   * Không có nó thì mở hội thoại theo `clientSessionId` trong localStorage.
+   *
+   * Cách thứ hai MỘT MÌNH là không đủ, và đó không phải chuyện tiện nghi:
+   * thiết kế cho phép sinh viên có nhiều phiên `AI_STUDENT` song song (mỗi nhà
+   * tuyển dụng một phiên — xem `chat_mot_handoff_moi_ntd`). Buộc màn hình vào
+   * đúng một khoá thì mọi hội thoại còn lại không có đường mở lại: chúng vẫn
+   * sống, vẫn nhận tin realtime, và chủ của chúng không bao giờ thấy nữa.
+   *
+   * CHỈ mở phiên — lịch sử do `useKenhHoiThoai` tải ngay khi `sessionId` có
    * giá trị. Gộp hai việc vào một effect thì mỗi màn hình mới lại phải chép
    * lại đoạn tải lịch sử, và chúng sẽ lệch nhau.
    */
   useEffect(() => {
     let huy = false
 
+    if (phienChiDinh) {
+      setSessionId(phienChiDinh)
+      return
+    }
+
     void (async () => {
       try {
         const phien = await apiFetch<PhienResponse>('/api/hoi-thoai', {
           method: 'POST',
-          body: JSON.stringify({ kind: 'AI_STUDENT', clientSessionId: layClientSessionId('tro-ly') }),
+          body: JSON.stringify({
+            kind: 'AI_STUDENT',
+            clientSessionId: layClientSessionId('tro-ly'),
+          }),
         })
         if (huy) return
         setSessionId(phien.sessionId)
@@ -111,7 +133,7 @@ export function useTroLy() {
     return () => {
       huy = true
     }
-  }, [datLoi, datTrangThai])
+  }, [phienChiDinh, datLoi, datTrangThai])
 
   const chay = useCallback(
     async (clientMessageId: string, noiDung: string) => {

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { Loader2, SendHorizontal, Sparkles } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
+import { Loader2, MessagesSquare, SendHorizontal, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { BongChat } from '@/components/tro-ly/BongChat'
 import { DangTraCuu } from '@/components/tro-ly/DangTraCuu'
@@ -17,6 +18,16 @@ const CAU_MOI = [
 ]
 
 export function TroLy() {
+  /*
+   * `?phien=<id>` mở ĐÚNG hội thoại đó, bỏ qua khoá trong localStorage.
+   *
+   * Đây là đường duy nhất để quay lại một hội thoại cũ — sinh viên có thể có
+   * nhiều phiên song song, mỗi nhà tuyển dụng một phiên, mà localStorage chỉ
+   * nhớ được đúng một cái. Danh sách ở `/hoi-thoai` sinh ra các link này.
+   */
+  const [thamSo] = useSearchParams()
+  const phienChiDinh = thamSo.get('phien') ?? undefined
+
   const {
     tinNhan,
     dangChay,
@@ -32,7 +43,7 @@ export function TroLy() {
     chuyenNhaTuyenDung,
     ketThuc,
     boDeNghi,
-  } = useTroLy()
+  } = useTroLy(phienChiDinh)
   const { data: luot } = useLuotConLai()
 
   const [noiDung, setNoiDung] = useState('')
@@ -85,15 +96,29 @@ export function TroLy() {
            * một con số trần: trình đọc màn hình đọc "2" thì không ai hiểu 2 cái
            * gì.
            */}
-          {luot && (
-            <p
-              role="status"
-              aria-atomic="true"
-              className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
+          <div className="flex items-center gap-2">
+            {luot && (
+              <p
+                role="status"
+                aria-atomic="true"
+                className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
+              >
+                Còn {luot.conLai}/{luot.tong} lượt hỏi hôm nay
+              </p>
+            )}
+            {/*
+              Đường ra danh sách. Bắt buộc phải có ở ĐÂY: một sinh viên đang
+              nói với nhà tuyển dụng A mà muốn hỏi nơi B thì phải mở hội thoại
+              khác, và trang này là nơi họ đang đứng lúc nhận ra điều đó.
+            */}
+            <Link
+              to="/hoi-thoai"
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-brand-400 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
             >
-              Còn {luot.conLai}/{luot.tong} lượt hỏi hôm nay
-            </p>
-          )}
+              <MessagesSquare size={13} aria-hidden="true" />
+              Hội thoại của tôi
+            </Link>
+          </div>
         </div>
 
         <p className="mt-1 text-sm text-slate-500">

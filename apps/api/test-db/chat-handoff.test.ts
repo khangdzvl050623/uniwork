@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { quyenTruyCapPhien } from '../src/modules/chat/chat.access.js'
+import { guiTinNhan, hoiThoaiCuaToi } from '../src/modules/chat/chat.service.js'
 import {
   chuyenNhaTuyenDung,
   hopThuNTD,
@@ -132,6 +133,10 @@ async function dungDuLieu() {
 
 const doc = () => prisma.chatSession.findUniqueOrThrow({ where: { id: sessionId } })
 const chuyen = (job = jobId) => chuyenNhaTuyenDung(sv.id, sessionId, job, '')
+
+/** Một tin do NGƯỜI gõ, để phân biệt với tin hệ thống khi kiểm phần xem trước. */
+const guiTinNguoi = (noiDung: string) =>
+  guiTinNhan(sv, sessionId, `cm-${noiDung.length}-${Date.now()}`, noiDung)
 
 beforeEach(dungDuLieu)
 
@@ -372,6 +377,81 @@ describe('hộp thư nhà tuyển dụng', () => {
     await ketThuc(sv, sessionId)
     const { hoiThoai } = await hopThuNTD(ntd.id)
     expect(hoiThoai.find((h) => h.sessionId === sessionId)).toBeUndefined()
+  })
+})
+
+/*
+ * =====================================================================
+ * DANH SÁCH HỘI THOẠI CỦA CHÍNH MÌNH
+ * =====================================================================
+ * Thiết kế cho phép sinh viên có nhiều phiên song song — mỗi nhà tuyển dụng
+ * một phiên. Nhưng giao diện buộc `/tro-ly` vào đúng MỘT `clientSessionId`
+ * trong localStorage, nên hội thoại thứ hai trở đi không có đường mở lại.
+ * Đường này là cách duy nhất tìm lại chúng.
+ *
+ * Hai ranh giới phải canh, và ranh giới thứ hai mới là ranh giới riêng tư:
+ *   thấy ĐỦ hội thoại mình là chủ
+ *   KHÔNG thấy hội thoại của người khác, kể cả khi mình là bên nhận handoff
+ */
+describe('hội thoại của tôi', () => {
+  it('sinh viên thấy hội thoại của mình, kèm nơi đã chuyển tới', async () => {
+    await chuyen()
+    const { hoiThoai } = await hoiThoaiCuaToi(sv.id)
+
+    const muc = hoiThoai.find((h) => h.sessionId === sessionId)
+    expect(muc).toMatchObject({ kind: 'AI_STUDENT', state: 'WAITING_EMPLOYER' })
+    expect(muc?.congTy).not.toBeNull()
+  })
+
+  /*
+   * Ca quan trọng nhất của cả describe.
+   *
+   * Nhà tuyển dụng ĐANG nhận handoff ở phiên này — họ đọc được nội dung qua
+   * `hopThuNTD`. Nhưng phiên đó KHÔNG phải của họ, nên nó không được xuất
+   * hiện trong "hội thoại của tôi". Trộn hai danh sách là mở cho họ đúng
+   * những quyền mà `quyenTruyCapPhien` đang cắt.
+   */
+  it('nhà tuyển dụng nhận handoff KHÔNG thấy phiên đó là của mình', async () => {
+    await chuyen()
+    const { hoiThoai } = await hoiThoaiCuaToi(ntd.id)
+    expect(hoiThoai.find((h) => h.sessionId === sessionId)).toBeUndefined()
+  })
+
+  it('hội thoại đã đóng VẪN còn trong danh sách, để đọc lại', async () => {
+    await chuyen()
+    await ketThuc(sv, sessionId)
+
+    const { hoiThoai } = await hoiThoaiCuaToi(sv.id)
+    expect(hoiThoai.find((h) => h.sessionId === sessionId)?.state).toBe('CLOSED')
+  })
+
+  /*
+   * Xem trước phải là câu NGƯỜI nói, không phải tin hệ thống.
+   *
+   * Sau mỗi chuyển đổi, tin mới nhất luôn là tin SYSTEM ("Nhà tuyển dụng đã
+   * tiếp nhận."). Lấy nó thì cả danh sách hiện cùng một câu và không phân
+   * biệt được hội thoại nào với hội thoại nào — đúng lỗi đã gặp ở `moTaDau`
+   * của hàng đợi hỗ trợ.
+   */
+  it('xem trước bỏ qua tin hệ thống', async () => {
+    await chuyen()
+    await tiepNhan(ntd, sessionId)
+    await guiTinNguoi('em hỏi thêm một câu')
+
+    /*
+     * `ketThuc` ghi một tin SYSTEM với seq CAO NHẤT. Thứ tự này là bắt buộc:
+     * đặt tin người sau cùng thì nó là tin cuối theo cả hai cách lọc, và ca
+     * kiểm luôn xanh dù có bộ lọc hay không.
+     *
+     * Đã viết sai đúng như vậy ở bản đầu, và chỉ lộ ra khi chạy đột biến —
+     * bỏ `where: { senderType: { not: 'SYSTEM' } }` mà test vẫn xanh.
+     */
+    await ketThuc(sv, sessionId)
+
+    const { hoiThoai } = await hoiThoaiCuaToi(sv.id)
+    const muc = hoiThoai.find((h) => h.sessionId === sessionId)
+
+    expect(muc?.tinCuoi).toBe('em hỏi thêm một câu')
   })
 })
 
