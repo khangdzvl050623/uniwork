@@ -686,6 +686,32 @@ export const reviewJobSchema = z
 
 export type ReviewJobData = z.infer<typeof reviewJobSchema>
 
+/**
+ * Admin GỠ một tin đang hiển thị công khai.
+ *
+ * ===========================================================================
+ * TÁCH HẲN KHỎI `reviewJobSchema`, VÀ ĐÓ LÀ CÓ CHỦ Ý
+ * ===========================================================================
+ * Duyệt là nói "tin này được lên sàn"; gỡ là nói "tin đang trên sàn phải xuống
+ * ngay". Hai câu hỏi ở hai thời điểm khác nhau, với hai hậu quả khác nhau —
+ * và `CLOSED` là trạng thái CUỐI, không có đường mở lại.
+ *
+ * Gộp thành `PUT /:id/duyet { decision: 'TAKEDOWN' }` thì một lần bấm nhầm
+ * trong màn duyệt hàng loạt là gỡ vĩnh viễn một tin hợp lệ.
+ *
+ * `lyDo` BẮT BUỘC, tối thiểu 10 ký tự: nhà tuyển dụng đọc nguyên văn câu này,
+ * và một lần gỡ không lời giải thích là thứ họ không cãi lại được.
+ */
+export const goTinSchema = z.object({
+  lyDo: z
+    .string()
+    .trim()
+    .min(10, 'Ghi rõ vì sao gỡ — nhà tuyển dụng đọc đúng câu này')
+    .max(500, 'Lý do tối đa 500 ký tự'),
+})
+
+export type GoTinData = z.infer<typeof goTinSchema>
+
 /** Lọc hàng đợi duyệt theo trạng thái. Không truyền thì mặc định `PENDING`. */
 export const adminJobQuerySchema = z.object({
   status: z.enum(JOB_STATUSES).optional(),
@@ -889,4 +915,125 @@ export const updateApplicationStatusSchema = z
 export const applicantQuerySchema = z.object({
   status: z.enum(APPLICATION_STATUSES).optional(),
   sort: z.enum(APPLICANT_SORTS).default('match'),
+})
+
+/* ============================================== Trợ lý AI (Sprint 5) ==== */
+
+/**
+ * `clientSessionId` và `clientMessageId` do TRÌNH DUYỆT sinh, không phải server.
+ *
+ * Đó là điểm mấu chốt của cả hai khoá chống trùng: id phải được sinh MỘT LẦN
+ * trước lần gửi đầu tiên và giữ nguyên qua mọi lần thử lại. Server sinh thì mỗi
+ * lần thử lại là một id mới, và "chống trùng" không chống được gì.
+ *
+ * Không ép định dạng uuid: client nào cũng được, miễn là ổn định và đủ dài để
+ * không đụng nhau. Ép uuid chỉ thêm một cách hỏng mà không mua lại gì — khoá
+ * unique trong database mới là thứ bảo đảm.
+ */
+const idDoClientSinh = z.string().trim().min(8, 'Id quá ngắn').max(64, 'Id quá dài')
+
+/**
+ * Mở luồng với một đối tượng.
+ *
+ * KHÔNG còn `clientSessionId`. Danh tính luồng là ĐỐI TƯỢNG, và server suy ra
+ * từ `kind` cộng người đang đăng nhập — client không có gì để chọn, nên cũng
+ * không có gì để chọn sai.
+ *
+ * Suốt 2026-09-30 có hai lỗi thật đều từ việc để trình duyệt quyết mở luồng
+ * nào: xoá localStorage, đổi máy hay cửa sổ ẩn danh là người dùng rơi vào một
+ * hội thoại trống trong khi cuộc trò chuyện thật nằm ở hàng khác.
+ *
+ * `NTD` không có ở đây: không ai "mở luồng với nhà tuyển dụng", họ bấm hỏi về
+ * một tin và `chuyenNhaTuyenDung` lo phần còn lại.
+ */
+export const taoPhienChatSchema = z.object({
+  kind: z.enum(['AI_STUDENT', 'AI_EMPLOYER', 'AI_SUPPORT']),
+})
+
+/** Sinh viên hỏi nhà tuyển dụng về một tin. `jobId` xác định luôn luồng nào. */
+export const hoiNhaTuyenDungSchema = z.object({
+  jobId: z.string().trim().min(1, 'Chưa chọn tin tuyển dụng').max(40),
+  loiNhan: z.string().trim().max(500, 'Lời nhắn tối đa 500 ký tự').optional(),
+})
+
+/** Yêu cầu gặp quản trị viên. Mô tả không bắt buộc — lịch sử hội thoại là ngữ cảnh. */
+export const yeuCauHoTroSchema = z.object({
+  moTa: z.string().trim().max(1000, 'Tối đa 1000 ký tự').default(''),
+})
+
+/**
+ * Nhà tuyển dụng từ chối yêu cầu trao đổi.
+ *
+ * Lý do KHÔNG bắt buộc, khác hẳn từ chối đơn ứng tuyển: ở đây chưa có đơn nào,
+ * chưa có gì để giải thích, và ép nhập chỉ khiến người ta gõ bừa một chữ.
+ */
+export const tuChoiYeuCauSchema = z.object({
+  lyDo: z.string().trim().max(500, 'Tối đa 500 ký tự').default(''),
+})
+
+/**
+ * Trần 2000 ký tự, và `min(1)` chạy SAU `trim()`.
+ *
+ * Không trim trước thì một tin toàn dấu cách qua được `min(1)`, tốn một lượt
+ * trong năm lượt của ngày, và model nhận về chuỗi rỗng.
+ */
+export const hoiTroLySchema = z.object({
+  sessionId: z.string().trim().min(1).max(40),
+  clientMessageId: idDoClientSinh,
+  noiDung: z.string().trim().min(1, 'Nhập câu hỏi trước đã').max(2000, 'Câu hỏi tối đa 2000 ký tự'),
+  /** Tin người dùng đang mở, để trợ lý hiểu "việc này" mà không phải hỏi lại. */
+  jobIdDangXem: z.string().trim().min(1).max(40).optional(),
+})
+
+/** Tin của NGƯỜI trong hội thoại đã chuyển sang nhắn trực tiếp. */
+export const guiTinNhanSchema = z.object({
+  clientMessageId: idDoClientSinh,
+  noiDung: z
+    .string()
+    .trim()
+    .min(1, 'Nhập nội dung trước đã')
+    .max(2000, 'Tin nhắn tối đa 2000 ký tự'),
+})
+
+
+/* ============================================= Bao cao tin (Sprint 5) ==== */
+
+export const JOB_REPORT_REASONS = [
+  'LUA_DAO',
+  'SAI_SU_THAT',
+  'KHONG_PHU_HOP',
+  'TRUNG_LAP',
+  'KHAC',
+] as const
+export type JobReportReasonValue = (typeof JOB_REPORT_REASONS)[number]
+
+/** Nhãn tiếng Việt, dùng chung cho form người gửi và màn hình admin. */
+export const JOB_REPORT_REASON_LABELS: Record<JobReportReasonValue, string> = {
+  LUA_DAO: 'Lừa đảo, đòi tiền cọc',
+  SAI_SU_THAT: 'Thông tin sai sự thật',
+  KHONG_PHU_HOP: 'Nội dung không phù hợp',
+  TRUNG_LAP: 'Đăng trùng lặp, tin rác',
+  KHAC: 'Lý do khác',
+}
+
+/**
+ * Gui bao cao tin.
+ *
+ * `moTa` BAT BUOC toi thieu 20 ky tu: mot bao cao chi co "lua dao" khong giup
+ * admin quyet duoc gi, va cai gia cua no la mot tin that co the bi go oan.
+ */
+export const guiBaoCaoSchema = z.object({
+  jobId: z.string().trim().min(1).max(40),
+  clientReportId: idDoClientSinh,
+  reason: z.enum(JOB_REPORT_REASONS),
+  moTa: z
+    .string()
+    .trim()
+    .min(20, 'Mo ta it nhat 20 ky tu — noi ro ban thay gi')
+    .max(2000, 'Mo ta toi da 2000 ky tu'),
+})
+
+export const xuLyBaoCaoSchema = z.object({
+  status: z.enum(['DANG_XEM', 'DA_XU_LY', 'BAC_BO']),
+  ketLuan: z.string().trim().max(2000).default(''),
 })

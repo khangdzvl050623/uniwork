@@ -1,11 +1,36 @@
+/*
+ * Nạp .env ở DÒNG ĐẦU TIÊN của process, trước mọi import khác.
+ *
+ * `config/env.ts` cũng gọi `dotenv/config`, nhưng `packages/ai-runtime` CỐ Ý
+ * không import nó (worker sẽ dùng chung package đó và không được import code
+ * của api) — nó đọc thẳng `process.env` lúc nạp module. Tức thứ tự nạp quyết
+ * định nó thấy hay không thấy giá trị trong .env.
+ *
+ * Hôm nay thứ tự đang đúng nhờ `app.ts` tình cờ import `config/env.js` trước
+ * `routes.js`. Đó là một sự tình cờ, và nó hỏng theo kiểu tệ nhất: đảo hai dòng
+ * import trong app.ts là AI_CHAT_TURNS_PER_DAY trong .env bị bỏ qua, rơi về mặc
+ * định, và KHÔNG có lỗi nào bắn ra. Dòng này khoá lại chuyện đó.
+ */
+import 'dotenv/config'
 import { createServer } from 'node:http'
 import { createApp } from './app.js'
 import { env } from './config/env.js'
 import { taoAdminMacDinhNeuChua } from './lib/bootstrap-admin.js'
 import { logger } from './lib/logger.js'
 import { prisma } from './lib/prisma.js'
+import { donYeuCauQuaHan } from './modules/chat/handoff.service.js'
+import { ganSocketIO, goSocketIO } from './modules/chat/socket.gateway.js'
 
 const server = createServer(createApp())
+
+/*
+ * Socket.IO dùng CHUNG cổng với HTTP.
+ *
+ * Bắt buộc trên Render gói free: một Web Service chỉ mở được đúng một cổng. Và
+ * nó cũng đúng cho local — cùng một origin thì không phải nới thêm CORS, và
+ * không phải nhớ hai số cổng.
+ */
+const io = ganSocketIO(server)
 
 server.listen(env.PORT, env.HOST, () => {
   logger.info('API đã khởi động', {
@@ -26,6 +51,35 @@ void taoAdminMacDinhNeuChua().catch((err: unknown) => {
   })
 })
 
+/*
+ * Quét đóng các yêu cầu chờ quá hạn, mỗi 15 phút.
+ *
+ * ---------------------------------------------------------------------------
+ * VÌ SAO QUÉT THEO LÔ, KHÔNG HẸN GIỜ TỪNG PHIÊN
+ * ---------------------------------------------------------------------------
+ * Một `setTimeout` cho mỗi yêu cầu sẽ chết theo process. Render deploy lại vài
+ * lần một ngày, và mỗi lần là mọi hẹn giờ đang treo biến mất — yêu cầu nằm
+ * `WAITING_EMPLOYER` vĩnh viễn, mà chỉ mục chống trùng lại chặn khi chưa
+ * `CLOSED`, nên sinh viên không bao giờ hỏi lại nơi đó được nữa.
+ *
+ * Quét từ database thì trạng thái nằm ở database, không nằm trong bộ nhớ của
+ * một process cụ thể.
+ *
+ * `unref()` để cái hẹn giờ này không giữ process sống lúc tắt server.
+ */
+const QUET_MOI_MS = 15 * 60_000
+
+function quetQuaHan() {
+  void donYeuCauQuaHan().catch((err: unknown) => {
+    logger.error('Không quét được yêu cầu quá hạn', {
+      message: err instanceof Error ? err.message : String(err),
+    })
+  })
+}
+
+quetQuaHan()
+setInterval(quetQuaHan, QUET_MOI_MS).unref()
+
 /**
  * Tắt server có trật tự.
  *
@@ -39,6 +93,19 @@ void taoAdminMacDinhNeuChua().catch((err: unknown) => {
  */
 function shutdown(signal: NodeJS.Signals) {
   logger.info('Nhận tín hiệu dừng, đang đóng server', { signal })
+
+  /*
+   * Đóng Socket.IO TRƯỚC `server.close()`.
+   *
+   * `server.close()` chờ mọi kết nối đóng, mà WebSocket là kết nối SỐNG MÃI —
+   * không đóng chúng thì nó chờ tới khi hết 10 giây rồi bị `process.exit(1)`.
+   * Deploy nào cũng thoát bằng mã lỗi, và log đầy "Hết thời gian chờ".
+   *
+   * `goSocketIO()` gỡ bộ phát trước, để một tin nhắn đang commit dở không bắn
+   * vào một `io` vừa đóng.
+   */
+  goSocketIO()
+  void io.close()
 
   server.close(() => {
     // Trả kết nối database về trước khi thoát. Không làm bước này thì mỗi lần

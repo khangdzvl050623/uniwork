@@ -517,7 +517,7 @@ mặc định rỗng** (thiếu thì chỉ tắt tính năng).
 GOOGLE_GENERATIVE_AI_API_KEY: z.string().default(''),
 
 /* Model dùng cho chat. Đổi được mà không sửa code — xem plan 08 mục "paid/scale". */
-AI_CHAT_MODEL: z.string().default('gemini-2.5-flash-lite'),
+AI_CHAT_MODEL: z.string().default('gemini-3.5-flash-lite'),
 /* Model dùng cho đọc CV. Tách khỏi chat vì hai việc cần năng lực khác nhau. */
 AI_SCAN_MODEL: z.string().default('gemini-2.5-flash'),
 
@@ -665,7 +665,7 @@ hay không, và nó nằm trong database chứ không nằm trong bộ nhớ c�
 
 | Đổi gì | Từ | Sang | Biến |
 | --- | --- | --- | --- |
-| Model chat | `gemini-2.5-flash-lite` | model mạnh hơn | `AI_CHAT_MODEL` |
+| Model chat | `gemini-3.5-flash-lite` | model mạnh hơn | `AI_CHAT_MODEL` |
 | Model scan | `gemini-2.5-flash` | model mạnh hơn | `AI_SCAN_MODEL` |
 | Lượt/ngày | 5 chat, 3 scan | tuỳ gói | `AI_CHAT_TURNS_PER_DAY`, `AI_SCAN_JOBS_PER_DAY` |
 | Trần project | 400 req/ngày | theo ngân sách tiền | `AI_PROJECT_REQUESTS_PER_DAY` |
@@ -711,6 +711,19 @@ là thứ để **thiết kế và theo dõi**, không phải thứ để trả 
 **Token phải tính cả vòng tool.** Bản trước lấy 4.000 in cho "2 vòng tool" — sai, vì
 mỗi vòng **gửi lại toàn bộ ngữ cảnh**. Một lượt 3 vòng là ~2k + ~3k + ~4k = **~9k input**,
 không phải 4k.
+
+> **Đo được 2026-09-21, sau khi bước 4–5 xong.** Phần CỐ ĐỊNH mỗi request —
+> system prompt + mô tả 9 tool + JSON schema — là **6.559 ký tự ≈ 1.900–2.200
+> token**, và nó đi kèm mọi bước. Bốn bước là ~8k token vào trước khi cộng lịch
+> sử và kết quả tool. Tức giả định **~9k/lượt ở trên đứng vững**, không phải
+> thấp như lo ban đầu. Chi tiết và cách đo: [00 C.1](00-khao-sat.md).
+>
+> **Đo thật cùng ngày, sau khi endpoint chạy được:** một lượt 1 vòng tool =
+> **4.395** token vào; một lượt 3 vòng = **9.889** vào / 158 ra. Con số ~9k ở
+> trên trúng gần như chính xác — bảng B dưới đây dùng được.
+>
+> Vẫn CHƯA đo: phân vị 90/99 (hai lượt không phải mẫu) và lượt chạm trần 4 vòng.
+> Xem [09 §"cái gì phải đo"](09-phan-bien.md).
 
 | Việc | Token (đã gồm vòng tool + retry) | Giá mỗi lần |
 | --- | --- | --- |

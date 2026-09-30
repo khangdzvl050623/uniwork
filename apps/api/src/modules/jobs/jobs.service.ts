@@ -20,6 +20,7 @@ import type {
   UpdateJobData,
 } from '@uniwork/shared'
 import { prisma } from '../../lib/prisma.js'
+import { createNotification } from '../notifications/notifications.service.js'
 import { badRequest, conflict, forbidden, notFound, unauthorized } from '../../lib/errors.js'
 
 /**
@@ -73,6 +74,7 @@ const CHON_JOB = {
   deadline: true,
   status: true,
   rejectionReason: true,
+  lyDoGo: true,
   publishedAt: true,
   closedAt: true,
   viewCount: true,
@@ -124,6 +126,7 @@ function toEmployerJobResponse(job: HangJob): EmployerJobResponse {
     deadline: job.deadline.toISOString(),
     status: job.status,
     rejectionReason: job.rejectionReason,
+    lyDoGo: job.lyDoGo,
     publishedAt: job.publishedAt?.toISOString() ?? null,
     closedAt: job.closedAt?.toISOString() ?? null,
     viewCount: job.viewCount,
@@ -706,6 +709,94 @@ export async function reviewJob(jobId: string, input: ReviewJobData): Promise<Ad
   })
 
   return toAdminJobResponse(daXuLy)
+}
+
+/**
+ * Admin GỠ một tin đang hiển thị công khai.
+ *
+ * ===========================================================================
+ * VÌ SAO ĐƯỜNG NÀY PHẢI TỒN TẠI
+ * ===========================================================================
+ * `reviewJob` chỉ xử được tin `PENDING`. Tin đã `OPEN` thì trước đây admin
+ * không có đường nào gỡ — nên kết luận một báo cáo thành `DA_XU_LY` là một câu
+ * nói suông: người báo cáo nhận thông báo "đã xử lý" trong khi tin lừa đảo vẫn
+ * nằm nguyên trên trang chủ.
+ *
+ * ---------------------------------------------------------------------------
+ * `CLOSED`, KHÔNG PHẢI MỘT TRẠNG THÁI RIÊNG
+ * ---------------------------------------------------------------------------
+ * `CLOSED` đã là trạng thái CUỐI: `closeJob` không có đường ngược, `guiDuyetLai`
+ * từ chối thẳng, và endpoint công khai chỉ lọc `OPEN`. Thêm một `TAKEDOWN`
+ * riêng là thêm một nhánh vào mọi chỗ đang so `status`, đổi lấy đúng một thứ
+ * mà hai cột `goBoiAdminId` / `lyDoGo` đã nói rõ hơn.
+ *
+ * ---------------------------------------------------------------------------
+ * KHÔNG ĐỤNG TỚI BÁO CÁO
+ * ---------------------------------------------------------------------------
+ * Hàm này không đọc và không sửa `JobReport` nào. Hai việc tách rời có chủ ý:
+ * một tin gỡ được vì admin tự thấy sai, không cần ai báo cáo; và một báo cáo
+ * đúng có thể kết thúc bằng "đã nhắc nhở" chứ không nhất thiết phải gỡ.
+ *
+ * Gộp lại thì màn duyệt báo cáo có một nút vừa kết luận vừa gỡ, và không còn
+ * cách nào làm một trong hai.
+ */
+export async function goTin(
+  adminUserId: string,
+  jobId: string,
+  lyDo: string,
+): Promise<AdminJobResponse> {
+  const job = await prisma.job.findUnique({
+    where: { id: jobId },
+    select: {
+      status: true,
+      title: true,
+      employerProfile: { select: { userId: true } },
+    },
+  })
+  if (!job) throw notFound('Không tìm thấy tin tuyển dụng')
+
+  /*
+   * Chỉ gỡ tin ĐANG hiển thị. Ba trạng thái kia có đường đi riêng, và nói rõ
+   * đường nào thì admin khỏi phải đoán.
+   */
+  if (job.status !== 'OPEN') {
+    const vuong: Record<typeof job.status, string> = {
+      DRAFT: 'Tin này chưa công khai nên không có gì để gỡ',
+      PENDING: 'Tin này đang chờ duyệt — hãy từ chối nó thay vì gỡ',
+      CLOSED: 'Tin này đã đóng rồi',
+    }
+    throw conflict(vuong[job.status])
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const daGo = await tx.job.update({
+      where: { id: jobId },
+      data: {
+        status: 'CLOSED',
+        closedAt: new Date(),
+        goBoiAdminId: adminUserId,
+        lyDoGo: lyDo.trim(),
+      },
+      select: CHON_JOB_ADMIN,
+    })
+
+    /*
+     * Báo cho nhà tuyển dụng, kèm NGUYÊN VĂN lý do.
+     *
+     * Không có bước này thì họ mở bảng tin lên thấy "Đã đóng" y hệt một tin
+     * họ tự đóng tuần trước — một hành động cưỡng chế mà người bị tác động
+     * không biết là nó đã xảy ra.
+     */
+    await createNotification(tx, {
+      userId: job.employerProfile.userId,
+      type: 'TIN_BI_GO',
+      title: `Tin “${job.title}” đã bị gỡ`,
+      body: lyDo.trim(),
+      link: '/ntd/quan-ly',
+    })
+
+    return toAdminJobResponse(daGo)
+  })
 }
 
 /* ------------------------------------------------- T79–T80: công khai --- */

@@ -167,7 +167,18 @@ model User {
   refreshTokens  RefreshToken[]
   oneTimeTokens  OneTimeToken[]
   linkedAccounts UserAccount[]
-  notifications Notification[]
+  notifications  Notification[]
+  aiUsageDays    AiUsageDay[]
+  aiTurns        AiTurn[]
+  chatSessions   ChatSession[]  @relation("ChatOwner")
+  /// Hoi thoai ho tro do chinh admin nay tiep nhan.
+  chatHoTro      ChatSession[]  @relation("ChatAdmin")
+  /// Tin nguoi nay da bao cao.
+  baoCaoDaGui    JobReport[]    @relation("NguoiBaoCao")
+  /// Bao cao do chinh admin nay xu ly.
+  baoCaoDaXuLy   JobReport[]    @relation("AdminXuLyBaoCao")
+  /// Tin do chinh admin nay go khoi trang cong khai.
+  tinDaGo        Job[]          @relation("JobGoBoiAdmin")
 
   @@map("users")
 }
@@ -175,6 +186,21 @@ model User {
 enum NotificationType {
   APPLICATION_SUBMITTED
   APPLICATION_STATUS_CHANGED
+
+  /// Sinh vien bam "nhan nha tuyen dung" — NTD nhan thong bao co nguoi dang cho.
+  CHAT_HANDOFF_REQUESTED
+  /// NTD bam tiep nhan — sinh vien nhan thong bao da co nguoi that tra loi.
+  CHAT_HANDOFF_ACCEPTED
+
+  /// Admin da ket luan mot bao cao tin — nguoi gui doc duoc ket luan.
+  BAO_CAO_DA_XU_LY
+
+  /// Admin GO mot tin dang hien thi. Nha tuyen dung doc duoc ly do.
+  ///
+  /// Tach khoi APPLICATION_* va BAO_CAO_*: day la hanh dong cuong che len tai
+  /// san cua ho, khong phai mot cap nhat tien trinh. Gop chung nhan thi no
+  /// nam lan giua nhung thong bao thuong ngay va bi luot qua.
+  TIN_BI_GO
 }
 
 /// Thông báo trong ứng dụng, dành riêng cho một tài khoản.
@@ -182,13 +208,13 @@ model Notification {
   id String @id @default(cuid())
 
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  type    NotificationType
-  title   String
-  body    String
-  link    String?
-  readAt  DateTime?
+  type   NotificationType
+  title  String
+  body   String
+  link   String?
+  readAt DateTime?
 
   createdAt DateTime @default(now())
 
@@ -333,6 +359,8 @@ model StudentProfile {
   skills         StudentSkill[]
   availabilities Availability[]
   applications   Application[]
+  chatSessions   ChatSession[]
+  reports        JobReport[]
   savedJobs      SavedJob[]
 
   @@map("student_profiles")
@@ -361,8 +389,9 @@ model EmployerProfile {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  jobs      Job[]
-  documents EmployerDocument[]
+  jobs         Job[]
+  documents    EmployerDocument[]
+  chatHandoffs ChatSession[]
 
   @@map("employer_profiles")
 }
@@ -639,6 +668,24 @@ model Job {
   publishedAt DateTime?
   closedAt    DateTime?
 
+  /// Admin nào đã GỠ tin này. `null` = nhà tuyển dụng tự đóng.
+  ///
+  /// ==========================================================================
+  /// VÌ SAO CẦN CỘT NÀY DÙ `CLOSED` ĐÃ ĐỦ ĐỂ ẨN TIN
+  /// ==========================================================================
+  /// `CLOSED` là trạng thái cuối, không có đường mở lại — nên nó đã đủ để gỡ
+  /// một tin vi phạm. Nhưng nếu chỉ có thế thì nhà tuyển dụng mở bảng tin lên
+  /// thấy "Đã đóng" y hệt một tin họ tự đóng tuần trước, và không có cách nào
+  /// biết chuyện gì vừa xảy ra.
+  ///
+  /// Hai cột này là phần "vì sao" — thứ biến một hành động cưỡng chế thành một
+  /// quyết định giải thích được.
+  goBoiAdminId String?
+  goBoiAdmin   User?   @relation("JobGoBoiAdmin", fields: [goBoiAdminId], references: [id], onDelete: SetNull)
+
+  /// Lý do gỡ. Nhà tuyển dụng đọc nguyên văn câu này trong thông báo.
+  lyDoGo String?
+
   /// Lý do admin từ chối, hiện lại cho nhà tuyển dụng sửa.
   rejectionReason String?
 
@@ -650,7 +697,9 @@ model Job {
   shifts       JobShift[]
   skills       JobSkill[]
   applications Application[]
+  chatSessions ChatSession[]
   savedBy      SavedJob[]
+  jobReports   JobReport[]
 
   /// Truy vấn xương sống của trang danh sách: lọc status OPEN, sắp theo ngày
   /// đăng giảm dần. Không có index này thì mỗi lần mở trang chủ là một lần quét
@@ -773,4 +822,413 @@ model SavedJob {
   @@id([studentProfileId, jobId])
   @@index([jobId])
   @@map("saved_jobs")
+}
+
+// ---------------------------------------------------------------------------
+// Hạn mức AI
+//
+// HAI bảng chứ không một, vì chúng có vòng đời khác hẳn nhau:
+//
+//   AiUsageDay — sổ cái LƯỢT của người dùng, theo ngày. Sống cả ngày.
+//   AiTurn     — MỘT LẦN gọi model. Sống vài giây tới 90 giây.
+//
+// Với chat thì một lượt = một lần gọi nên hai thứ trùng thời gian. Với scan CV
+// thì một lượt có thể kéo dài hàng giờ (chờ hạn mức, retry) và sinh ra nhiều
+// AiTurn. Gộp làm một bảng là lúc job scan chờ lâu sẽ bị dọn nhầm.
+// ---------------------------------------------------------------------------
+
+enum AiFeature {
+  CHAT
+  CV_SCAN
+}
+
+enum AiTurnState {
+  /// Đã giữ chỗ, chưa biết kết quả. Mỗi tài khoản chỉ được có MỘT hàng như vậy.
+  RESERVED
+  SUCCEEDED
+  /// Hỏng vì phía ta (mạng, 5xx, timeout, deploy).
+  FAILED
+  /// Đã hoàn lượt. Tách khỏi FAILED để đếm được "đã hoàn bao nhiêu".
+  REFUNDED
+}
+
+/// Sổ cái lượt AI theo NGÀY, theo TÀI KHOẢN, theo TÍNH NĂNG.
+///
+/// BA cột đếm chứ không một, vì chúng trả lời ba câu hỏi khác nhau:
+///   turnsReserved — đã xin bao nhiêu lượt, KỂ CẢ lượt đang chạy
+///   turnsUsed     — bao nhiêu lượt đã kết thúc
+///   turnsRefunded — bao nhiêu lượt trả lại vì hệ thống hỏng
+///
+/// Số lượt CÒN LẠI = limit - (turnsReserved - turnsRefunded).
+///
+/// Dùng `turnsReserved` chứ không `turnsUsed` trong công thức đó là có chủ đích:
+/// lượt đang chạy phải bị trừ NGAY, không thì mở 5 tab bấm cùng lúc sẽ qua mặt
+/// được hạn mức — cả 5 đều thấy "còn 5 lượt" trước khi cái nào kịp kết thúc.
+model AiUsageDay {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// Ngày theo GIỜ VIỆT NAM, kiểu `date` thuần chứ không phải timestamp.
+  ///
+  /// "Hôm nay" của người dùng là ngày ở Việt Nam, còn server chạy UTC. Reset lúc
+  /// 00:00 UTC là reset lúc 7 giờ sáng giờ VN — người hết lượt lúc 22h tối sẽ
+  /// thấy nó không reset lúc nửa đêm như mọi ứng dụng khác, và không ai đoán ra
+  /// vì sao. Dùng `ngayVN()` của @uniwork/ai-runtime để tính cột này.
+  day DateTime @db.Date
+
+  feature AiFeature
+
+  turnsReserved Int @default(0)
+  turnsUsed     Int @default(0)
+  turnsRefunded Int @default(0)
+
+  updatedAt DateTime @updatedAt
+
+  /// Khoá của phép cộng nguyên tử `INSERT ... ON CONFLICT ... DO UPDATE`.
+  /// Thiếu nó thì không có gì để ON CONFLICT bám vào.
+  @@unique([userId, day, feature])
+  @@map("ai_usage_days")
+}
+
+/// Một LẦN GỌI MODEL. Nhiều hàng cho một lượt nếu có retry hoặc nhiều vòng tool.
+model AiTurn {
+  id String @id @default(cuid())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  feature AiFeature
+  state   AiTurnState @default(RESERVED)
+
+  /// Process nào đang chạy lượt này.
+  ///
+  /// Lúc tắt server có trật tự, chỉ được huỷ lượt của CHÍNH process mình — API
+  /// deploy lại không được hoàn lượt mà worker đang chạy dở.
+  runnerId String
+
+  /// Ngày VN lúc GIỮ CHỖ, chép từ AiUsageDay.day.
+  ///
+  /// Phải lưu lại vì lượt có thể kết thúc sang ngày hôm sau: giữ lúc 23:58, hoàn
+  /// lúc 00:03 mà tính theo `ngayVN(now())` là cộng turnsRefunded vào bucket
+  /// NGÀY MAI — người dùng tự nhiên có 6 lượt.
+  quotaDay DateTime @db.Date
+
+  /// Chat thì có sessionId; scan CV thì có extractionId. Không bao giờ cả hai.
+  sessionId    String?
+  extractionId String?
+
+  /// Nhóm câu hỏi, suy từ dấu vết tool sau khi chạy xong. Chỉ để đo, KHÔNG dùng
+  /// điều khiển luồng. 'UNKNOWN' khi không đủ tín hiệu — không đoán bừa.
+  category String?
+
+  /// Số lời gọi HTTP thật tới nhà cung cấp, kể cả SDK tự thử lại.
+  requestCount Int      @default(0)
+  toolRounds   Int      @default(0)
+  toolNames    String[] @default([])
+
+  inputTokens  Int @default(0)
+  outputTokens Int @default(0)
+
+  modelId       String
+  promptVersion String
+
+  latencyMs          Int?
+  timeToFirstTokenMs Int?
+  errorCode          String?
+
+  handoffProposed Boolean @default(false)
+
+  reservedAt DateTime  @default(now())
+  settledAt  DateTime?
+
+  @@index([userId, reservedAt])
+  @@index([feature, reservedAt])
+  /// Luật "mỗi tài khoản chỉ MỘT lượt đang chạy" là một chỉ mục UNIQUE MỘT PHẦN
+  ///   CREATE UNIQUE INDEX ... ON ai_turns ("userId") WHERE state = 'RESERVED'
+  /// Prisma không khai được partial index, nên nó nằm trong migration viết tay.
+  @@map("ai_turns")
+}
+
+// ---------------------------------------------------------------------------
+// Hội thoại
+//
+// MỘT bảng cho cả chat với AI lẫn chat với người thật, phân biệt bằng `state`.
+// Không phải hai bảng: sinh viên nhìn thấy MỘT dòng thời gian liên tục, và
+// chuyển giữa hai chế độ phải là đổi một cột chứ không phải chép dữ liệu sang
+// bảng khác — chép là lúc mất tin nhắn.
+// ---------------------------------------------------------------------------
+
+/// Loại phiên. Quyết định ai là chủ, và có handoff được không.
+/// `kind` trả lời đúng MỘT câu: luồng này nói chuyện với AI, với quản trị viên,
+/// hay với một nhà tuyển dụng cụ thể.
+///
+/// ===========================================================================
+/// DANH TÍNH LUỒNG LÀ ĐỐI TƯỢNG, KHÔNG PHẢI LẦN TẠO
+/// ===========================================================================
+/// Bản trước để `AI_STUDENT` kiêm hai vai: khởi đầu là hỏi trợ lý, rồi
+/// `chuyenNhaTuyenDung` BIẾN chính hàng đó thành hội thoại với nhà tuyển dụng.
+///
+/// Hệ quả là muốn hỏi nơi thứ hai thì phải đẻ một luồng AI mới — và lịch sử
+/// trò chuyện với trợ lý bị cắt thành nhiều mảnh rời. Đo thật 2026-09-30: một
+/// tài khoản có TÁM luồng `AI_STUDENT`, bốn trong số đó có tin nhắn.
+///
+/// Tách ra thì mỗi luồng có một khoá tự nhiên và sống vĩnh viễn, đúng cách mọi
+/// ứng dụng nhắn tin làm: không ai "tạo hội thoại", người ta mở hội thoại với
+/// một người.
+enum ChatKind {
+  /// Sinh viên hỏi trợ lý. MỘT luồng cho mỗi sinh viên, không bao giờ đóng.
+  AI_STUDENT
+  /// Nhà tuyển dụng hỏi trợ lý về dữ liệu tuyển dụng của mình.
+  AI_EMPLOYER
+
+  /// Hoi thoai HO TRO voi quan tri vien. MOT luong cho moi nguoi dung.
+  ///
+  /// Kenh RIENG chu khong phai mot trang thai cua hai kind tren: quan tri vien
+  /// doc tu seq 1, nen gop vao luong AI la giao cho ho ca doan nguoi dung hoi
+  /// rieng tro ly.
+  AI_SUPPORT
+
+  /// Trao đổi với MỘT nhà tuyển dụng. Một luồng cho mỗi cặp (người dùng, NTD).
+  ///
+  /// `handoffEmployerProfileId` là nửa còn lại của khoá tự nhiên, và nó là lý
+  /// do luồng này tách khỏi `AI_STUDENT`: nơi B không được đọc những gì đã
+  /// trao đổi với nơi A, mà cách chắc chắn nhất để bảo đảm điều đó là chúng
+  /// nằm ở hai hàng khác nhau — không phải một cột mốc phải nhớ kiểm.
+  NTD
+}
+
+enum ChatSessionState {
+  AI_ACTIVE
+  WAITING_EMPLOYER
+  HUMAN_ACTIVE
+  CLOSED
+
+  /// Cho MOT admin bat ky tiep nhan. Khac WAITING_EMPLOYER o cho chua co
+  /// nguoi nhan cu the — admin la hang doi, khong ai bi khoa truoc.
+  WAITING_ADMIN
+}
+
+enum ChatSenderType {
+  STUDENT
+  EMPLOYER
+  /// Admin trả lời trong phiên hỗ trợ. Tách khỏi STUDENT/EMPLOYER vì giao diện
+  /// phải vẽ được ai đang nói — xem migration 20260930090000.
+  ADMIN
+  AI
+  /// Tin của hệ thống: "Nhà tuyển dụng đã tiếp nhận", "Hội thoại đã kết thúc".
+  /// Tách khỏi AI vì nó không tốn lượt và không do model sinh ra.
+  SYSTEM
+}
+
+model ChatSession {
+  id String @id @default(cuid())
+
+  kind ChatKind
+
+  /// CHỦ PHIÊN — người tạo và sở hữu hội thoại. Luôn có, với cả hai vai.
+  ///
+  /// Phân biệt tuyệt đối với `handoffEmployerProfileId` bên dưới: một NTD có thể
+  /// vừa là CHỦ phiên trợ lý của mình, vừa là NGƯỜI NHẬN handoff ở một phiên
+  /// khác của sinh viên. Hai vai, hai quyền, hai cột.
+  ownerUserId String
+  owner       User   @relation("ChatOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+
+  /// Id do client sinh, để tạo phiên KHÔNG bị trùng khi bấm hai lần.
+  ///
+  /// Thiếu nó thì hai request tạo phiên song song ra hai phiên, và khoá chống
+  /// trùng trên tin nhắn không cứu được vì sessionId đã khác nhau.
+  clientSessionId String
+
+  /// Chỉ có khi kind = AI_STUDENT. CHECK constraint ép đúng.
+  studentProfileId String?
+  studentProfile   StudentProfile? @relation(fields: [studentProfileId], references: [id], onDelete: Cascade)
+
+  /// Tin đang bàn tới. Bắt buộc có trước khi chuyển sang NTD.
+  /// Sau lần chuyển đầu thì ĐÓNG BĂNG — đổi tin nghĩa là tạo phiên mới.
+  jobId String?
+  job   Job?    @relation(fields: [jobId], references: [id], onDelete: SetNull)
+
+  /// NGƯỜI NHẬN HANDOFF. Đặt MỘT LẦN ở lần chuyển đầu, KHÔNG BAO GIỜ đổi.
+  ///
+  /// Đổi sang NTD khác sẽ khiến người mới đọc được những gì đã chia sẻ với
+  /// người cũ. Muốn hỏi NTD khác thì tạo phiên mới.
+  handoffEmployerProfileId String?
+  handoffEmployer          EmployerProfile? @relation(fields: [handoffEmployerProfileId], references: [id], onDelete: SetNull)
+
+  /// ADMIN da nhan hoi thoai ho tro. Chi co khi kind = AI_SUPPORT.
+  ///
+  /// Dat luc TIEP NHAN, khong phai luc yeu cau: bat ky admin nao cung nhan
+  /// duoc, nen luc yeu cau chua biet ai. Khac han handoffEmployerProfileId —
+  /// cai do suy ra tu tin nen biet ngay tu dau va dong bang luon.
+  handoffAdminUserId String?
+  handoffAdmin       User?   @relation("ChatAdmin", fields: [handoffAdminUserId], references: [id], onDelete: SetNull)
+
+  state ChatSessionState @default(AI_ACTIVE)
+
+  /// Bộ đếm thứ tự tin nhắn TRONG phiên này, tăng trong cùng transaction với
+  /// việc chèn tin.
+  ///
+  /// Vì sao không dùng createdAt: hai tin cùng mili-giây thì không sắp được, và
+  /// đồng hồ server có thể lùi. Vì sao không dùng sequence toàn cục: client cần
+  /// một dãy liên tục để biết mình có thiếu tin không.
+  messageSeq Int @default(0)
+
+  /// NTD chỉ đọc được tin có seq >= mốc này. Đặt lúc chuyển, và CHỈ khi đang null.
+  /// null = chưa chuyển bao giờ, NTD không đọc được gì.
+  employerVisibleFromSeq Int?
+
+  /// Lượt AI đang chạy. Dùng để BỎ câu trả lời nếu hội thoại đã chuyển sang
+  /// người thật giữa lúc model đang sinh chữ.
+  activeAiRunId String?
+
+  handoffRequestedAt DateTime?
+  handoffAcceptedAt  DateTime?
+  closedAt           DateTime?
+  closedByUserId     String?
+
+  /// Phiên trước, khi người dùng mở lại sau khi đã CLOSED.
+  previousSessionId String? @unique
+
+  lastMessageAt DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  messages ChatMessage[]
+
+  /// Chống tạo phiên trùng khi bấm hai lần.
+  @@unique([ownerUserId, clientSessionId])
+  /// Luật "một sinh viên chỉ MỘT hội thoại đang mở với một nhà tuyển dụng" là
+  /// một chỉ mục UNIQUE MỘT PHẦN:
+  ///   CREATE UNIQUE INDEX ... ON chat_sessions ("ownerUserId", "handoffEmployerProfileId")
+  ///   WHERE state IN ('WAITING_EMPLOYER', 'HUMAN_ACTIVE')
+  /// Prisma không khai được, nên nó nằm trong migration viết tay.
+  /// Danh sách phiên của CHỦ — dùng cho cả sinh viên lẫn NTD tự dùng trợ lý.
+  @@index([ownerUserId, kind, lastMessageAt])
+  /// Hộp thư handoff của NTD lọc đúng theo bộ ba này.
+  @@index([handoffEmployerProfileId, state, lastMessageAt])
+  /// Hang doi ho tro: admin loc theo trang thai.
+  @@index([kind, state, lastMessageAt])
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id String @id @default(cuid())
+
+  sessionId String
+  session   ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  /// Thứ tự trong phiên, bắt đầu từ 1, KHÔNG THỦNG.
+  seq Int
+
+  senderType   ChatSenderType
+  /// null với AI và SYSTEM.
+  senderUserId String?
+
+  /// Id do client sinh (uuid), giữ nguyên qua mọi lần thử lại.
+  ///
+  /// Unique GỘP với sessionId chứ không unique một mình: hai phiên của hai người
+  /// khác nhau có thể trùng uuid, và unique toàn cục sẽ khiến người thứ hai
+  /// không gửi được tin — một lỗi rất khó đoán.
+  clientMessageId String?
+
+  body String @db.Text
+
+  /// NTD có được thấy tin này không. Mặc định FALSE.
+  ///
+  /// Mặc định false chứ không true là quyết định bảo mật: quên đặt cờ thì hậu
+  /// quả là NTD thiếu một tin (thấy được, sửa được), chứ không phải NTD đọc
+  /// được toàn bộ hội thoại riêng tư với AI (không thấy được, không lấy lại được).
+  visibleToEmployer Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  /// Chốt chặn thật cho việc cấp seq: logic sai ở đâu đó thì P2002 bắn ra ngay,
+  /// thay vì hai tin cùng số và client sắp xếp loạn.
+  @@unique([sessionId, seq])
+  @@unique([sessionId, clientMessageId])
+  @@index([sessionId, seq])
+  @@map("chat_messages")
+}
+
+/// Vì sao một tin bị báo cáo. Enum ĐÓNG để thống kê được và để người báo cáo
+/// không phải nghĩ ra cách diễn đạt.
+enum JobReportReason {
+  /// Đòi tiền cọc, phí hồ sơ, hoặc dụ chuyển khoản.
+  LUA_DAO
+  /// Lương, ca làm, địa điểm không đúng thực tế.
+  SAI_SU_THAT
+  /// Nội dung phản cảm, phân biệt đối xử, hoặc công việc trái pháp luật.
+  KHONG_PHU_HOP
+  /// Đăng lại nhiều lần, hoặc tin rác.
+  TRUNG_LAP
+  KHAC
+}
+
+enum JobReportStatus {
+  CHO_XU_LY
+  DANG_XEM
+  /// Đã xác nhận vi phạm và xử lý tin.
+  DA_XU_LY
+  /// Xem xong, không đủ căn cứ.
+  BAC_BO
+}
+
+/// Một lượt báo cáo tin tuyển dụng.
+///
+/// ---------------------------------------------------------------------------
+/// VÌ SAO KHÔNG ĐI QUA HỘI THOẠI
+/// ---------------------------------------------------------------------------
+/// Đường handoff duy nhất của trợ lý là chuyển sang CHÍNH nhà tuyển dụng sở hữu
+/// tin. Với một tin lừa đảo thì đó đúng là người cần tránh. Báo cáo vì vậy là
+/// một quy trình RIÊNG, đi thẳng tới admin, và nhà tuyển dụng không bao giờ
+/// nhận được danh tính người báo cáo.
+model JobReport {
+  id String @id @default(cuid())
+
+  jobId String
+  job   Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  reporterUserId String
+  reporter       User   @relation("NguoiBaoCao", fields: [reporterUserId], references: [id], onDelete: Cascade)
+
+  /// Id do client sinh. Gửi lại cùng id thì trả báo cáo cũ, KHÔNG tạo thêm
+  /// bản ghi và KHÔNG bắn thêm thông báo.
+  clientReportId String
+
+  reason JobReportReason
+  moTa   String          @db.Text
+
+  /// ẢNH CHỤP tin tại thời điểm báo cáo.
+  ///
+  /// Nhà tuyển dụng sửa được tin sau khi bị báo cáo — xoá câu đòi tiền cọc đi
+  /// là admin mở ra thấy một tin sạch sẽ và không hiểu vì sao có người báo.
+  /// Không có ảnh chụp thì mọi báo cáo về nội dung đều vô hiệu hoá được bằng
+  /// một lần bấm Sửa.
+  anhChupTin Json
+
+  status          JobReportStatus @default(CHO_XU_LY)
+  handledByUserId String?
+  handledBy       User?           @relation("AdminXuLyBaoCao", fields: [handledByUserId], references: [id], onDelete: SetNull)
+  handledAt       DateTime?
+
+  /// Kết luận của admin. NGƯỜI BÁO CÁO đọc được câu này — báo cáo mà không bao
+  /// giờ biết kết quả thì lần sau không ai báo nữa.
+  ketLuan String? @db.Text
+
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  studentProfile   StudentProfile? @relation(fields: [studentProfileId], references: [id])
+  studentProfileId String?
+
+  /// Gửi lại không tạo bản ghi thứ hai.
+  @@unique([reporterUserId, clientReportId])
+  /// Hàng đợi của admin.
+  @@index([status, createdAt])
+  /// Đếm số lượt báo cáo của một tin.
+  @@index([jobId, status])
+  /// Danh sách báo cáo của chính người gửi.
+  @@index([reporterUserId, createdAt])
+  @@map("job_reports")
 }

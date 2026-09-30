@@ -590,7 +590,7 @@ response, mọi chỗ gọi đều `JSON.stringify(...)`. Cơ chế cưỡng ch�
    }
    ```
    **Phải khai cả hai tham số kiểu** — để TS tự suy `TReq` là quay lại tình trạng cũ.
-3. Ca test chặn khai lại kiểu cục bộ (`useProfile.ts:35` hiện có
+3. Ca test chặn khai lại kiểu cục bộ (`useProfile.ts:34` hiện có
    `interface StudentProfileInput` lệch 3 trường so với shared).
 
 ### 9.5 API

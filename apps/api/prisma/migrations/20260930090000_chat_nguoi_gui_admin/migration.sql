@@ -1,0 +1,13 @@
+-- Admin trả lời trong phiên hỗ trợ phải được ghi nhận LÀ admin.
+--
+-- Trước migration này `guiTinNhan` ghi `user.role === 'EMPLOYER' ? 'EMPLOYER' : 'STUDENT'`,
+-- nên câu trả lời của admin nằm trong database dưới nhãn STUDENT — không phân
+-- biệt được với chính câu hỏi của người đang xin hỗ trợ. Giao diện không có
+-- cách nào vẽ đúng bên trái/bên phải, và lịch sử ticket đọc lại thành một
+-- người tự nói chuyện với mình.
+--
+-- Một file riêng chỉ có ADD VALUE: Postgres cho phép ADD VALUE trong
+-- transaction (PG 12+) MIỄN LÀ không câu lệnh nào trong cùng transaction dùng
+-- tới giá trị mới. Gộp thêm bất cứ thứ gì tham chiếu 'ADMIN' vào đây là P3009
+-- không kèm lời giải thích nào — đã dính một lần ở migration hỗ trợ.
+ALTER TYPE "ChatSenderType" ADD VALUE IF NOT EXISTS 'ADMIN';

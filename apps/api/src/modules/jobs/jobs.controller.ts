@@ -4,6 +4,7 @@ import {
   adminJobQuerySchema,
   createJobSchema,
   publicJobQuerySchema,
+  goTinSchema,
   reviewJobSchema,
   updateJobSchema,
 } from '@uniwork/shared'
@@ -87,6 +88,19 @@ export const reviewJobController: RequestHandler = async (req, res) => {
   const { id } = parse(thamSoId, req.params)
   const input = parse(reviewJobSchema, req.body)
   ok(res, await jobsService.reviewJob(id, input))
+}
+
+/**
+ * Gỡ một tin đang hiển thị. Đường RIÊNG, không phải một nhánh của `duyet`.
+ *
+ * `CLOSED` là trạng thái cuối, không mở lại được — nên một lần bấm nhầm trong
+ * màn duyệt hàng loạt sẽ là vĩnh viễn. Endpoint riêng thì không bấm nhầm được.
+ */
+export const goTinController: RequestHandler = async (req, res) => {
+  if (!req.user) throw unauthorized()
+  const { id } = parse(thamSoId, req.params)
+  const { lyDo } = parse(goTinSchema, req.body)
+  ok(res, await jobsService.goTin(req.user.id, id, lyDo))
 }
 
 /* ------------------------------------------------- T79–T80: công khai --- */

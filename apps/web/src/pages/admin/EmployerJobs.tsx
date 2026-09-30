@@ -267,6 +267,23 @@ function HangTin({
             <span className="text-dash-bad"> · Bị từ chối: {job.rejectionReason}</span>
           )}
         </p>
+
+        {/*
+          Lý do GỠ tách thành một khối riêng, không nối đuôi vào dòng trên.
+          Hai thứ khác hẳn nhau: "bị từ chối" là việc CẦN LÀM (sửa rồi gửi
+          lại), còn "bị gỡ" là chuyện đã rồi — `CLOSED` không mở lại được, nên
+          câu cuối phải nói thẳng điều đó, nếu không chủ tin ngồi sửa mãi một
+          tin không bao giờ lên lại.
+        */}
+        {job.lyDoGo && (
+          <div className="border-dash-bad/40 bg-dash-bad/5 mt-1.5 rounded-md border px-2 py-1.5">
+            <p className="text-dash-bad text-xs font-medium">Quản trị viên đã gỡ tin này</p>
+            <p className="text-dash-text mt-0.5 text-xs">{job.lyDoGo}</p>
+            <p className="text-dash-muted mt-0.5 text-xs">
+              Tin đã gỡ không mở lại được. Hãy đăng một tin mới nếu vẫn tuyển.
+            </p>
+          </div>
+        )}
       </Td>
 
       <Td className="text-dash-muted whitespace-nowrap">

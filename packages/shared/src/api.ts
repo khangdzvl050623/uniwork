@@ -54,6 +54,21 @@ export const API_ERROR_CODES = [
   'CONFLICT',
   'RATE_LIMITED',
   'INTERNAL_ERROR',
+
+  /*
+   * Ba mã của trợ lý AI. Tách riêng khỏi RATE_LIMITED và CONFLICT vì giao diện
+   * phải nói ba câu khác hẳn nhau:
+   *
+   *   AI_QUOTA_EXCEEDED  "hôm nay bạn hết lượt, mai quay lại"  → không thử lại
+   *   AI_BUSY            "câu trước đang chạy, đợi chút"        → thử lại được ngay
+   *   AI_UNAVAILABLE     "trợ lý đang bảo trì"                  → thử lại sau
+   *
+   * Gộp cả ba vào RATE_LIMITED thì người dùng bị bảo "thao tác quá nhanh" trong
+   * khi họ chỉ mở hai tab.
+   */
+  'AI_QUOTA_EXCEEDED',
+  'AI_BUSY',
+  'AI_UNAVAILABLE',
 ] as const
 
 export type ApiErrorCode = (typeof API_ERROR_CODES)[number]
@@ -586,6 +601,16 @@ export interface EmployerJobResponse {
   status: JobStatus
   /** Lý do admin từ chối, để chủ tin biết phải sửa gì trước khi gửi lại. */
   rejectionReason: string | null
+  /**
+   * Lý do admin GỠ tin. `null` = tin đóng bình thường (chủ tin tự đóng, hoặc
+   * chưa từng bị gỡ).
+   *
+   * Khác `rejectionReason` ở chỗ nó KHÔNG sửa được gì: `CLOSED` là trạng thái
+   * cuối. Đây là lời giải thích, không phải việc cần làm — và giao diện phải
+   * nói rõ khác biệt đó, nếu không chủ tin ngồi sửa mãi một tin không bao giờ
+   * lên lại được.
+   */
+  lyDoGo: string | null
   publishedAt: string | null
   closedAt: string | null
   viewCount: number
@@ -981,7 +1006,13 @@ export interface WithdrawApplicationResponse {
 
 /* --------------------------------------------------- Thông báo ----------- */
 
-export type NotificationType = 'APPLICATION_SUBMITTED' | 'APPLICATION_STATUS_CHANGED'
+export type NotificationType =
+  | 'APPLICATION_SUBMITTED'
+  | 'APPLICATION_STATUS_CHANGED'
+  | 'CHAT_HANDOFF_REQUESTED'
+  | 'CHAT_HANDOFF_ACCEPTED'
+  | 'BAO_CAO_DA_XU_LY'
+  | 'TIN_BI_GO'
 
 export interface NotificationItem {
   id: string

@@ -292,12 +292,12 @@ model AiProviderWindow {
 /// Circuit breaker — MỘT HÀNG MỖI MODEL, `id` chính là `modelId`.
 ///
 /// Bản trước dùng một hàng chung id='gemini'. Sai theo R11: scan CV gặp 429 trên
-/// gemini-2.5-flash sẽ chặn luôn chat đang chạy trên gemini-2.5-flash-lite, dù
+/// gemini-2.5-flash sẽ chặn luôn chat đang chạy trên gemini-3.5-flash-lite, dù
 /// hạn mức của hai model là hai túi riêng. Khoá theo modelId thì mỗi model tự
 /// chịu lỗi của mình — và nếu hai biến trỏ cùng model thì chúng dùng chung một
 /// hàng, đúng như phải thế.
 model AiCircuit {
-  /// = `${provider}:${modelId}`, ví dụ 'google:gemini-2.5-flash-lite' hoặc
+  /// = `${provider}:${modelId}`, ví dụ 'google:gemini-3.5-flash-lite' hoặc
   /// 'cloudflare:@cf/moondream/moondream3.1-9B-A2B'.
   ///
   /// Có tiền tố provider vì từ 2026-09-13 hệ thống dùng HAI nhà cung cấp: chat ở
@@ -733,7 +733,7 @@ thì đó là thủ phạm. Không đoán được thì coi là `SERVER` — ch�
 hơn đâm đầu vào một hạn mức ngày.
 
 **Circuit khoá theo `modelId`.** Scan hỏng trên `gemini-2.5-flash` không chạm chat
-trên `gemini-2.5-flash-lite`. Hai biến trỏ cùng model thì chúng dùng chung một hàng —
+trên `gemini-3.5-flash-lite`. Hai biến trỏ cùng model thì chúng dùng chung một hàng —
 đúng như phải thế, vì lúc đó chúng thật sự chung một hạn mức.
 
 **Không tự chuyển sang API trả phí.** Đề bài nói rõ, và điều này phải là **cấu trúc**

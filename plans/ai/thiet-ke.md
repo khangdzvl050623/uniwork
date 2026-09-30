@@ -14,7 +14,7 @@ Cập nhật 2026-09-13, sau hai vòng review.
 
 | | Trợ lý AI + handoff | Scan CV |
 | --- | --- | --- |
-| **Model** | Gemini `gemini-2.5-flash-lite` | Cloudflare Workers AI (`moondream3.1` / `llama-3.2-11b-vision`) |
+| **Model** | Gemini `gemini-3.5-flash-lite` | Cloudflare Workers AI (`moondream3.1` / `llama-3.2-11b-vision`) |
 | **Vì sao khác nhau** | Cần function calling | Điều khoản Cloudflare cho phép gửi dữ liệu cá nhân |
 | **Hạn mức free** | RPM/TPM/RPD theo project (đo ở AI Studio) | 10.000 Neuron/ngày |
 | **Đồng bộ / bất đồng bộ** | Đồng bộ, stream SSE | Bất đồng bộ qua RabbitMQ |
@@ -711,7 +711,7 @@ GOOGLE_GENERATIVE_AI_API_KEY  ''
 CLOUDFLARE_ACCOUNT_ID         ''
 CLOUDFLARE_API_TOKEN          ''
 
-AI_CHAT_MODEL                 'gemini-2.5-flash-lite'
+AI_CHAT_MODEL                 'gemini-3.5-flash-lite'
 AI_SCAN_MODEL                 '@cf/moondream/moondream3.1-9B-A2B'
 
 AI_CHAT_TURNS_PER_DAY         5

@@ -272,6 +272,120 @@ Ngày kiểm: **2026-09-12**. Ghi cả ngày cập nhật của trang nguồn, v
 | `gemini-3.8-flash`, `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.5-flash` | Có |
 | `gemini-3.5-flash-lite`, `gemini-3.1-flash-lite` | Có |
 | `gemini-2.5-flash`, `gemini-2.5-flash-lite`, `gemini-2.5-pro` | Có |
+
+> **Sửa 2026-09-21 — đo thật, không đọc tài liệu.** Gọi `gemini-2.5-flash-lite` bằng
+> khoá thật thì Google trả: *"This model models/gemini-2.5-flash-lite is **no longer**
+> **available to new users**. Please update your code to use models/gemini-3.5-flash-lite"*.
+> Bảng giá vẫn liệt kê nó là có free tier, nhưng **tài khoản mới không dùng được**.
+> Đây đúng lý do plan bắt chạy spike ngày 1 thay vì tin bảng.
+>
+> Model đang dùng: **`gemini-3.5-flash-lite`**.
+
+**ĐO ĐƯỢC 2026-09-21** — `pnpm --filter @uniwork/api thu-gemini`, khoá thật, một
+lượt không tool:
+
+| | |
+| --- | --- |
+| Độ trễ | **1671 ms** cho 21 token ra |
+| Token | 16 vào / 21 ra |
+| Tỉ lệ tiếng Việt | 49 ký tự → 16 token ≈ **3,1 ký tự/token** |
+
+#### Câu trả lời SAI, và đó là dữ liệu quan trọng nhất của lần đo này
+
+Hỏi *"UniWork là nền tảng gì?"*, model trả:
+
+> *"UniWork là nền tảng quản lý công việc và tối ưu hoá hiệu suất dành cho
+> **doanh nghiệp**."*
+
+Sai hoàn toàn — UniWork là sàn việc part-time cho sinh viên. Model không bịa một
+cách mơ hồ; nó dựng hẳn một sản phẩm B2B hợp lý và phát biểu chắc nịch.
+
+Đây là bằng chứng đo được cho ba quyết định vốn chỉ là lý lẽ:
+
+| Quyết định | Vì sao lần đo này chứng minh nó |
+| --- | --- |
+| Khối `VAI TRÒ` + `PHẠM VI` trong system prompt | Không có nó, model tự định nghĩa sản phẩm |
+| `huongDanSuDung` với enum ĐÓNG, nội dung viết tay | Model sẵn sàng mô tả một giao diện nó chưa từng thấy |
+| `NGUỒN DỮ LIỆU: mọi con số phải đến từ tool` | Nó không hề ngập ngừng khi không có dữ liệu |
+
+#### Chi phí CỐ ĐỊNH mỗi request — đo bằng đếm ký tự, không gọi mạng
+
+| Thành phần | Ký tự | ≈ token |
+| --- | ---: | ---: |
+| System prompt | 2.564 | ~840 |
+| Mô tả 9 tool | 1.378 | ~450 |
+| JSON schema của 9 tool | 2.617 | ~650 |
+| **Tổng** | **6.559** | **~1.900–2.200** |
+
+Câu hỏi của người dùng chỉ 16 token. **Phần cố định lớn gấp hơn 100 lần.** Và nó
+được gửi lại ở MỌI bước, nên một lượt chạm trần `isStepCount(4)` tốn tối thiểu
+**~8.000 token vào**, chưa tính lịch sử 12 tin và kết quả tool.
+
+Hệ quả cho việc tối ưu CHI PHÍ — không phải độ trễ, xem mục ngay dưới: cắt mô tả
+tool và JSON schema có giá trị hơn hẳn cắt lịch sử. Nếu cần giảm nữa thì hướng đúng là `prepareStep` thu hẹp `activeTools` sau
+bước đầu.
+
+#### Token THẬT của một lượt có tool — `pnpm --filter @uniwork/api thu-tro-ly`
+
+Không còn là ngoại suy. Hai lượt thật, dữ liệu thật trong database dev:
+
+| Câu hỏi | Vòng tool | Token vào | Token ra | Chữ đầu | Tổng |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| "có việc pha chế nào ở Hà Nội không, lương bao nhiêu?" | 1 | **4.395** | 93 | 2.789 ms | 3,2 s |
+| "em rảnh tối T2 T4, có việc nào hợp lịch em không?" | 3 | **9.889** | 158 | 4.297 ms | 5,0 s |
+
+Giả định **~9k token vào cho một lượt 3 vòng** ở [01 §8.4](01-kien-truc-va-ranh-gioi.md)
+trúng gần như chính xác. Chi phí không phải đoán nữa.
+
+Còn thiếu: phân vị 90/99 (hai lượt không phải mẫu), và số của lượt chạm trần 4 vòng.
+
+#### Độ trễ: hai cụm, và KHÔNG liên quan tới kích thước prompt (đo 2026-09-28)
+
+Một lượt thật mất **114 giây** trong khi lượt tương đương hôm trước mất 4,3 giây. Cùng model, cùng tài khoản, cùng số vòng tool. Đi tìm nguyên nhân bằng cách tách dần từng biến.
+
+**Bước 1 — của ta hay của họ.** Thêm `onLanguageModelCallEnd` để cộng dồn `performance.responseTimeMs`:
+
+```
+soLanGoiModel=2  msModel=50091  msConLai=47  msTong=50138
+```
+
+**47 mili giây** là toàn bộ phần của ta: chạy tool, truy vấn Postgres, ghi tin nhắn. 100 % thời gian nằm ở nhà cung cấp. Loại xong giả thuyết "tool chậm".
+
+**Bước 2 — có phải do prompt nặng.** Gọi trần không tool: **1.177 ms** cho 16 token. Gọi qua trợ lý với câu "chào bạn" — 0 vòng tool, nhưng vẫn gửi system prompt và 9 định nghĩa tool: **21.478 ms** cho 2.543 token. Cùng một phút. Có vẻ prompt càng lớn càng chậm.
+
+**Bước 3 — kiểm giả thuyết đó.** Gọi thẳng REST, không SDK, không tool, chỉ đổi kích thước prompt:
+
+| Ký tự | Token vào | Thời gian |
+| ---: | ---: | ---: |
+| 20 | 14 | 1.425 ms |
+| 1.000 | 249 | 15.204 ms |
+| 3.000 | 725 | 16.618 ms |
+| **8.000** | **1.917** | **1.086 ms** |
+| 20 (lặp lại) | 14 | 15.675 ms |
+
+**Giả thuyết sai.** Prompt lớn nhất lại nhanh nhất, và đúng prompt 20 ký tự lúc nhanh 1,4 s lúc chậm 15,7 s.
+
+#### Kết luận
+
+Độ trễ chia **hai cụm**: hoặc ~1 giây, hoặc **~15–25 giây**. Rơi vào cụm nào là ngẫu nhiên, không phụ thuộc kích thước prompt, số tool, hay lớp SDK. Cụm chậm ổn định quanh 15 s — giống một hàng đợi có độ trễ cố định hơn là thời gian suy luận.
+
+Ba hệ quả:
+
+1. **Cắt mô tả tool không làm nhanh hơn.** Nó vẫn đáng làm để giảm token, nhưng đừng kỳ vọng nó chữa độ trễ.
+2. **Một lượt 4 bước rơi cụm chậm là ~100 giây, và vẫn là lượt hợp lệ.** Vì vậy `AI_REQUEST_TIMEOUT_MS` để 60 s, `AI_TURN_TIMEOUT_MS` để 180 s — đặt chặt hơn là cắt nhầm lượt thật.
+3. **Đây là rủi ro sản phẩm, không phải lỗi code.** Chờ 15–50 giây cho một câu trả lời là không dùng được. Ba đường: chấp nhận và hiện chỉ báo "đang tra cứu" cho rõ; đổi sang model khác; hoặc trả phí. Cần đo lại trên tài khoản trả phí trước khi kết luận là giới hạn của free tier.
+
+Cách đo lại bất cứ lúc nào: `pnpm --filter @uniwork/api thu-tro-ly "<câu hỏi>"` — dòng cuối in tách `model` và `còn lại`.
+
+#### Lỗi tìm ra nhờ chạy thật, không nhờ đọc code
+
+Bản đầu của `chayLuotChat` đọc `textStream` rồi rút tên tool từ `kq.steps` sau khi
+xong. Test xanh, kiểu đúng, và **sai**: chỉ báo "đang tra cứu…" hiện ra SAU câu trả
+lời. Người dùng nhìn màn hình trắng 4,3 giây rồi mới biết hệ thống đang làm gì.
+
+Sửa: đọc `fullStream` và bắt `tool-input-start` — tín hiệu sớm nhất có được. Đây là
+loại lỗi không test đơn vị nào bắt được, vì nó là lỗi về THỨ TỰ THỜI GIAN mà mọi
+khẳng định vẫn đúng.
 | `gemini-3.1-pro-preview` | **Không** |
 
 **ĐỌC ĐƯỢC** từ [trang model](https://ai.google.dev/gemini-api/docs/models)
