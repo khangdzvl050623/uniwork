@@ -22,6 +22,12 @@ import { EmployerProfile } from '@/pages/EmployerProfile'
 import { Availability } from '@/pages/Availability'
 import { SavedJobs } from '@/pages/SavedJobs'
 import { MyApplications } from '@/pages/MyApplications'
+import { TroLy } from '@/pages/TroLy'
+import { HoTro } from '@/pages/HoTro'
+import { BaoCaoCuaToi } from '@/pages/BaoCaoCuaToi'
+import { HopThuNTD } from '@/pages/ntd/HopThu'
+import { AdminHoTro } from '@/pages/admin/HoTro'
+import { AdminBaoCao } from '@/pages/admin/BaoCao'
 import { PostJob } from '@/pages/PostJob'
 import { Applicants } from '@/pages/Applicants'
 import { NotFound } from '@/pages/NotFound'
@@ -73,17 +79,27 @@ export function App() {
 
           {/* Cần đăng nhập */}
           <Route element={<RequireAuth />}>
+            {/*
+              Hai đường này mở cho MỌI vai đã đăng nhập, kể cả nhà tuyển dụng —
+              họ cũng cần hỗ trợ, và cũng báo cáo được tin của người khác.
+              Đặt ngoài `RequireRole` chứ không nhân đôi vào từng nhánh.
+            */}
+            <Route path="/ho-tro" element={<HoTro />} />
+            <Route path="/bao-cao-cua-toi" element={<BaoCaoCuaToi />} />
+
             <Route element={<RequireRole roles={['STUDENT']} />}>
               <Route path="/ho-so" element={<Profile />} />
               <Route path="/lich-ranh" element={<Availability />} />
               <Route path="/tin-da-luu" element={<SavedJobs />} />
               <Route path="/don-ung-tuyen" element={<MyApplications />} />
+              <Route path="/tro-ly" element={<TroLy />} />
             </Route>
 
             <Route element={<RequireRole roles={['EMPLOYER']} />}>
               <Route path="/ntd/ho-so" element={<EmployerProfile />} />
               <Route path="/ntd/dang-tin" element={<PostJob />} />
               <Route path="/ntd/ung-vien" element={<Applicants />} />
+              <Route path="/ntd/hoi-thoai" element={<HopThuNTD />} />
             </Route>
           </Route>
 
@@ -101,6 +117,8 @@ export function App() {
               <Route path="/admin/duyet-ntd" element={<ReviewEmployers />} />
               <Route path="/admin/ky-nang" element={<AdminSkills />} />
               <Route path="/admin/nguoi-dung" element={<AdminUsers />} />
+              <Route path="/admin/ho-tro" element={<AdminHoTro />} />
+              <Route path="/admin/bao-cao" element={<AdminBaoCao />} />
             </Route>
 
             <Route element={<RequireRole roles={['EMPLOYER']} />}>

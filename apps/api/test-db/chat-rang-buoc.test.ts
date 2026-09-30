@@ -68,16 +68,36 @@ describe('CHECK — hai vai không lẫn vào nhau', () => {
     ).rejects.toThrow(/chat_employer_khong_handoff/)
   })
 
+  /*
+   * ---------------------------------------------------------------------
+   * HAI RÀNG BUỘC CÙNG CHẶN CA NÀY — và đó là điều đáng ghi lại
+   * ---------------------------------------------------------------------
+   * Tên đổi ở migration `chat_ho_tro`: `chat_employer_trang_thai` →
+   * `chat_trang_thai_theo_kenh`. Bản cũ viết theo lối phủ định
+   * ("kind = 'AI_STUDENT' OR state IN …"), nên thêm kênh AI_SUPPORT là vế đó
+   * im lặng cho kênh mới đi qua. Bản mới liệt kê tường minh cả ba kind.
+   *
+   * Nhưng đổi xong thì ca này bắt đầu báo `chat_handoff_du_thong_tin`:
+   * AI_EMPLOYER ở HUMAN_ACTIVE vi phạm CẢ HAI, và Postgres chỉ nêu cái nó gặp
+   * trước. Rà lại thì hai ràng buộc chồng lấn gần hết — `du_thong_tin` liệt kê
+   * từng (kind, state) hợp lệ nên nó cũng loại mọi tổ hợp mà `theo_kenh` loại.
+   *
+   * GIỮ CẢ HAI, có chủ đích: `theo_kenh` phát biểu luật ở dạng đọc được
+   * ("kênh nào được ở trạng thái nào"), `du_thong_tin` phát biểu ở dạng "rời
+   * AI_ACTIVE thì phải có đủ cột nào". Sửa nhầm một cái thì cái kia còn đỡ.
+   *
+   * Vì vậy ca này nhận một trong hai tên, và nói rõ vì sao — chứ không hạ
+   * xuống "chỉ cần có ném": ném vì một ràng buộc chẳng liên quan thì test
+   * xanh mà điều cần kiểm lại không được kiểm.
+   */
   it('AI_EMPLOYER KHÔNG vào được WAITING_EMPLOYER hay HUMAN_ACTIVE', async () => {
     await expect(
       phien({ kind: 'AI_EMPLOYER', studentProfileId: null, state: 'HUMAN_ACTIVE' }),
-    ).rejects.toThrow(/chat_employer_trang_thai/)
+    ).rejects.toThrow(/chat_trang_thai_theo_kenh|chat_handoff_du_thong_tin/)
   })
 
   it('rời AI_ACTIVE mà thiếu người nhận / tin / mốc đọc thì bị từ chối', async () => {
-    await expect(phien({ state: 'WAITING_EMPLOYER' })).rejects.toThrow(
-      /chat_handoff_du_thong_tin/,
-    )
+    await expect(phien({ state: 'WAITING_EMPLOYER' })).rejects.toThrow(/chat_handoff_du_thong_tin/)
   })
 
   it('hàng HỢP LỆ vẫn lưu được — ràng buộc không chặt quá tay', async () => {

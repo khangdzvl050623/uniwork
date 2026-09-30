@@ -5,7 +5,10 @@ import {
   BriefcaseBusiness,
   Building2,
   ClipboardCheck,
+  Flag,
+  Headset,
   LayoutDashboard,
+  MessagesSquare,
   type LucideIcon,
   Menu,
   Moon,
@@ -71,6 +74,8 @@ const NAV_ADMIN: NhomSidebar[] = [
     items: [
       { to: '/admin/duyet-tin', label: 'Duyệt tin tuyển dụng', icon: ClipboardCheck },
       { to: '/admin/duyet-ntd', label: 'Duyệt nhà tuyển dụng', icon: Building2 },
+      { to: '/admin/ho-tro', label: 'Hàng đợi hỗ trợ', icon: Headset },
+      { to: '/admin/bao-cao', label: 'Báo cáo tin', icon: Flag },
     ],
   },
   {
@@ -89,6 +94,7 @@ const NAV_EMPLOYER: NhomSidebar[] = [
       { to: '/ntd/quan-ly', label: 'Tin đăng của tôi', icon: BriefcaseBusiness },
       { to: '/ntd/dang-tin', label: 'Đăng tin mới', icon: Plus },
       { to: '/ntd/ung-vien', label: 'Ứng viên', icon: Users },
+      { to: '/ntd/hoi-thoai', label: 'Hộp thư trao đổi', icon: MessagesSquare },
     ],
   },
   {

@@ -18,6 +18,7 @@ import { env } from './config/env.js'
 import { taoAdminMacDinhNeuChua } from './lib/bootstrap-admin.js'
 import { logger } from './lib/logger.js'
 import { prisma } from './lib/prisma.js'
+import { donYeuCauQuaHan } from './modules/chat/handoff.service.js'
 import { ganSocketIO, goSocketIO } from './modules/chat/socket.gateway.js'
 
 const server = createServer(createApp())
@@ -49,6 +50,35 @@ void taoAdminMacDinhNeuChua().catch((err: unknown) => {
     message: err instanceof Error ? err.message : String(err),
   })
 })
+
+/*
+ * Quét đóng các yêu cầu chờ quá hạn, mỗi 15 phút.
+ *
+ * ---------------------------------------------------------------------------
+ * VÌ SAO QUÉT THEO LÔ, KHÔNG HẸN GIỜ TỪNG PHIÊN
+ * ---------------------------------------------------------------------------
+ * Một `setTimeout` cho mỗi yêu cầu sẽ chết theo process. Render deploy lại vài
+ * lần một ngày, và mỗi lần là mọi hẹn giờ đang treo biến mất — yêu cầu nằm
+ * `WAITING_EMPLOYER` vĩnh viễn, mà chỉ mục chống trùng lại chặn khi chưa
+ * `CLOSED`, nên sinh viên không bao giờ hỏi lại nơi đó được nữa.
+ *
+ * Quét từ database thì trạng thái nằm ở database, không nằm trong bộ nhớ của
+ * một process cụ thể.
+ *
+ * `unref()` để cái hẹn giờ này không giữ process sống lúc tắt server.
+ */
+const QUET_MOI_MS = 15 * 60_000
+
+function quetQuaHan() {
+  void donYeuCauQuaHan().catch((err: unknown) => {
+    logger.error('Không quét được yêu cầu quá hạn', {
+      message: err instanceof Error ? err.message : String(err),
+    })
+  })
+}
+
+quetQuaHan()
+setInterval(quetQuaHan, QUET_MOI_MS).unref()
 
 /**
  * Tắt server có trật tự.

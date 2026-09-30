@@ -904,16 +904,31 @@ export const applicantQuerySchema = z.object({
  * không đụng nhau. Ép uuid chỉ thêm một cách hỏng mà không mua lại gì — khoá
  * unique trong database mới là thứ bảo đảm.
  */
-const idDoClientSinh = z
-  .string()
-  .trim()
-  .min(8, 'Id quá ngắn')
-  .max(64, 'Id quá dài')
+const idDoClientSinh = z.string().trim().min(8, 'Id quá ngắn').max(64, 'Id quá dài')
 
 export const taoPhienChatSchema = z.object({
-  kind: z.enum(['AI_STUDENT', 'AI_EMPLOYER']),
+  /**
+   * `AI_SUPPORT` mở được bởi CẢ HAI vai — sinh viên và nhà tuyển dụng đều cần
+   * hỗ trợ. Hai kind kia thì gắn chặt với vai, và service kiểm điều đó.
+   */
+  kind: z.enum(['AI_STUDENT', 'AI_EMPLOYER', 'AI_SUPPORT']),
   clientSessionId: idDoClientSinh,
   jobId: z.string().trim().min(1).max(40).optional(),
+})
+
+/** Yêu cầu gặp quản trị viên. Mô tả không bắt buộc — lịch sử hội thoại là ngữ cảnh. */
+export const yeuCauHoTroSchema = z.object({
+  moTa: z.string().trim().max(1000, 'Tối đa 1000 ký tự').default(''),
+})
+
+/**
+ * Nhà tuyển dụng từ chối yêu cầu trao đổi.
+ *
+ * Lý do KHÔNG bắt buộc, khác hẳn từ chối đơn ứng tuyển: ở đây chưa có đơn nào,
+ * chưa có gì để giải thích, và ép nhập chỉ khiến người ta gõ bừa một chữ.
+ */
+export const tuChoiYeuCauSchema = z.object({
+  lyDo: z.string().trim().max(500, 'Tối đa 500 ký tự').default(''),
 })
 
 /**
@@ -925,11 +940,7 @@ export const taoPhienChatSchema = z.object({
 export const hoiTroLySchema = z.object({
   sessionId: z.string().trim().min(1).max(40),
   clientMessageId: idDoClientSinh,
-  noiDung: z
-    .string()
-    .trim()
-    .min(1, 'Nhập câu hỏi trước đã')
-    .max(2000, 'Câu hỏi tối đa 2000 ký tự'),
+  noiDung: z.string().trim().min(1, 'Nhập câu hỏi trước đã').max(2000, 'Câu hỏi tối đa 2000 ký tự'),
   /** Tin người dùng đang mở, để trợ lý hiểu "việc này" mà không phải hỏi lại. */
   jobIdDangXem: z.string().trim().min(1).max(40).optional(),
 })
@@ -942,4 +953,58 @@ export const guiTinNhanSchema = z.object({
     .trim()
     .min(1, 'Nhập nội dung trước đã')
     .max(2000, 'Tin nhắn tối đa 2000 ký tự'),
+})
+
+/**
+ * Chuyển hội thoại sang nhà tuyển dụng.
+ *
+ * `jobId` BẮT BUỘC: thiếu nó thì nhà tuyển dụng nhận một hội thoại không biết
+ * đang nói về tin nào, và CHECK `chat_handoff_du_thong_tin` trong database
+ * cũng từ chối.
+ */
+export const chuyenNTDSchema = z.object({
+  jobId: z.string().trim().min(1, 'Chưa chọn tin tuyển dụng').max(40),
+  loiNhan: z.string().trim().max(500, 'Lời nhắn tối đa 500 ký tự').optional(),
+})
+
+/* ============================================= Bao cao tin (Sprint 5) ==== */
+
+export const JOB_REPORT_REASONS = [
+  'LUA_DAO',
+  'SAI_SU_THAT',
+  'KHONG_PHU_HOP',
+  'TRUNG_LAP',
+  'KHAC',
+] as const
+export type JobReportReasonValue = (typeof JOB_REPORT_REASONS)[number]
+
+/** Nhãn tiếng Việt, dùng chung cho form người gửi và màn hình admin. */
+export const JOB_REPORT_REASON_LABELS: Record<JobReportReasonValue, string> = {
+  LUA_DAO: 'Lừa đảo, đòi tiền cọc',
+  SAI_SU_THAT: 'Thông tin sai sự thật',
+  KHONG_PHU_HOP: 'Nội dung không phù hợp',
+  TRUNG_LAP: 'Đăng trùng lặp, tin rác',
+  KHAC: 'Lý do khác',
+}
+
+/**
+ * Gui bao cao tin.
+ *
+ * `moTa` BAT BUOC toi thieu 20 ky tu: mot bao cao chi co "lua dao" khong giup
+ * admin quyet duoc gi, va cai gia cua no la mot tin that co the bi go oan.
+ */
+export const guiBaoCaoSchema = z.object({
+  jobId: z.string().trim().min(1).max(40),
+  clientReportId: idDoClientSinh,
+  reason: z.enum(JOB_REPORT_REASONS),
+  moTa: z
+    .string()
+    .trim()
+    .min(20, 'Mo ta it nhat 20 ky tu — noi ro ban thay gi')
+    .max(2000, 'Mo ta toi da 2000 ky tu'),
+})
+
+export const xuLyBaoCaoSchema = z.object({
+  status: z.enum(['DANG_XEM', 'DA_XU_LY', 'BAC_BO']),
+  ketLuan: z.string().trim().max(2000).default(''),
 })

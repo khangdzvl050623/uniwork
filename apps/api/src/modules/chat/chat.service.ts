@@ -50,7 +50,9 @@ export async function taoPhien(
   }
 
   const daCo = await prisma.chatSession.findUnique({
-    where: { ownerUserId_clientSessionId: { ownerUserId: userId, clientSessionId: input.clientSessionId } },
+    where: {
+      ownerUserId_clientSessionId: { ownerUserId: userId, clientSessionId: input.clientSessionId },
+    },
     select: { id: true, kind: true, state: true, jobId: true },
   })
   if (daCo) return { sessionId: daCo.id, kind: daCo.kind, state: daCo.state, jobId: daCo.jobId }
@@ -88,11 +90,35 @@ export async function taoPhien(
      */
     if (!laTrungKhoa(e)) throw e
     const lai = await prisma.chatSession.findUniqueOrThrow({
-      where: { ownerUserId_clientSessionId: { ownerUserId: userId, clientSessionId: input.clientSessionId } },
+      where: {
+        ownerUserId_clientSessionId: {
+          ownerUserId: userId,
+          clientSessionId: input.clientSessionId,
+        },
+      },
       select: { id: true, kind: true, state: true, jobId: true },
     })
     return { sessionId: lai.id, kind: lai.kind, state: lai.state, jobId: lai.jobId }
   }
+}
+
+/**
+ * `Role` của tài khoản → nhãn người gửi ghi vào tin nhắn.
+ *
+ * Ánh xạ 1:1, nhưng KHÔNG ép kiểu thẳng. Hai enum này trùng nhau hôm nay là
+ * tình cờ; `Role` là của cả hệ thống, `ChatSenderType` còn có AI và SYSTEM.
+ * Viết rời ra thì lần nào một bên thêm giá trị mới, TypeScript bắt ngay tại
+ * đây thay vì để một chuỗi lạ chui vào cột.
+ *
+ * Bản trước viết `role === 'EMPLOYER' ? 'EMPLOYER' : 'STUDENT'` — nhánh `else`
+ * nuốt luôn ADMIN, nên câu trả lời của admin trong phiên hỗ trợ nằm trong
+ * database dưới nhãn STUDENT, không phân biệt được với câu hỏi của chính
+ * người đang xin giúp.
+ */
+const NGUOI_GUI: Record<Role, ChatSenderType> = {
+  STUDENT: 'STUDENT',
+  EMPLOYER: 'EMPLOYER',
+  ADMIN: 'ADMIN',
 }
 
 export interface TinNhanItem {
@@ -108,6 +134,8 @@ export interface TraTinNhan {
   cursor: string
   conNua: boolean
   duocGui: boolean
+  /** Trạng thái phiên lúc đọc. Client hiển thị, KHÔNG tự suy từ danh sách tin. */
+  state: string
 }
 
 /** Trần mỗi lần tải bù. Vượt thì client gọi tiếp với cursor mới. */
@@ -155,6 +183,7 @@ export async function layTinNhan(
     cursor: dongCursor(Math.max(daXet, moCursor(cursor))),
     conNua,
     duocGui: quyen.duocGui,
+    state: quyen.trangThai,
   }
 }
 
@@ -251,7 +280,7 @@ export async function batDauLuot(v: BatDauLuotInput): Promise<KetQuaBatDau> {
         data: {
           sessionId: v.sessionId,
           seq: sau.messageSeq,
-          senderType: v.role === 'EMPLOYER' ? 'EMPLOYER' : 'STUDENT',
+          senderType: NGUOI_GUI[v.role],
           senderUserId: v.userId,
           clientMessageId: v.clientMessageId,
           body: v.noiDung,
@@ -259,7 +288,12 @@ export async function batDauLuot(v: BatDauLuotInput): Promise<KetQuaBatDau> {
         },
       })
 
-      return { loai: 'moi' as const, turnId: luot.turnId, seqCauHoi: sau.messageSeq, conLai: luot.conLai }
+      return {
+        loai: 'moi' as const,
+        turnId: luot.turnId,
+        seqCauHoi: sau.messageSeq,
+        conLai: luot.conLai,
+      }
     })
   } catch (e) {
     if (e instanceof HetLuotError) {
@@ -377,9 +411,10 @@ export async function layLichSu(sessionId: string): Promise<ModelMessage[]> {
     select: { senderType: true, body: true },
   })
 
-  return ds
-    .reverse()
-    .map((t) => ({ role: t.senderType === 'AI' ? ('assistant' as const) : ('user' as const), content: t.body }))
+  return ds.reverse().map((t) => ({
+    role: t.senderType === 'AI' ? ('assistant' as const) : ('user' as const),
+    content: t.body,
+  }))
 }
 
 /* ================================================================ chung -- */
@@ -437,7 +472,7 @@ export async function guiTinNhan(
         data: {
           sessionId,
           seq: sau.messageSeq,
-          senderType: user.role === 'EMPLOYER' ? 'EMPLOYER' : 'STUDENT',
+          senderType: NGUOI_GUI[user.role],
           senderUserId: user.id,
           clientMessageId,
           body: noiDung,
@@ -515,4 +550,43 @@ export async function quyenPhien(
   const q = await quyenTruyCapPhien(user, sessionId)
   if (!q) throw notFound('Không tìm thấy hội thoại')
   return q
+}
+
+/* ====================================================== tin hệ thống -- */
+
+/**
+ * Ghi một tin `SYSTEM` và tăng `seq`, trong CÙNG transaction với việc đổi
+ * trạng thái.
+ *
+ * Ở đây chứ không ở `handoff.service`: cả năm chuyển đổi handoff NTD lẫn ba
+ * chuyển đổi kênh hỗ trợ đều cần nó, và `seq` phải cấp bằng `increment` chứ
+ * không phải `max()+1` — xem `batDauLuot` về lý do.
+ *
+ * `choNTD` chỉ có nghĩa với kênh `AI_STUDENT`. Kênh hỗ trợ luôn truyền `false`:
+ * admin đọc theo `kind`, không theo cờ này.
+ */
+export async function ghiTinHeThong(
+  tx: Prisma.TransactionClient,
+  sessionId: string,
+  body: string,
+  choNTD: boolean,
+): Promise<TinNhanItem> {
+  const sau = await tx.chatSession.update({
+    where: { id: sessionId },
+    data: { messageSeq: { increment: 1 }, lastMessageAt: new Date() },
+    select: { messageSeq: true },
+  })
+
+  const tin = await tx.chatMessage.create({
+    data: {
+      sessionId,
+      seq: sau.messageSeq,
+      senderType: 'SYSTEM',
+      body,
+      visibleToEmployer: choNTD,
+    },
+    select: { id: true, seq: true, senderType: true, body: true, createdAt: true },
+  })
+
+  return { ...tin, createdAt: tin.createdAt.toISOString() }
 }

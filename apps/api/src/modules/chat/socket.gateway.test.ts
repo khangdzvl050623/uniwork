@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import { io as taoClient, type Socket as ClientSocket } from 'socket.io-client'
 import type { Server } from 'socket.io'
 import { notFound } from '../../lib/errors.js'
+import { prisma } from '../../lib/prisma.js'
 import { signAccessToken } from '../../lib/token.js'
 import { guiTinNhan, layTinNhan, quyenPhien } from './chat.service.js'
 import { phatToiPhong } from './phat-su-kien.js'
@@ -14,7 +15,16 @@ vi.mock('./chat.service.js', () => ({
   layTinNhan: vi.fn(),
   guiTinNhan: vi.fn(),
 }))
-vi.mock('../../lib/prisma.js', () => ({ prisma: {} }))
+/*
+ * `employerProfile.findUnique` là lời gọi database DUY NHẤT của cổng socket —
+ * nó tra hồ sơ để biết nhà tuyển dụng thuộc phòng hộp thư nào lúc kết nối.
+ */
+vi.mock('../../lib/prisma.js', () => ({
+  prisma: { employerProfile: { findUnique: vi.fn() } },
+}))
+
+const mockHoSoNTD = (prisma as unknown as { employerProfile: { findUnique: Mock } })
+  .employerProfile.findUnique
 
 const mockQuyenPhien = quyenPhien as unknown as Mock
 const mockLayTinNhan = layTinNhan as unknown as Mock
@@ -92,6 +102,7 @@ afterEach(async () => {
 })
 
 const token = () => signAccessToken({ sub: 'u-1', role: 'STUDENT' })
+const tokenVai = (role: 'ADMIN' | 'EMPLOYER', sub = 'u-2') => signAccessToken({ sub, role })
 
 /* ===================================================================== */
 
@@ -187,6 +198,37 @@ describe('hoi-thoai:vao', () => {
     await noi(token())
     await new Promise((giai) => setTimeout(giai, 50))
     expect(io.sockets.adapter.rooms.get('user:u-1')?.size).toBe(1)
+  })
+
+  /*
+   * =======================================================================
+   * BA CA NÀY CHẶN "HÀNG ĐỢI KHÔNG BAO GIỜ TỰ CẬP NHẬT"
+   * =======================================================================
+   * `phatToiPhong(PHONG_ADMIN_HO_TRO, …)` và `phatToiPhong(phongHopThuNTD(…))`
+   * đã tồn tại từ trước — nhưng KHÔNG AI vào hai phòng đó, nên chúng bắn vào
+   * hư không suốt cả lần dựng đầu. Không lỗi, không log; chỉ là hàng đợi nằm
+   * im cho tới lần hỏi lại định kỳ.
+   *
+   * Ca thứ ba quan trọng ngang hai ca kia: sinh viên KHÔNG được lọt vào hàng
+   * đợi của admin. Một `join` sai vai là rò toàn bộ luồng yêu cầu hỗ trợ.
+   */
+  it('admin tự vào phòng hàng đợi hỗ trợ', async () => {
+    await noi(tokenVai('ADMIN'))
+    await new Promise((giai) => setTimeout(giai, 50))
+    expect(io.sockets.adapter.rooms.get('admin:ho-tro')?.size).toBe(1)
+  })
+
+  it('nhà tuyển dụng tự vào phòng hộp thư của hồ sơ mình', async () => {
+    mockHoSoNTD.mockResolvedValue({ id: 'ep-9' })
+    await noi(tokenVai('EMPLOYER', 'u-3'))
+    await new Promise((giai) => setTimeout(giai, 50))
+    expect(io.sockets.adapter.rooms.get('ntd:ep-9')?.size).toBe(1)
+  })
+
+  it('sinh viên KHÔNG vào hàng đợi hỗ trợ của admin', async () => {
+    await noi(token())
+    await new Promise((giai) => setTimeout(giai, 50))
+    expect(io.sockets.adapter.rooms.has('admin:ho-tro')).toBe(false)
   })
 
   it('ra phòng thì rời thật', async () => {
@@ -312,7 +354,10 @@ describe('bộ phát', () => {
     await goi(s, 'hoi-thoai:vao', { sessionId: 'p-1' })
 
     const nhan = new Promise<unknown>((giai) => s.on('hoi-thoai:tin-moi', giai))
-    phatToiPhong('hoi-thoai:p-1:chu', 'hoi-thoai:tin-moi', { sessionId: 'p-1', message: { seq: 6 } })
+    phatToiPhong('hoi-thoai:p-1:chu', 'hoi-thoai:tin-moi', {
+      sessionId: 'p-1',
+      message: { seq: 6 },
+    })
 
     expect(await nhan).toMatchObject({ sessionId: 'p-1' })
   })

@@ -2,8 +2,11 @@ import {
   Bookmark,
   BriefcaseBusiness,
   CalendarDays,
+  Flag,
   LayoutDashboard,
+  MessagesSquare,
   ShieldCheck,
+  Sparkles,
   UserRound,
 } from 'lucide-react'
 import type { Role } from '@uniwork/shared'
@@ -23,10 +26,14 @@ export const MENU_THEO_VAI: Record<Role, { to: string; label: string; icon: type
       { to: '/lich-ranh', label: 'Lịch rảnh', icon: CalendarDays },
       { to: '/tin-da-luu', label: 'Tin đã lưu', icon: Bookmark },
       { to: '/don-ung-tuyen', label: 'Đơn của tôi', icon: BriefcaseBusiness },
+      { to: '/tro-ly', label: 'Trợ lý AI', icon: Sparkles },
+      { to: '/bao-cao-cua-toi', label: 'Báo cáo của tôi', icon: Flag },
     ],
     EMPLOYER: [
       { to: '/ntd/ho-so', label: 'Hồ sơ doanh nghiệp', icon: UserRound },
       { to: '/ntd/quan-ly', label: 'Tin đăng của tôi', icon: LayoutDashboard },
+      { to: '/ntd/hoi-thoai', label: 'Hộp thư trao đổi', icon: MessagesSquare },
+      { to: '/bao-cao-cua-toi', label: 'Báo cáo của tôi', icon: Flag },
     ],
     ADMIN: [{ to: '/admin', label: 'Khu quản trị', icon: ShieldCheck }],
   }
@@ -64,6 +71,7 @@ export const NAV_THEO_VAI: Record<Role, MucNav[]> = {
     { to: '/viec-lam', label: 'Việc làm' },
     { to: '/ntd/quan-ly', label: 'Tin đăng của tôi' },
     { to: '/ntd/ung-vien', label: 'Ứng viên' },
+    { to: '/ntd/hoi-thoai', label: 'Hộp thư' },
   ],
   ADMIN: [
     { to: '/viec-lam', label: 'Việc làm' },

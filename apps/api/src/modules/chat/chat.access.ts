@@ -18,7 +18,7 @@ import { prisma } from '../../lib/prisma.js'
  */
 
 /** Vai của người xem TRONG phiên này — không phải `Role` của tài khoản. */
-export type VaiTrongPhien = 'CHU' | 'NTD_NHAN_HANDOFF'
+export type VaiTrongPhien = 'CHU' | 'NTD_NHAN_HANDOFF' | 'ADMIN_HO_TRO'
 
 export interface QuyenTruyCap {
   sessionId: string
@@ -31,6 +31,14 @@ export interface QuyenTruyCap {
    * gì, và triệu chứng duy nhất là "realtime không chạy" — không log, không lỗi.
    */
   phong: string
+  /**
+   * Trạng thái phiên, để nơi gọi khỏi truy vấn lại.
+   *
+   * Hàm này đã đọc `state` để quyết `duocGui`; giấu nó đi thì mọi màn hình
+   * muốn hiện "đang chờ tiếp nhận" lại phải tự gọi thêm một lần nữa — và
+   * chúng sẽ đọc được một giá trị khác với giá trị vừa dùng để phân quyền.
+   */
+  trangThai: string
   seqHienTai: number
   /** Chỉ đọc tin có `seq >= ` mốc này. */
   docTuSeq: number
@@ -61,16 +69,18 @@ export async function quyenTruyCapPhien(
     where: { id: sessionId },
     select: {
       id: true,
+      kind: true,
       ownerUserId: true,
       state: true,
       messageSeq: true,
       employerVisibleFromSeq: true,
       handoffEmployerProfileId: true,
+      handoffAdminUserId: true,
     },
   })
   if (!p) return null
 
-  const chung = { sessionId: p.id, seqHienTai: p.messageSeq }
+  const chung = { sessionId: p.id, trangThai: p.state, seqHienTai: p.messageSeq }
 
   if (p.ownerUserId === user.id) {
     return {
@@ -108,6 +118,29 @@ export async function quyenTruyCapPhien(
     }
   }
 
+  /*
+   * ADMIN đọc được hội thoại HỖ TRỢ — và CHỈ hội thoại hỗ trợ.
+   *
+   * Với hai kênh kia họ vẫn nhận `null`, có test canh. Ở đây thì khác: người
+   * dùng CHỦ ĐỘNG mở một phiên hỗ trợ và bấm xin người thật, nên cả lịch sử
+   * chính là nội dung cái ticket — đọc từ seq 1, không có mốc riêng tư.
+   *
+   * Quyền ĐỌC neo vào `kind`, KHÔNG vào `handoffAdminUserId`: admin thứ hai
+   * phải xem được hàng đợi thì mới tiếp nhận được. Quyền GỬI mới đòi đúng
+   * người đã nhận — hai admin cùng trả lời một ticket là hai giọng nói khác
+   * nhau trong cùng một cuộc trò chuyện.
+   */
+  if (p.kind === 'AI_SUPPORT' && user.role === 'ADMIN') {
+    return {
+      ...chung,
+      vai: 'ADMIN_HO_TRO',
+      phong: phongAdmin(p.id),
+      docTuSeq: 1,
+      chiTinChiaSe: false,
+      duocGui: p.state === 'HUMAN_ACTIVE' && p.handoffAdminUserId === user.id,
+    }
+  }
+
   return null
 }
 
@@ -122,5 +155,15 @@ export async function quyenTruyCapPhien(
  */
 export const phongChu = (sessionId: string) => `hoi-thoai:${sessionId}:chu`
 export const phongNTD = (sessionId: string) => `hoi-thoai:${sessionId}:ntd`
+/** Phòng của admin đang xử một hội thoại hỗ trợ. Kênh thứ ba, tách hẳn hai kênh trên. */
+export const phongAdmin = (sessionId: string) => `hoi-thoai:${sessionId}:admin`
 export const phongNguoiDung = (userId: string) => `user:${userId}`
 export const phongHopThuNTD = (employerProfileId: string) => `ntd:${employerProfileId}`
+/**
+ * Hàng đợi hỗ trợ — MỘT phòng cho TẤT CẢ admin, không phải một phòng mỗi người.
+ *
+ * Yêu cầu mới chưa có ai được chỉ định (admin là hàng đợi, người nhận chỉ đặt
+ * lúc tiếp nhận). Phát riêng cho từng admin thì phải biết trước danh sách admin
+ * đang online, mà đó chính là thứ Socket.IO giữ hộ bằng phòng.
+ */
+export const PHONG_ADMIN_HO_TRO = 'admin:ho-tro'

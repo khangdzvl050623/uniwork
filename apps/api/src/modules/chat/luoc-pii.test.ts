@@ -3,9 +3,9 @@ import { bocNguon, catChuoi, catDanhSach, hoTenVietTat, LoLotPII, raSoat } from 
 
 describe('raSoat — cổng ra của mọi DTO gửi cho model', () => {
   it('ném khi DTO có khoá chưa nằm trong danh sách cho phép', () => {
-    expect(() => raSoat('kyNang', { name: 'Pha chế', slug: 'pha-che', zaloId: '0912345678' })).toThrow(
-      LoLotPII,
-    )
+    expect(() =>
+      raSoat('kyNang', { name: 'Pha chế', slug: 'pha-che', zaloId: '0912345678' }),
+    ).toThrow(LoLotPII)
   })
 
   it('thông báo lỗi nói rõ tên trường và tên nhóm', () => {

@@ -75,9 +75,22 @@ export function rateLimit({ max, windowMs, keyOf }: RateLimitOptions): RequestHa
     const now = Date.now()
     sweep(now)
 
-    // Gắn tiền tố là đường dẫn route để hai endpoint khác nhau không dùng chung
-    // bộ đếm — dò mật khẩu ở /dang-nhap không nên làm khoá luôn /gui-otp.
-    const key = `${req.baseUrl}${req.path}:${keyOf ? keyOf(req) : (req.ip ?? 'unknown')}`
+    /*
+     * Tiền tố là MẪU route (`/:id/chuyen-ntd`), KHÔNG phải đường dẫn cụ thể.
+     *
+     * Hai endpoint khác nhau không được dùng chung bộ đếm — dò mật khẩu ở
+     * /dang-nhap không nên khoá luôn /gui-otp. Nhưng `req.path` chứa cả id
+     * thật, nên với route có tham số thì MỖI id là một bộ đếm riêng:
+     *
+     *   POST /api/hoi-thoai/<phiên A>/chuyen-ntd   → bộ đếm 1
+     *   POST /api/hoi-thoai/<phiên B>/chuyen-ntd   → bộ đếm 2
+     *
+     * Mà tạo phiên mới thì rẻ. Trần "10 lần chuyển mỗi giờ" vì vậy không chặn
+     * được đúng thứ nó sinh ra để chặn. `req.route.path` là mẫu, nên mọi id
+     * dồn về một bộ đếm.
+     */
+    const mau = req.route?.path ?? req.path
+    const key = `${req.baseUrl}${String(mau)}:${keyOf ? keyOf(req) : (req.ip ?? 'unknown')}`
     const bucket = buckets.get(key)
 
     if (!bucket || bucket.resetAt <= now) {

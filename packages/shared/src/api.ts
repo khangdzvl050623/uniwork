@@ -996,7 +996,12 @@ export interface WithdrawApplicationResponse {
 
 /* --------------------------------------------------- Thông báo ----------- */
 
-export type NotificationType = 'APPLICATION_SUBMITTED' | 'APPLICATION_STATUS_CHANGED'
+export type NotificationType =
+  | 'APPLICATION_SUBMITTED'
+  | 'APPLICATION_STATUS_CHANGED'
+  | 'CHAT_HANDOFF_REQUESTED'
+  | 'CHAT_HANDOFF_ACCEPTED'
+  | 'BAO_CAO_DA_XU_LY'
 
 export interface NotificationItem {
   id: string

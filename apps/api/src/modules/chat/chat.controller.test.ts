@@ -55,7 +55,12 @@ beforeEach(() => {
   coKhoa = true
   mockBatDauLuot.mockResolvedValue({ loai: 'moi', turnId: 't-1', seqCauHoi: 1, conLai: 4 })
   mockChayLuot.mockResolvedValue(undefined)
-  mockTaoPhien.mockResolvedValue({ sessionId: 'phien-1', kind: 'AI_STUDENT', state: 'AI_ACTIVE', jobId: null })
+  mockTaoPhien.mockResolvedValue({
+    sessionId: 'phien-1',
+    kind: 'AI_STUDENT',
+    state: 'AI_ACTIVE',
+    jobId: null,
+  })
 })
 
 describe('canh cửa', () => {
@@ -65,7 +70,11 @@ describe('canh cửa', () => {
 
   it('ADMIN không có trợ lý', async () => {
     const t = signAccessToken({ sub: 'a-1', role: 'ADMIN' })
-    await request(app).post('/api/tro-ly/hoi').set('Authorization', `Bearer ${t}`).send(than).expect(403)
+    await request(app)
+      .post('/api/tro-ly/hoi')
+      .set('Authorization', `Bearer ${t}`)
+      .send(than)
+      .expect(403)
   })
 })
 

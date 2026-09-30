@@ -76,15 +76,7 @@ export const TRUONG_CHO_MODEL = {
     'ngayBatDau',
     'ngayKetThuc',
   ],
-  hoSoSinhVien: [
-    'truong',
-    'nganh',
-    'namHoc',
-    'luongMongMuon',
-    'lamDuocToiNgay',
-    'kyNang',
-    'coCv',
-  ],
+  hoSoSinhVien: ['truong', 'nganh', 'namHoc', 'luongMongMuon', 'lamDuocToiNgay', 'kyNang', 'coCv'],
   donUngTuyen: [
     'id',
     'jobId',
@@ -213,6 +205,9 @@ export function catChuoi(s: string, n: number): string {
  * 5 tin và kết luận "chỉ có 5 tin thôi bạn ạ", trong khi màn hình ngay cạnh
  * hiện 42 tin.
  */
-export function catDanhSach<T>(ds: T[], n: number): { danhSach: T[]; conNua: boolean; tong: number } {
+export function catDanhSach<T>(
+  ds: T[],
+  n: number,
+): { danhSach: T[]; conNua: boolean; tong: number } {
   return { danhSach: ds.slice(0, n), conNua: ds.length > n, tong: ds.length }
 }

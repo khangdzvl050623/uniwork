@@ -71,7 +71,8 @@ export async function chayLuot(v: ChayLuotInput): Promise<TomTatLuot | null> {
     const traLoi = kq.chamTran ? CAU_KHI_CHAM_TRAN : kq.traLoi
     if (kq.chamTran) v.phat('chu', traLoi)
 
-    const ghi = traLoi.trim() === '' ? { ghi: false } : await ghiTraLoi(v.sessionId, v.turnId, traLoi)
+    const ghi =
+      traLoi.trim() === '' ? { ghi: false } : await ghiTraLoi(v.sessionId, v.turnId, traLoi)
     if (!ghi.ghi) await boCoDangChay(v.sessionId, v.turnId)
 
     await chotLuot(prisma, {
