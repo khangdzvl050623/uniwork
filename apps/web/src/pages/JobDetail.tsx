@@ -4,9 +4,12 @@ import {
   BadgeCheck,
   CalendarClock,
   ExternalLink,
+  Headset,
   Loader2,
   MapPin,
+  MessagesSquare,
   Send,
+  ShieldAlert,
   Users,
   Wallet,
 } from 'lucide-react'
@@ -18,6 +21,8 @@ import { BadgePhuHop } from '@/components/BadgePhuHop'
 import { LuoiKhungGio } from '@/components/LuoiKhungGio'
 import { NutLuuTin } from '@/components/NutLuuTin'
 import { DialogUngTuyen } from '@/components/DialogUngTuyen'
+import { DialogBaoCao } from '@/components/bao-cao/DialogBaoCao'
+import { DialogHoiNTD } from '@/components/hoi-thoai/DialogHoiNTD'
 import { useAvailability } from '@/hooks/useProfile'
 import { useAuth } from '@/hooks/useAuth'
 import { usePublicJob } from '@/hooks/usePublicJobs'
@@ -53,6 +58,8 @@ export function JobDetail() {
   const { data: job, isLoading, isError } = usePublicJob(id)
 
   const [moUngTuyen, setMoUngTuyen] = useState(false)
+  const [moHoiNTD, setMoHoiNTD] = useState(false)
+  const [moBaoCao, setMoBaoCao] = useState(false)
   // Đường dẫn hiện tại để quay lại đúng tin này sau khi đăng nhập.
   const duongDan = useLocation().pathname
   const { user } = useAuth()
@@ -308,6 +315,61 @@ export function JobDetail() {
             <div className={laSinhVien || !user ? 'mt-2' : ''}>
               <NutLuuTin job={job} coChu />
             </div>
+
+            {/*
+              BA CỬA, BA ĐÍCH ĐẾN KHÁC HẲN NHAU — và đó là lý do chúng tách rời.
+
+                Hỏi NTD      → chính nhà tuyển dụng sở hữu tin này
+                Báo cáo tin  → quản trị viên, và NTD không bao giờ biết là ai
+                Liên hệ hỗ trợ → quản trị viên, về UniWork chứ không về tin này
+
+              Gộp thành một nút "Liên hệ" là đẩy người dùng vào chỗ phải đoán,
+              và họ sẽ đoán sai đúng ở ca nguy hiểm nhất: gửi nghi ngờ lừa đảo
+              thẳng cho chính người bị nghi.
+            */}
+            {laSinhVien && (
+              <div className="mt-4 space-y-2 border-t border-slate-100 pt-4">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setMoHoiNTD(true)}
+                >
+                  <MessagesSquare size={16} />
+                  Hỏi nhà tuyển dụng
+                </Button>
+                <DialogHoiNTD
+                  jobId={job.id}
+                  tenTin={job.title}
+                  congTy={job.employer.companyName}
+                  open={moHoiNTD}
+                  onOpenChange={setMoHoiNTD}
+                />
+
+                <div className="flex gap-2">
+                  <Link to="/ho-tro" className="flex-1">
+                    <Button variant="ghost" size="sm" className="w-full">
+                      <Headset size={15} />
+                      Liên hệ hỗ trợ
+                    </Button>
+                  </Link>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="flex-1 text-rose-700 hover:bg-rose-50"
+                    onClick={() => setMoBaoCao(true)}
+                  >
+                    <ShieldAlert size={15} />
+                    Báo cáo tin
+                  </Button>
+                </div>
+                <DialogBaoCao
+                  jobId={job.id}
+                  tenTin={job.title}
+                  open={moBaoCao}
+                  onOpenChange={setMoBaoCao}
+                />
+              </div>
+            )}
 
             <ul className="mt-5 space-y-2.5 border-t border-slate-100 pt-4 text-sm">
               <li className="flex items-center justify-between">

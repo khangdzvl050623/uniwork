@@ -1,16 +1,18 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
 import {
   Bell,
   BriefcaseBusiness,
   Building2,
   ClipboardCheck,
+  Flag,
+  Headset,
   LayoutDashboard,
+  MessagesSquare,
   type LucideIcon,
   Menu,
   Moon,
   Plus,
-  Search,
   Shapes,
   Sun,
   Users,
@@ -72,6 +74,8 @@ const NAV_ADMIN: NhomSidebar[] = [
     items: [
       { to: '/admin/duyet-tin', label: 'Duyệt tin tuyển dụng', icon: ClipboardCheck },
       { to: '/admin/duyet-ntd', label: 'Duyệt nhà tuyển dụng', icon: Building2 },
+      { to: '/admin/ho-tro', label: 'Hàng đợi hỗ trợ', icon: Headset },
+      { to: '/admin/bao-cao', label: 'Báo cáo tin', icon: Flag },
     ],
   },
   {
@@ -90,6 +94,7 @@ const NAV_EMPLOYER: NhomSidebar[] = [
       { to: '/ntd/quan-ly', label: 'Tin đăng của tôi', icon: BriefcaseBusiness },
       { to: '/ntd/dang-tin', label: 'Đăng tin mới', icon: Plus },
       { to: '/ntd/ung-vien', label: 'Ứng viên', icon: Users },
+      { to: '/ntd/hoi-thoai', label: 'Hộp thư trao đổi', icon: MessagesSquare },
     ],
   },
   {
@@ -281,7 +286,7 @@ function TopBar({
         {menuOpen ? <Menu size={19} /> : <Menu size={19} />}
       </button>
 
-      <SearchBox />
+    
 
       <div className="ml-auto flex items-center gap-1.5">
         <button className="bg-dash-accent text-dash-accent-ink hidden items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-semibold transition-[transform,filter] duration-150 ease-out hover:brightness-110 active:scale-[0.97] sm:inline-flex">
@@ -345,26 +350,7 @@ function TopBar({
  * Hiện sai thì người dùng bấm theo rồi không thấy gì xảy ra, tức là gợi ý còn
  * tệ hơn không có gợi ý.
  */
-function SearchBox() {
-  const [isMac, setIsMac] = useState(false)
 
-  useEffect(() => {
-    setIsMac(/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent))
-  }, [])
-
-  return (
-    <label className="border-dash-line bg-dash-surface focus-within:border-dash-accent/60 flex h-9 w-full max-w-sm items-center gap-2.5 rounded-lg border px-3 transition-colors duration-150">
-      <Search size={15} className="text-dash-muted shrink-0" />
-      <input
-        placeholder="Tìm tin đăng, doanh nghiệp, người dùng…"
-        className="placeholder:text-dash-muted min-w-0 flex-1 bg-transparent text-sm outline-none"
-      />
-      <kbd className="border-dash-line text-dash-muted hidden shrink-0 rounded border px-1.5 py-0.5 font-sans text-[10px] font-medium sm:block">
-        {isMac ? '⌘' : 'Ctrl'} K
-      </kbd>
-    </label>
-  )
-}
 
 function IconButton({
   label,

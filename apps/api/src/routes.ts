@@ -12,7 +12,13 @@ import {
 import { profileRoutes } from './modules/profile/profile.routes.js'
 import { adminSkillsRoutes, skillsRoutes } from './modules/skills/skills.routes.js'
 import { notificationRoutes } from './modules/notifications/notifications.routes.js'
-import { hoiThoaiRoutes, troLyRoutes } from './modules/chat/chat.routes.js'
+import {
+  adminHoTroRoutes,
+  hoiThoaiRoutes,
+  hopThuNTDRoutes,
+  troLyRoutes,
+} from './modules/chat/chat.routes.js'
+import { adminBaoCaoRoutes, baoCaoRoutes } from './modules/bao-cao/bao-cao.routes.js'
 
 /**
  * Gom router của tất cả module lại, gắn dưới tiền tố /api.
@@ -44,6 +50,19 @@ apiRouter.use('/skills', skillsRoutes)
  */
 apiRouter.use('/hoi-thoai', hoiThoaiRoutes)
 apiRouter.use('/tro-ly', troLyRoutes)
+
+/* Hop thu handoff cua nha tuyen dung. */
+apiRouter.use('/ntd/hoi-thoai', hopThuNTDRoutes)
+
+/*
+ * Bao cao tin. KHONG di qua hoi thoai — duong handoff duy nhat cua tro ly la
+ * chuyen sang chinh nha tuyen dung so huu tin, ma voi mot tin lua dao thi do
+ * dung la nguoi can tranh.
+ *
+ * `/toi/bao-cao` dat duoi `/toi` nen phai khai TRUOC `/toi` o duoi — cung cai
+ * bay da ne o `/toi/tin-da-luu` va `/toi/don-ung-tuyen`.
+ */
+apiRouter.use('/toi/bao-cao', baoCaoRoutes)
 
 /* Việc làm công khai — endpoint DUY NHẤT trong dự án không cần đăng nhập ngoài /health. */
 apiRouter.use('/viec-lam', publicJobRoutes)
@@ -83,3 +102,9 @@ apiRouter.use('/admin/tin-tuyen-dung', adminJobRoutes)
  * tới bảng `Skill` trong `modules/skills/`.
  */
 apiRouter.use('/admin/ky-nang', adminSkillsRoutes)
+
+/* Hang doi bao cao tin — chi ADMIN. */
+apiRouter.use('/admin/bao-cao', adminBaoCaoRoutes)
+
+/* Hàng đợi hỗ trợ — chỉ ADMIN. Người dùng gửi yêu cầu ở `/hoi-thoai/:id/yeu-cau-ho-tro`. */
+apiRouter.use('/admin/ho-tro', adminHoTroRoutes)

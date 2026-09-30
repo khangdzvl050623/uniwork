@@ -3,7 +3,7 @@ import request from 'supertest'
 import { createApp } from '../../app.js'
 import { AppError } from '../../lib/errors.js'
 import { signAccessToken } from '../../lib/token.js'
-import { batDauLuot, taoPhien } from './chat.service.js'
+import { batDauLuot, moLuong } from './chat.service.js'
 import { chayLuot } from './tro-ly.service.js'
 
 /*
@@ -24,7 +24,7 @@ vi.mock('@uniwork/ai-runtime', async (goc) => {
 })
 
 vi.mock('./chat.service.js', () => ({
-  taoPhien: vi.fn(),
+  moLuong: vi.fn(),
   layTinNhan: vi.fn(async () => ({ tinNhan: [] })),
   batDauLuot: vi.fn(),
 }))
@@ -36,7 +36,7 @@ vi.mock('../../lib/prisma.js', () => ({ prisma: {} }))
 
 const mockBatDauLuot = batDauLuot as unknown as Mock
 const mockChayLuot = chayLuot as unknown as Mock
-const mockTaoPhien = taoPhien as unknown as Mock
+const mockMoLuong = moLuong as unknown as Mock
 
 const app = createApp()
 const token = signAccessToken({ sub: 'u-1', role: 'STUDENT' })
@@ -55,7 +55,12 @@ beforeEach(() => {
   coKhoa = true
   mockBatDauLuot.mockResolvedValue({ loai: 'moi', turnId: 't-1', seqCauHoi: 1, conLai: 4 })
   mockChayLuot.mockResolvedValue(undefined)
-  mockTaoPhien.mockResolvedValue({ sessionId: 'phien-1', kind: 'AI_STUDENT', state: 'AI_ACTIVE', jobId: null })
+  mockMoLuong.mockResolvedValue({
+    sessionId: 'phien-1',
+    kind: 'AI_STUDENT',
+    state: 'AI_ACTIVE',
+    jobId: null,
+  })
 })
 
 describe('canh cửa', () => {
@@ -65,7 +70,11 @@ describe('canh cửa', () => {
 
   it('ADMIN không có trợ lý', async () => {
     const t = signAccessToken({ sub: 'a-1', role: 'ADMIN' })
-    await request(app).post('/api/tro-ly/hoi').set('Authorization', `Bearer ${t}`).send(than).expect(403)
+    await request(app)
+      .post('/api/tro-ly/hoi')
+      .set('Authorization', `Bearer ${t}`)
+      .send(than)
+      .expect(403)
   })
 })
 
@@ -156,21 +165,32 @@ describe('kênh SSE', () => {
 })
 
 describe('các endpoint rẻ', () => {
-  it('tạo phiên trả 201', async () => {
+  it('mở luồng trả 201', async () => {
     const res = await request(app)
       .post('/api/hoi-thoai')
       .set('Authorization', `Bearer ${token}`)
-      .send({ kind: 'AI_STUDENT', clientSessionId: 'cs-0123456789' })
+      .send({ kind: 'AI_STUDENT' })
       .expect(201)
     expect(res.body.data.sessionId).toBe('phien-1')
   })
 
-  it('clientSessionId quá ngắn → 400', async () => {
+  /*
+   * Client KHÔNG còn chọn luồng nào để mở — server suy từ `kind` cộng người
+   * đang đăng nhập. Ca này canh đúng điều đó: gửi kèm một khoá là dữ liệu
+   * thừa, nhưng quan trọng hơn, nó KHÔNG được ảnh hưởng tới luồng nào mở ra.
+   */
+  it('kind lạ → 400, và clientSessionId gửi kèm bị bỏ qua', async () => {
+    await request(app)
+      .post('/api/hoi-thoai')
+      .set('Authorization', `Bearer ${token}`)
+      .send({ kind: 'NTD' })
+      .expect(400)
+
     await request(app)
       .post('/api/hoi-thoai')
       .set('Authorization', `Bearer ${token}`)
       .send({ kind: 'AI_STUDENT', clientSessionId: 'abc' })
-      .expect(400)
+      .expect(201)
   })
 
   it('luot-con-lai nói rõ trợ lý đã sẵn sàng chưa', async () => {

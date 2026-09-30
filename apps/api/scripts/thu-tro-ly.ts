@@ -107,7 +107,7 @@ const t0 = Date.now()
 const tool: string[] = []
 let chu = 0
 
-await chayLuot({
+const tomTat = await chayLuot({
   userId,
   role: 'STUDENT',
   sessionId,
@@ -139,5 +139,19 @@ vòng tool  : ${luot.toolRounds}
 token      : ${luot.inputTokens} vào / ${luot.outputTokens} ra
 chữ đầu    : ${luot.timeToFirstTokenMs ?? '—'} ms
 tổng       : ${Date.now() - t0} ms · ${chu} mẩu chữ`)
+
+/*
+ * Tach "cham do LLM" khoi "cham do minh".
+ *
+ * `msModel` cong don `performance.responseTimeMs` cua tung loi goi — thoi gian
+ * nha cung cap thuc su giu, ke ca luc SDK tu thu lai sau 429. Phan con lai la
+ * chay tool, truy van Postgres, va chinh ta.
+ */
+if (tomTat) {
+  const conLai = tomTat.msTong - tomTat.msModel
+  const phanTram = Math.round((tomTat.msModel / Math.max(1, tomTat.msTong)) * 100)
+  console.log(`model      : ${tomTat.soLanGoiModel} lời gọi · ${tomTat.msModel} ms (${phanTram} %)
+còn lại    : ${conLai} ms — tool, database, và phía mình`)
+}
 
 await prisma.$disconnect()

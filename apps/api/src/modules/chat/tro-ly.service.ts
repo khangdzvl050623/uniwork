@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type { Role } from '@prisma/client'
 import { aiConfig, chayLuotChat, chotLuot, hoanLuot } from '@uniwork/ai-runtime'
+import { logger } from '../../lib/logger.js'
 import { prisma } from '../../lib/prisma.js'
 import { boCoDangChay, ghiTraLoi, layLichSu } from './chat.service.js'
 import { layDeNghi, suyNhan } from './nhan.js'
@@ -32,7 +33,15 @@ export interface ChayLuotInput {
  * KHÔNG ném ra ngoài. Tới đây thì header SSE đã gửi rồi, nên mọi lỗi phải đi
  * bằng sự kiện `loi` — `res.status()` lúc này không còn tác dụng.
  */
-export async function chayLuot(v: ChayLuotInput): Promise<void> {
+export interface TomTatLuot {
+  soLanGoiModel: number
+  /** Thoi gian nha cung cap giu, cong don moi loi goi. */
+  msModel: number
+  /** Tong thoi gian cua ca luot, do tu phia ta. */
+  msTong: number
+}
+
+export async function chayLuot(v: ChayLuotInput): Promise<TomTatLuot | null> {
   const tools = dungToolSinhVien({ userId: v.userId, jobIdDangXem: v.jobIdDangXem })
   let coChu = false
 
@@ -62,7 +71,8 @@ export async function chayLuot(v: ChayLuotInput): Promise<void> {
     const traLoi = kq.chamTran ? CAU_KHI_CHAM_TRAN : kq.traLoi
     if (kq.chamTran) v.phat('chu', traLoi)
 
-    const ghi = traLoi.trim() === '' ? { ghi: false } : await ghiTraLoi(v.sessionId, v.turnId, traLoi)
+    const ghi =
+      traLoi.trim() === '' ? { ghi: false } : await ghiTraLoi(v.sessionId, v.turnId, traLoi)
     if (!ghi.ghi) await boCoDangChay(v.sessionId, v.turnId)
 
     await chotLuot(prisma, {
@@ -70,7 +80,9 @@ export async function chayLuot(v: ChayLuotInput): Promise<void> {
       state: 'SUCCEEDED',
       inputTokens: kq.inputTokens,
       outputTokens: kq.outputTokens,
-      requestCount: kq.toolRounds + 1,
+      // So loi goi model THAT, khong phai `toolRounds + 1` suy ra. Cot nay
+      // dung de doi chieu voi han muc RPD cua Google, nen suy ra la sai so.
+      requestCount: kq.soLanGoiModel,
       toolRounds: kq.toolRounds,
       toolNames: kq.toolNames,
       category: suyNhan(kq.goiTool),
@@ -86,8 +98,26 @@ export async function chayLuot(v: ChayLuotInput): Promise<void> {
      * một tin nhắn mà lần tải lại sau sẽ không còn.
      */
     v.phat('xong', { daLuu: ghi.ghi, seq: ghi.seq ?? null })
+
+    /*
+     * Mot dong log de tra loi "cham la do LLM hay do minh" ma khong phai gan
+     * them cong cu nao. `conLai` la phan KHONG phai nha cung cap: chay tool,
+     * truy van Postgres, va chinh ta.
+     */
+    const conLai = kq.latencyMs - kq.msModel
+    logger.info('Luot tro ly xong', {
+      turnId: v.turnId,
+      soLanGoiModel: kq.soLanGoiModel,
+      msModel: kq.msModel,
+      msConLai: conLai,
+      msTong: kq.latencyMs,
+      toolRounds: kq.toolRounds,
+    })
+
+    return { soLanGoiModel: kq.soLanGoiModel, msModel: kq.msModel, msTong: kq.latencyMs }
   } catch (e) {
     await xuLyLoi(v, e, coChu)
+    return null
   } finally {
     /* Kênh do nơi gọi đóng — ở đây chỉ bảo đảm cờ không kẹt lại. */
     await boCoDangChay(v.sessionId, v.turnId).catch(() => {})

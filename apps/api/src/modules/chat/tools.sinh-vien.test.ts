@@ -52,7 +52,8 @@ vi.mock('./gon-lai.js', async (nhapGoc) => {
   return {
     ...that,
     hoSoGon: (h: Parameters<typeof that.hoSoGon>[0]) => {
-      if (epLoLotPII) throw new LoLotPII('trường "zaloId" chưa có trong TRUONG_CHO_MODEL.hoSoSinhVien')
+      if (epLoLotPII)
+        throw new LoLotPII('trường "zaloId" chưa có trong TRUONG_CHO_MODEL.hoSoSinhVien')
       return that.hoSoGon(h)
     },
   }
@@ -180,6 +181,11 @@ const DAU_VAO_MAU: Record<string, unknown> = {
   danhMucKyNang: {},
   huongDanSuDung: { chuDe: 'khai-lich-ranh' },
   deNghiChuyenNhaTuyenDung: { jobId: JOB_ID, lyDo: 'xin về sớm 30 phút' },
+  baoCaoTin: {
+    jobId: JOB_ID,
+    lyDo: 'LUA_DAO',
+    moTa: 'Quán đòi nộp 500k tiền cọc trước khi đi làm',
+  },
 }
 
 type ToolCoExecute = { execute: (v: unknown, o: unknown) => Promise<unknown> }
@@ -215,7 +221,9 @@ describe('ca canh: không dữ liệu nhận dạng nào rời khỏi tool', () 
     const tools = bo()
     for (const [ten, t] of Object.entries(tools)) {
       const kq = JSON.stringify(await goi(t, DAU_VAO_MAU[ten]))
-      expect(kq, `${ten} trả về số điện thoại`).not.toMatch(/(?<!\d)(?:\+84|0)(?:[\s.-]?\d){9,10}(?!\d)/)
+      expect(kq, `${ten} trả về số điện thoại`).not.toMatch(
+        /(?<!\d)(?:\+84|0)(?:[\s.-]?\d){9,10}(?!\d)/,
+      )
       expect(kq, `${ten} trả về email`).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.-]+/)
       expect(kq, `${ten} trả về họ tên đầy đủ`).not.toContain(HO_TEN)
       expect(kq, `${ten} trả về đường dẫn CV`).not.toContain('cloudinary')
@@ -535,5 +543,55 @@ describe('lớp bọc lỗi', () => {
     } finally {
       epLoLotPII = false
     }
+  })
+})
+
+/*
+ * ===========================================================================
+ * BÁO CÁO KHÔNG BAO GIỜ ĐI QUA HANDOFF
+ * ===========================================================================
+ * Đường chuyển duy nhất của trợ lý dẫn tới CHÍNH nhà tuyển dụng sở hữu tin.
+ * Với một tin lừa đảo thì đó đúng là người cần tránh — và nó để lộ ngay ai vừa
+ * tố cáo. Hai tool phải tách bạch, và cả hai đều KHÔNG ghi gì.
+ */
+describe('baoCaoTin — chuẩn bị, không gửi', () => {
+  it('trả biểu mẫu kèm đúng tin, không ghi gì', async () => {
+    const kq = (await goi(bo().baoCaoTin, {
+      jobId: JOB_ID,
+      lyDo: 'LUA_DAO',
+      moTa: 'Quán đòi nộp 500k tiền cọc',
+    })) as { bieuMau: Record<string, unknown> }
+
+    expect(kq.bieuMau).toMatchObject({
+      jobId: JOB_ID,
+      tenTin: 'Pha chế ca tối',
+      lyDo: 'LUA_DAO',
+      moTa: 'Quán đòi nộp 500k tiền cọc',
+    })
+  })
+
+  it('model bịa jobId thì dừng ở bước kiểm tin', async () => {
+    mockGetPublicJob.mockRejectedValue(notFound('Không tìm thấy tin tuyển dụng'))
+    const kq = (await goi(bo().baoCaoTin, { jobId: 'bia', lyDo: 'KHAC', moTa: 'x' })) as {
+      bieuMau: null
+    }
+    expect(kq.bieuMau).toBeNull()
+  })
+
+  /*
+   * Hai tool, hai việc, và chúng KHÔNG được lẫn. Báo cáo mà đi qua
+   * `deNghiChuyenNhaTuyenDung` là gửi lời tố cáo thẳng cho người bị tố cáo.
+   */
+  it('không trả về lời đề nghị chuyển NTD', async () => {
+    const kq = await goi(bo().baoCaoTin, { jobId: JOB_ID, lyDo: 'LUA_DAO', moTa: 'x' })
+    expect(kq).not.toHaveProperty('deNghi')
+  })
+
+  it('mô tả của người dùng đi nguyên văn, model không được tự thêm', async () => {
+    const loi = 'Nhắn Zalo bảo chuyển khoản trước'
+    const kq = (await goi(bo().baoCaoTin, { jobId: JOB_ID, lyDo: 'LUA_DAO', moTa: loi })) as {
+      bieuMau: { moTa: string }
+    }
+    expect(kq.bieuMau.moTa).toBe(loi)
   })
 })

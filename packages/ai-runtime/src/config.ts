@@ -31,7 +31,30 @@ export const aiConfig = {
 
   /* ------------------------------------------------- giới hạn mỗi lượt ---- */
   maxOutputTokens: so('AI_MAX_OUTPUT_TOKENS', 1024),
-  requestTimeoutMs: so('AI_REQUEST_TIMEOUT_MS', 30_000),
+
+  /*
+   * BA TRAN THOI GIAN, KHONG PHAI MOT
+   *
+   * Mot luot co nhieu buoc, moi buoc mot loi goi model, xen giua la cac lan
+   * chay tool. Mot con so duy nhat khong dien ta duoc: dat 30 s cho ca luot thi
+   * luot 4 vong tool binh thuong cung bi cat; dat 120 s cho moi buoc thi mot
+   * buoc treo giu ket noi SSE hai phut.
+   */
+  /*
+   * Hai con so duoi day DAT THEO SO DO THAT, khong phai uoc chung.
+   *
+   * Do 2026-09-28: do tre cua Gemini free tier chia hai cum ro ret — hoac
+   * ~1 s, hoac ~15-25 s — va KHONG lien quan toi kich thuoc prompt. Mot luot
+   * 4 buoc roi vao cum cham la ~100 s ma van la luot hop le.
+   *
+   * Dat 30 s cho moi buoc thi cat nham chinh nhung luot do. Xem [00 C.1].
+   */
+  /** Tran cho MOT loi goi model. */
+  requestTimeoutMs: so('AI_REQUEST_TIMEOUT_MS', 60_000),
+  /** Tran cho CA luot, ke ca thoi gian chay tool va SDK tu thu lai. */
+  turnTimeoutMs: so('AI_TURN_TIMEOUT_MS', 180_000),
+  /** Tran cho MOT lan chay tool. Tool cua ta chi doc Postgres cuc bo. */
+  toolTimeoutMs: so('AI_TOOL_TIMEOUT_MS', 8_000),
   /** Mặc định của AI SDK là 20 — quá rộng cho hạn mức free. */
   maxToolRounds: so('AI_MAX_TOOL_ROUNDS', 4),
   historyMessages: so('AI_HISTORY_MESSAGES', 12),
