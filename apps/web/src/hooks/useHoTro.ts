@@ -40,11 +40,22 @@ export function useHoTro() {
   const [dangMo, setDangMo] = useState(true)
 
   /*
-   * Mở phiên hỗ trợ. Nếu phiên cũ đã ĐÓNG thì đổi khoá và mở phiên mới.
+   * Mở phiên hỗ trợ.
    *
-   * Không có bước đổi khoá thì `clientSessionId` cũ vẫn trỏ đúng hàng đã
-   * `CLOSED`, và người dùng vĩnh viễn nhìn một hội thoại không gõ được gì —
-   * không có nút nào mở lại được, vì mọi nút đều gọi lại đúng khoá ấy.
+   * =========================================================================
+   * `clientSessionId` Ở ĐÂY CHỈ LÀ GỢI Ý, SERVER MỚI QUYẾT
+   * =========================================================================
+   * Với kênh hỗ trợ, `POST /api/hoi-thoai` trả về ticket ĐANG MỞ của người
+   * dùng bất kể client gửi khoá gì — xem `taoPhien`. Nhờ vậy mở máy khác, đổi
+   * trình duyệt hay xoá localStorage đều về đúng cuộc trò chuyện đang dang dở.
+   *
+   * Trước đây client tự chọn bằng khoá này, và khi khoá không khớp thì server
+   * tạo phiên THỨ HAI: người dùng nhìn một hội thoại trống trong khi quản trị
+   * viên đang trả lời họ ở hội thoại thật.
+   *
+   * Khoá vẫn cần cho lần TẠO MỚI (nó là khoá chống trùng khi bấm hai lần), và
+   * vẫn phải đổi khi phiên cũ đã `CLOSED` — lúc đó không còn ticket mở nào,
+   * server rơi xuống tra theo khoá và sẽ trả lại đúng hàng đã đóng ấy.
    */
   useEffect(() => {
     let huy = false

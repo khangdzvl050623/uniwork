@@ -56,6 +56,50 @@ export async function taoPhien(
     throw forbidden('Phiên trợ lý nhà tuyển dụng chỉ dành cho tài khoản nhà tuyển dụng')
   }
 
+  /*
+   * ===========================================================================
+   * KÊNH HỖ TRỢ: SERVER QUYẾT MỞ PHIÊN NÀO, KHÔNG PHẢI `clientSessionId`
+   * ===========================================================================
+   * Hai kênh kia cho phép nhiều hội thoại song song, nên `clientSessionId` —
+   * do trình duyệt sinh và giữ — là khoá đúng: nó cho phiên sống qua F5.
+   *
+   * Hỗ trợ thì khác hẳn: chỉ mục `chat_mot_ho_tro_dang_mo` cưỡng chế MỘT
+   * ticket đang mở cho mỗi người. Để client chọn phiên bằng một khoá trong
+   * localStorage là đặt luật ở hai nơi, và hai nơi đó bất đồng ngay khi:
+   *
+   *   người dùng mở máy khác, đổi trình duyệt, hay vào cửa sổ ẩn danh
+   *   localStorage bị xoá, hoặc khoá đổi tên theo một lần nâng cấp
+   *
+   * Lúc đó `clientSessionId` không khớp hàng nào, server tạo phiên THỨ HAI, và
+   * người dùng nhìn một hội thoại trống trong khi quản trị viên đang trả lời
+   * họ ở hội thoại thật. Bấm gửi yêu cầu thì đụng chỉ mục và nhận về
+   * "Dữ liệu đã tồn tại" — một câu không nói được gì.
+   *
+   * Đã xảy ra đúng như vậy (2026-09-30): một tài khoản có hai phiên AI_SUPPORT,
+   * một HUMAN_ACTIVE seq 7 và một AI_ACTIVE seq 0.
+   *
+   * Nên với kênh này, server trả về ticket ĐANG MỞ của người đó, bất kể client
+   * đưa khoá gì. Một nguồn sự thật, và nó nằm cùng chỗ với chỉ mục.
+   */
+  if (input.kind === 'AI_SUPPORT') {
+    const dangMo = await prisma.chatSession.findFirst({
+      where: { ownerUserId: userId, kind: 'AI_SUPPORT', state: { not: 'CLOSED' } },
+      /*
+       * Ưu tiên phiên ĐÃ xin hỗ trợ — đó chính là hàng mà chỉ mục đang giữ, và
+       * là hàng quản trị viên nhìn thấy. Một phiên `AI_ACTIVE` chưa gửi yêu cầu
+       * chỉ là nháp; trả nó về là lặp lại đúng lỗi đang sửa.
+       */
+      orderBy: [
+        { handoffRequestedAt: { sort: 'desc', nulls: 'last' } },
+        { lastMessageAt: 'desc' },
+      ],
+      select: { id: true, kind: true, state: true, jobId: true },
+    })
+    if (dangMo) {
+      return { sessionId: dangMo.id, kind: dangMo.kind, state: dangMo.state, jobId: dangMo.jobId }
+    }
+  }
+
   const daCo = await prisma.chatSession.findUnique({
     where: {
       ownerUserId_clientSessionId: { ownerUserId: userId, clientSessionId: input.clientSessionId },

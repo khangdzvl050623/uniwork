@@ -1,8 +1,8 @@
 import { PrismaClient } from '@prisma/client'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { quyenTruyCapPhien } from '../src/modules/chat/chat.access.js'
-import { guiTinNhan, layTinNhan } from '../src/modules/chat/chat.service.js'
-import { ketThuc } from '../src/modules/chat/handoff.service.js'
+import { guiTinNhan, layTinNhan, taoPhien } from '../src/modules/chat/chat.service.js'
+import { ketThuc, quayLaiAi } from '../src/modules/chat/handoff.service.js'
 import {
   hangDoiHoTro,
   huyYeuCauHoTro,
@@ -142,9 +142,32 @@ async function dungDuLieu() {
     },
   })
   await prisma.notification.deleteMany({ where: { userId: sv.id } })
-  await prisma.chatSession.deleteMany({
-    where: { ownerUserId: sv.id, clientSessionId: 'cs-ho-tro-2' },
+
+  /*
+   * ===========================================================================
+   * DỌN THEO "MỌI THỨ KHÔNG PHẢI ĐỒ CỐ ĐỊNH", KHÔNG THEO DANH SÁCH KHOÁ
+   * ===========================================================================
+   * Bản trước xoá đúng MỘT `clientSessionId` ghi cứng. Nên mỗi ca kiểm mới tạo
+   * phiên với khoá khác đều để lại rác, và rác đó sống sang lần chạy sau.
+   *
+   * Hỏng theo kiểu tệ nhất: lần chạy đầu XANH, lần thứ hai ĐỎ. Ai vừa viết
+   * test sẽ thấy nó xanh và đi tiếp; người đỏ là người kế tiếp, ở một ca
+   * không liên quan gì.
+   *
+   * Đã dính đúng chuyện này một lần ở `chat-handoff.test.ts`. Liệt kê khoá là
+   * một danh sách sẽ luôn thiếu; điều kiện đúng là "giữ hai phiên cố định,
+   * xoá mọi phiên khác của tài khoản này".
+   */
+  const rac = await prisma.chatSession.findMany({
+    where: { ownerUserId: sv.id, id: { notIn: [phienHoTro, phienTuyenDung] } },
+    select: { id: true },
   })
+  if (rac.length > 0) {
+    const ids = rac.map((r) => r.id)
+    /* Tin nhắn trước, phiên sau — khoá ngoại không cho xoá ngược lại. */
+    await prisma.chatMessage.deleteMany({ where: { sessionId: { in: ids } } })
+    await prisma.chatSession.deleteMany({ where: { id: { in: ids } } })
+  }
 }
 
 const doc = () => prisma.chatSession.findUniqueOrThrow({ where: { id: phienHoTro } })
@@ -319,6 +342,52 @@ describe('máy trạng thái hỗ trợ', () => {
    * Phải khẳng định SAU khi tiếp nhận: trước đó chỉ có đúng một tin hệ thống
    * nên `asc` và `desc` cho cùng kết quả, và ca kiểm sẽ luôn xanh.
    */
+  /*
+   * =======================================================================
+   * HAI CA NÀY CHẶN "MỞ VÔ HẠN TICKET BẰNG CÁCH QUAY LẠI AI"
+   * =======================================================================
+   * Chuỗi khai thác: xin hỗ trợ → admin nhận → `quay-lai-ai` → xin tiếp.
+   * Mỗi vòng một ticket mới, tất cả cùng mở, hàng đợi admin ngập.
+   *
+   * Hai lớp chặn, kiểm RIÊNG từng lớp:
+   *   service — `quayLaiAi` từ chối kênh không phải AI_STUDENT
+   *   database — chỉ mục neo vào `handoffRequestedAt`, không vào `state`
+   *
+   * Kiểm cả hai vì lớp service sống bằng việc "không hàm nào quên kiểm", và
+   * đó là thứ sẽ hỏng ở hàm thứ năm người ta viết thêm.
+   */
+  it('không quay lại AI được trong phiên hỗ trợ', async () => {
+    await yeuCauHoTro(sv.id, phienHoTro, 'x')
+    await tiepNhanHoTro(adminA.id, phienHoTro)
+
+    await expect(quayLaiAi(sv.id, phienHoTro)).rejects.toThrow()
+    expect((await doc()).state).toBe('HUMAN_ACTIVE')
+  })
+
+  it('chỉ mục giữ ticket kể cả khi state bị đẩy về AI_ACTIVE sau lưng service', async () => {
+    await yeuCauHoTro(sv.id, phienHoTro, 'x')
+    await tiepNhanHoTro(adminA.id, phienHoTro)
+
+    /* Đi thẳng vào database — mô phỏng một hàm tương lai quên kiểm `kind`. */
+    await prisma.chatSession.update({
+      where: { id: phienHoTro },
+      data: { state: 'AI_ACTIVE' },
+    })
+
+    /* `handoffRequestedAt` vẫn khác NULL, nên chỉ mục PHẢI còn phủ hàng này. */
+    await expect(
+      prisma.chatSession.create({
+        data: {
+          kind: 'AI_SUPPORT',
+          ownerUserId: sv.id,
+          clientSessionId: 'cs-ticket-thu-hai',
+          state: 'WAITING_ADMIN',
+          handoffRequestedAt: new Date(),
+        },
+      }),
+    ).rejects.toThrow()
+  })
+
   it('mô tả trong hàng đợi vẫn là câu người dùng viết, sau khi admin tiếp nhận', async () => {
     await yeuCauHoTro(sv.id, phienHoTro, 'Em không đăng nhập được')
     await tiepNhanHoTro(adminA.id, phienHoTro)
@@ -327,6 +396,61 @@ describe('máy trạng thái hỗ trợ', () => {
     const muc = hoTro.find((h) => h.sessionId === phienHoTro)
 
     expect(muc?.moTaDau).toBe('Em không đăng nhập được')
+  })
+
+  /*
+   * =======================================================================
+   * CA NÀY CHẶN "SINH VIÊN NHÌN MỘT HỘI THOẠI TRỐNG"
+   * =======================================================================
+   * Lỗi thật 2026-09-30: một tài khoản có HAI phiên AI_SUPPORT — một
+   * HUMAN_ACTIVE seq 7 (admin đang trả lời) và một AI_ACTIVE seq 0 (màn hình
+   * sinh viên đang mở). Bấm gửi yêu cầu trên phiên rỗng thì đụng chỉ mục
+   * `chat_mot_ho_tro_dang_mo` và nhận về "Dữ liệu đã tồn tại".
+   *
+   * Nguyên nhân: client chọn phiên bằng một khoá trong localStorage, trong
+   * khi server mới là nơi giữ luật "mỗi người một ticket đang mở". Khoá không
+   * khớp — máy khác, trình duyệt khác, ẩn danh, storage bị xoá — là tạo phiên
+   * thứ hai.
+   *
+   * Nên khẳng định ở đây là: `clientSessionId` KHÁC vẫn phải ra CÙNG phiên.
+   */
+  it('mở kênh hỗ trợ bằng khoá lạ vẫn ra đúng ticket đang mở', async () => {
+    await yeuCauHoTro(sv.id, phienHoTro, 'Em không đăng nhập được')
+    await tiepNhanHoTro(adminA.id, phienHoTro)
+
+    const lai = await taoPhien(sv.id, 'STUDENT', {
+      kind: 'AI_SUPPORT',
+      clientSessionId: 'cs-mot-may-hoan-toan-khac',
+    })
+
+    expect(lai.sessionId).toBe(phienHoTro)
+    expect(lai.state).toBe('HUMAN_ACTIVE')
+  })
+
+  /*
+   * Phiên nháp `AI_ACTIVE` KHÔNG được thắng ticket đang mở.
+   *
+   * Nếu chỉ lấy "phiên chưa đóng mới nhất" thì một bản nháp tạo sau sẽ che mất
+   * ticket admin đang trả lời — đúng bằng lỗi vừa sửa, chỉ đổi đường tới.
+   */
+  it('ticket đang mở thắng phiên nháp tạo sau nó', async () => {
+    await yeuCauHoTro(sv.id, phienHoTro, 'x')
+    await tiepNhanHoTro(adminA.id, phienHoTro)
+
+    await prisma.chatSession.create({
+      data: {
+        kind: 'AI_SUPPORT',
+        ownerUserId: sv.id,
+        clientSessionId: 'cs-nhap-tao-sau',
+        lastMessageAt: new Date(Date.now() + 60_000),
+      },
+    })
+
+    const lai = await taoPhien(sv.id, 'STUDENT', {
+      kind: 'AI_SUPPORT',
+      clientSessionId: 'cs-khoa-la',
+    })
+    expect(lai.sessionId).toBe(phienHoTro)
   })
 
   it('hàng đợi KHÔNG lẫn hội thoại tuyển dụng vào', async () => {

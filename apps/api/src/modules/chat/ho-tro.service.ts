@@ -47,6 +47,28 @@ async function phienHoTroCuaChu(userId: string, sessionId: string) {
   return p
 }
 
+/**
+ * Dịch lỗi trùng khoá của `chat_mot_ho_tro_dang_mo` thành câu người dùng hiểu.
+ *
+ * Không có bước này thì `error-handler` trả về "Dữ liệu đã tồn tại" — đúng về
+ * mặt kỹ thuật và vô dụng với người đang cần giúp. Họ không biết "dữ liệu" nào,
+ * không biết phải làm gì tiếp.
+ *
+ * Bản sao của `chayVaDichLoiTrung` bên `handoff.service` — CỐ Ý không gộp: hai
+ * chỉ mục khác nhau cần hai lời giải thích khác nhau, và gộp lại thì hàm chung
+ * phải đoán xem mình đang ở kênh nào.
+ */
+async function dichLoiTrungHoTro<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn()
+  } catch (e) {
+    const trung =
+      typeof e === 'object' && e !== null && 'code' in e && (e as { code: string }).code === 'P2002'
+    if (!trung) throw e
+    throw conflict('Bạn đang có một yêu cầu hỗ trợ chưa đóng. Mở lại yêu cầu đó để nhắn tiếp.')
+  }
+}
+
 /* ==================================================== yêu cầu người thật -- */
 
 /**
@@ -66,25 +88,27 @@ export async function yeuCauHoTro(
 ): Promise<KetQuaHoTro> {
   await phienHoTroCuaChu(userId, sessionId)
 
-  const tin = await prisma.$transaction(async (tx) => {
-    const doi = await tx.chatSession.updateMany({
-      where: { id: sessionId, state: 'AI_ACTIVE' },
-      data: {
-        state: 'WAITING_ADMIN',
-        handoffRequestedAt: new Date(),
-        /* Cùng lý do với handoff NTD: chặn câu trả lời AI tới muộn. */
-        activeAiRunId: null,
-      },
-    })
-    if (doi.count === 0) throw conflict('Yêu cầu hỗ trợ đang được xử lý rồi')
+  const tin = await dichLoiTrungHoTro(async () =>
+    prisma.$transaction(async (tx) => {
+      const doi = await tx.chatSession.updateMany({
+        where: { id: sessionId, state: 'AI_ACTIVE' },
+        data: {
+          state: 'WAITING_ADMIN',
+          handoffRequestedAt: new Date(),
+          /* Cùng lý do với handoff NTD: chặn câu trả lời AI tới muộn. */
+          activeAiRunId: null,
+        },
+      })
+      if (doi.count === 0) throw conflict('Yêu cầu hỗ trợ đang được xử lý rồi')
 
-    return ghiTinHeThong(
-      tx,
-      sessionId,
-      moTa.trim() === '' ? 'Người dùng xin gặp quản trị viên.' : moTa.trim(),
-      false,
-    )
-  })
+      return ghiTinHeThong(
+        tx,
+        sessionId,
+        moTa.trim() === '' ? 'Người dùng xin gặp quản trị viên.' : moTa.trim(),
+        false,
+      )
+    }),
+  )
 
   phatTinMoi(sessionId, tin, false)
   phatTrangThai(sessionId, 'WAITING_ADMIN', userId)

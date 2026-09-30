@@ -290,7 +290,31 @@ export async function tiepNhan(
  * của họ ở phòng `:ntd` cũng không nhận gì.
  */
 export async function quayLaiAi(userId: string, sessionId: string): Promise<KetQuaChuyen> {
-  await phienCuaChu(userId, sessionId)
+  const phien = await phienCuaChu(userId, sessionId)
+
+  /*
+   * =========================================================================
+   * CHẶN KÊNH HỖ TRỢ, VÀ ĐÂY KHÔNG PHẢI CHUYỆN NGỮ NGHĨA
+   * =========================================================================
+   * Phiên `AI_SUPPORT` KHÔNG BAO GIỜ có trợ lý — người dùng bấm "liên hệ hỗ
+   * trợ" chính vì trợ lý không giải quyết được. "Quay lại hỏi trợ lý" ở đó là
+   * quay lại một chỗ chưa từng tồn tại.
+   *
+   * Nhưng cái hại thật nằm ở chỉ mục chống trùng. `chat_mot_ho_tro_dang_mo`
+   * phủ `state IN ('WAITING_ADMIN','HUMAN_ACTIVE')`. Gọi được hàm này trên
+   * một ticket đang được admin trả lời thì state về `AI_ACTIVE`, chỉ mục NHẢ
+   * hàng đó ra — trong khi `handoffAdminUserId` vẫn còn nguyên.
+   *
+   * Người dùng lặp lại: xin hỗ trợ → admin nhận → quay lại AI → xin tiếp.
+   * Mỗi vòng một ticket mới, tất cả cùng mở, hàng đợi admin ngập.
+   *
+   * Đây đúng bằng lỗi đã sửa cho `chat_mot_handoff_moi_ntd` ở migration
+   * 20260928130000 — neo vào `state` thay vì neo vào sự thật nghiệp vụ. Lần
+   * đó chỉ sửa chỉ mục của NTD, chỉ mục hỗ trợ bị bỏ quên.
+   */
+  if (phien.kind !== 'AI_STUDENT') {
+    throw badRequest('Kênh này không có trợ lý để quay lại')
+  }
 
   const tin = await prisma.$transaction(async (tx) => {
     const doi = await tx.chatSession.updateMany({
