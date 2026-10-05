@@ -64,6 +64,17 @@ export async function chayLuotChat(ts: ThamSoLuotChat): Promise<KetQuaLuotChat> 
     abortSignal: ts.abortSignal,
 
     /*
+     * KHÔNG thử lại. Mặc định của AI SDK là 2 lần, tức một câu hỏi thành tối
+     * đa BA lời gọi — và thử lại đúng lúc nhà cung cấp đang trả 429 là cách
+     * nhanh nhất để hạn mức của họ cạn lâu hơn. Review 2026-10-05.
+     *
+     * Không mất gì của người dùng: lượt hỏng TRƯỚC chữ đầu tiên được hoàn, họ
+     * bấm "gửi lại" là xong. Còn lỗi lặp lại thì mạch ngắt (`mach-ngat.ts`)
+     * chặn ở cửa, trước khi ai kịp giữ lượt.
+     */
+    maxRetries: 0,
+
+    /*
      * Mặc định của AI SDK v7 là `isStepCount(20)`.
      *
      * Với hạn mức tính theo REQUEST/ngày thì một câu hỏi mơ hồ đốt được 20

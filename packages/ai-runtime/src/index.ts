@@ -2,6 +2,14 @@ export { aiConfig, CO_KHOA_THAT, ngayVN, ngayPacific, ngayUTC } from './config.j
 export { modelChat, resetProviderCache } from './provider.js'
 export { kiemTraKetNoi, type KetQuaKiemTra } from './kiem-tra.js'
 export { chayLuotChat } from './chat.js'
+export {
+  machChoPhep,
+  ghiThanhCong,
+  ghiLoi,
+  laLoiNhaCungCap,
+  _datLaiMach,
+  type KetQuaXinPhep,
+} from './mach-ngat.js'
 export type { ThamSoLuotChat, KetQuaLuotChat } from './chat.js'
 export {
   giuLuot,
@@ -23,3 +31,5 @@ export type { KetQuaGiuLuot, ClientPrisma } from './quota.js'
  * `pnpm why ai` chỉ ra đúng một đường.
  */
 export { tool, type Tool, type ToolSet, type ModelMessage } from 'ai'
+/* Lớp lỗi của nhà cung cấp — để test dựng đúng lỗi mà mạch ngắt nhận ra. */
+export { APICallError, RetryError } from 'ai'
