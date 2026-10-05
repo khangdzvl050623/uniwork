@@ -7,6 +7,7 @@ import {
   ghiLoi,
   ghiThanhCong,
   hoanLuot,
+  loiDeIn,
 } from '@uniwork/ai-runtime'
 import { logger } from '../../lib/logger.js'
 import { prisma } from '../../lib/prisma.js'
@@ -169,7 +170,7 @@ async function xuLyLoi(v: ChayLuotInput, e: unknown, coChu: boolean): Promise<vo
    */
   if (ghiLoi(e, boQua)) logger.warn('Lỗi nhà cung cấp AI', { turnId: v.turnId })
 
-  console.error(`[tro-ly] lượt ${v.turnId} hỏng (${ma})`, e)
+  console.error(`[tro-ly] lượt ${v.turnId} hỏng (${ma})`, loiDeIn(e))
 
   if (coChu) {
     await chotLuot(prisma, { turnId: v.turnId, state: 'FAILED', errorCode: ma }).catch(() => {})

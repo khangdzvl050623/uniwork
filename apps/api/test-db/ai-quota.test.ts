@@ -26,7 +26,7 @@ import { afterAll, beforeEach, describe, expect, it } from 'vitest'
  */
 
 const prisma = new PrismaClient()
-const TRAN_CHAT = 5 // = AI_CHAT_TURNS_PER_DAY mặc định
+const TRAN_CHAT = 5 // = AI_CHAT_TURNS_PER_DAY ghim trong vitest.db.config.ts
 
 let userId: string
 

@@ -111,6 +111,13 @@ export async function chayLuotChat(ts: ThamSoLuotChat): Promise<KetQuaLuotChat> 
       soLanGoiModel += 1
       msModel += e.performance.responseTimeMs
     },
+
+    /*
+     * Tắt bản in mặc định: nó đổ NGUYÊN `APICallError` ra console, kể cả
+     * `requestBodyValues` — tức toàn bộ prompt. Lỗi không bị mất: vòng đọc
+     * stream bên dưới bắt lại và ném ra cho nơi gọi.
+     */
+    onError: () => {},
   })
 
   /*
@@ -124,14 +131,38 @@ export async function chayLuotChat(ts: ThamSoLuotChat): Promise<KetQuaLuotChat> 
    * `tool-input-start` là tín hiệu SỚM NHẤT có được: model vừa bắt đầu phát lời
    * gọi tool, chưa cần đợi tham số đầy đủ hay đợi tool chạy xong.
    */
+  /*
+   * ---------------------------------------------------------------------------
+   * LỖI CỦA NHÀ CUNG CẤP NẰM TRONG STREAM — PHẢI TỰ NHẶT RA
+   * ---------------------------------------------------------------------------
+   * Gemini trả 429 thì AI SDK KHÔNG ném. Nó phát một phần `error` mang
+   * `APICallError` gốc — status, `retry-after` đủ cả — rồi đóng stream. Thứ ném
+   * ra sau đó, lúc `await kq.steps`, là `NoOutputGeneratedError` với `cause`
+   * rỗng: mọi dấu vết của nhà cung cấp đã mất.
+   *
+   * Bỏ qua phần `error` thì mạch ngắt không bao giờ mở: nó chỉ thấy một lỗi lạ,
+   * và `laLoiNhaCungCap` đúng là phải coi lỗi lạ là lỗi của ta. Đo bằng
+   * provider Google thật với mạng giả trả 429, 2026-10-05.
+   *
+   * Hết giờ thì khác: stream phát `abort` chứ không phát `error`, và thứ ném ra
+   * đã là `TimeoutError` — nhánh đó vốn đúng, không cần nhặt.
+   *
+   * Lấy lỗi ĐẦU TIÊN: những lỗi sau thường chỉ là hệ quả của nó.
+   */
+  let loiNhaCungCap: { e: unknown } | null = null
+
   for await (const m of kq.fullStream) {
     if (m.type === 'text-delta') {
       mocChuDau ??= Date.now()
       ts.onChu(m.text)
     } else if (m.type === 'tool-input-start') {
       ts.onTool?.(m.toolName)
+    } else if (m.type === 'error') {
+      loiNhaCungCap ??= { e: m.error }
     }
   }
+
+  if (loiNhaCungCap) throw loiNhaCungCap.e
 
   const [buoc, dung] = await Promise.all([kq.steps, kq.usage])
 
