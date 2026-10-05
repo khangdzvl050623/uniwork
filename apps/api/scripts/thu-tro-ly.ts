@@ -111,6 +111,7 @@ const tomTat = await chayLuot({
   userId,
   role: 'STUDENT',
   sessionId,
+  kind: batDau.kind,
   turnId: batDau.turnId,
   phat: (ten, du) => {
     if (ten === 'chu') {

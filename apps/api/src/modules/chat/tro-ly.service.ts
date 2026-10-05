@@ -5,8 +5,8 @@ import { logger } from '../../lib/logger.js'
 import { prisma } from '../../lib/prisma.js'
 import { boCoDangChay, ghiTraLoi, layLichSu } from './chat.service.js'
 import { layDeNghi, suyNhan } from './nhan.js'
-import { CAU_KHI_CHAM_TRAN, HE_THONG_SINH_VIEN } from './prompts/he-thong-sinh-vien.js'
-import { dungToolSinhVien } from './tools.sinh-vien.js'
+import type { ChatKind } from '@prisma/client'
+import { cauHinhTroLy } from './tro-ly.cau-hinh.js'
 
 /**
  * Định danh của process đang chạy.
@@ -21,6 +21,8 @@ export interface ChayLuotInput {
   userId: string
   role: Role
   sessionId: string
+  /** Kiểu luồng — chọn prompt và tool qua `tro-ly.cau-hinh.ts`. */
+  kind: ChatKind
   turnId: string
   jobIdDangXem?: string
   phat: (ten: string, du: unknown) => void
@@ -42,12 +44,20 @@ export interface TomTatLuot {
 }
 
 export async function chayLuot(v: ChayLuotInput): Promise<TomTatLuot | null> {
-  const tools = dungToolSinhVien({ userId: v.userId, jobIdDangXem: v.jobIdDangXem })
+  /*
+   * `batDauLuot` đã chặn luồng không có trợ lý, nên nhánh `null` ở đây không
+   * xảy ra được. Vẫn kiểm: một nơi gọi mới quên bước kia thì nó ném rõ ràng,
+   * thay vì chạy nhầm trợ lý của vai khác như bản trước.
+   */
+  const cauHinh = cauHinhTroLy(v.kind)
+  if (!cauHinh) throw new Error(`Không có trợ lý cho luồng kiểu ${v.kind}`)
+
+  const tools = cauHinh.dungTool({ userId: v.userId, jobIdDangXem: v.jobIdDangXem })
   let coChu = false
 
   try {
     const kq = await chayLuotChat({
-      system: HE_THONG_SINH_VIEN,
+      system: cauHinh.system,
       messages: await layLichSu(v.sessionId),
       tools,
       abortSignal: v.tinHieu,
@@ -68,7 +78,7 @@ export async function chayLuot(v: ChayLuotInput): Promise<TomTatLuot | null> {
     const deNghi = layDeNghi(kq.goiTool)
     if (deNghi !== null) v.phat('de-nghi', deNghi)
 
-    const traLoi = kq.chamTran ? CAU_KHI_CHAM_TRAN : kq.traLoi
+    const traLoi = kq.chamTran ? cauHinh.cauKhiChamTran : kq.traLoi
     if (kq.chamTran) v.phat('chu', traLoi)
 
     const ghi =

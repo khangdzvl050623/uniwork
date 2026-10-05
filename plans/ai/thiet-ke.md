@@ -694,12 +694,22 @@ Chấp nhận phát trùng sau crash; `processed_messages` + CAS lease lo phần
 | 14 | `ngayVN` / `ngayPacific` / `ngayUTC` — ba hàm, dùng đúng chỗ | Lệch 7–15 tiếng; 429 ập tới lúc bộ đếm hiển thị "0/400" |
 | 15 | Mọi CAS ghi kết quả có `leaseOwner` **và** `runSeq` | Worker cũ hoặc callback cũ ghi đè kết quả của lần chạy mới |
 
-Thêm hai luật về vòng đời process:
+Thêm ba luật về vòng đời process:
 
 | # | Luật | Phá thì |
 | --- | --- | --- |
 | 16 | Entrypoint worker là **file riêng** (`main.ts`), không so `import.meta.url` với `file://${argv[1]}` | Trên Windows điều kiện luôn sai ⇒ **không đăng ký consumer nào**, không lỗi |
 | 17 | `shutdown()` chỉ huỷ `AiTurn` có `runnerId` của **chính process này** | API deploy làm hỏng lượt worker đang chạy |
+| 18 | Sweeper theo tuổi `reservedAt`, chạy lúc khởi động **và** định kỳ | Crash cứng không gọi `shutdown()` ⇒ lượt `RESERVED` khoá tài khoản **vĩnh viễn** (409 AI_BUSY) |
+
+> **Ghi chú 2026-10-05.** Luật 17 nằm trong bảng này từ đầu nhưng không có đường
+> thực thi, và luật 18 thì chưa từng được viết ra — dù bước 2 của lộ trình ghi rõ
+> "circuit, sweeper". Review tìm ra lỗ này; bằng chứng nó đã xảy ra thật là
+> `thu-tro-ly.ts` phải tự `deleteMany` lượt treo mới chạy lại được.
+>
+> Luật 17 một mình **không đủ**: nó chỉ chạy khi process kịp nhận SIGTERM. Hai
+> luật cùng có mặt mới đóng được cả hai ca chết — xem `donLuotMoCoi` trong
+> `packages/ai-runtime/src/quota.ts`, gọi từ `apps/api/src/index.ts`.
 
 ---
 

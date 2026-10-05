@@ -18,7 +18,9 @@ import { env } from './config/env.js'
 import { taoAdminMacDinhNeuChua } from './lib/bootstrap-admin.js'
 import { logger } from './lib/logger.js'
 import { prisma } from './lib/prisma.js'
+import { aiConfig, donLuotMoCoi } from '@uniwork/ai-runtime'
 import { donYeuCauQuaHan } from './modules/chat/handoff.service.js'
+import { RUNNER_ID } from './modules/chat/tro-ly.service.js'
 import { ganSocketIO, goSocketIO } from './modules/chat/socket.gateway.js'
 
 const server = createServer(createApp())
@@ -80,6 +82,45 @@ function quetQuaHan() {
 quetQuaHan()
 setInterval(quetQuaHan, QUET_MOI_MS).unref()
 
+/*
+ * Dọn lượt AI mồ côi, mỗi phút — và NGAY lúc khởi động.
+ *
+ * ---------------------------------------------------------------------------
+ * VÌ SAO NHỊP NÀY KHÁC HẲN NHỊP QUÉT YÊU CẦU QUÁ HẠN (15 PHÚT)
+ * ---------------------------------------------------------------------------
+ * Yêu cầu quá hạn thì không ai đang chờ ngay trước màn hình. Lượt mồ côi thì
+ * có: người dùng bấm hỏi và nhận 409 "đang bận" cho tới khi lượt được dọn.
+ * Nên khoảng chờ tệ nhất phải tính bằng phút, không bằng phần tư giờ.
+ *
+ * Lần chạy lúc khởi động là lần quan trọng nhất: nó dọn đúng những lượt mà
+ * process TRƯỚC bỏ lại khi chết — trường hợp phổ biến nhất của cả lỗi này.
+ *
+ * ---------------------------------------------------------------------------
+ * NGƯỠNG TUỔI = TRẦN MỘT LƯỢT + 2 PHÚT
+ * ---------------------------------------------------------------------------
+ * `turnTimeoutMs` là trần cứng: SDK huỷ luồng khi chạm nó, rồi lượt được chốt
+ * trong vài trăm mili giây. Một lượt còn `RESERVED` sau trần đó cộng hai phút
+ * là lượt mà không còn process nào đang giữ — biên rộng để không bao giờ hoàn
+ * nhầm một lượt đang ghi kết quả dở.
+ */
+const DON_MO_COI_MOI_MS = 60_000
+const TUOI_MO_COI_MS = aiConfig.turnTimeoutMs + 2 * 60_000
+
+function donMoCoi() {
+  void donLuotMoCoi(prisma, { cuHon: new Date(Date.now() - TUOI_MO_COI_MS) }, 'MO_COI')
+    .then((n) => {
+      if (n > 0) logger.warn('Đã hoàn lượt AI mồ côi', { soLuot: n })
+    })
+    .catch((err: unknown) => {
+      logger.error('Không dọn được lượt AI mồ côi', {
+        message: err instanceof Error ? err.message : String(err),
+      })
+    })
+}
+
+donMoCoi()
+setInterval(donMoCoi, DON_MO_COI_MOI_MS).unref()
+
 /**
  * Tắt server có trật tự.
  *
@@ -91,6 +132,29 @@ setInterval(quetQuaHan, QUET_MOI_MS).unref()
  * thoát, không để deploy đứng mãi. unref() để chính cái hẹn giờ này không giữ
  * process sống thêm.
  */
+/**
+ * Luật 17: hoàn ĐÚNG những lượt AI của chính process này.
+ *
+ * Chạy SAU khi chờ các kết nối đóng, không phải ngay lúc nhận SIGTERM: lượt
+ * nào kịp chạy xong trong khoảng chờ thì đã tự chốt, và chỉ những lượt thật
+ * sự bị cắt ngang mới còn `RESERVED` để hoàn.
+ *
+ * Theo `runnerId`, không theo tuổi — process sắp tắt biết chắc lượt nào là
+ * của mình, không cần đoán. Lượt của instance khác (nếu có) không bị đụng.
+ *
+ * Đây là đường NHANH. Crash cứng không đi qua đây — sweeper theo tuổi lo ca đó.
+ */
+async function hoanLuotCuaMinh(): Promise<void> {
+  try {
+    const n = await donLuotMoCoi(prisma, { runnerId: RUNNER_ID }, 'TAT_SERVER')
+    if (n > 0) logger.warn('Đã hoàn lượt AI bị cắt ngang khi tắt server', { soLuot: n })
+  } catch (err) {
+    logger.error('Không hoàn được lượt AI khi tắt server', {
+      message: err instanceof Error ? err.message : String(err),
+    })
+  }
+}
+
 function shutdown(signal: NodeJS.Signals) {
   logger.info('Nhận tín hiệu dừng, đang đóng server', { signal })
 
@@ -112,15 +176,24 @@ function shutdown(signal: NodeJS.Signals) {
     // Render deploy lại bỏ lại một nắm kết nối treo, phải chờ Neon tự dọn —
     // mà gói free của Neon giới hạn số kết nối rất chặt, vài lần deploy liên
     // tiếp là đủ để lần khởi động sau không xin nổi kết nối nào.
-    void prisma.$disconnect().finally(() => {
-      logger.info('Đã đóng server và ngắt kết nối database')
-      process.exit(0)
+    void hoanLuotCuaMinh().finally(() => {
+      void prisma.$disconnect().finally(() => {
+        logger.info('Đã đóng server và ngắt kết nối database')
+        process.exit(0)
+      })
     })
   })
 
   setTimeout(() => {
     logger.error('Hết thời gian chờ, buộc phải thoát')
-    process.exit(1)
+    /*
+     * Ở ĐÂY mới là chỗ quan trọng: lượt AI chạy tới 180 giây, hạn chờ chỉ 10.
+     * Mọi lượt còn dở lúc này sẽ bị cắt giữa chừng — nên hoàn chúng TRƯỚC khi
+     * thoát, có trần 3 giây để một database chậm không giữ deploy lại mãi.
+     */
+    void Promise.race([hoanLuotCuaMinh(), new Promise((r) => setTimeout(r, 3_000))]).finally(
+      () => process.exit(1),
+    )
   }, 10_000).unref()
 }
 

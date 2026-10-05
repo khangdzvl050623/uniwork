@@ -152,6 +152,7 @@ export const hoiController: RequestHandler = async (req, res) => {
     userId: u.id,
     role: u.role,
     sessionId: v.sessionId,
+    kind: batDau.kind,
     turnId: batDau.turnId,
     jobIdDangXem: v.jobIdDangXem,
     phat: (ten, du) => kenh.phat(ten, du),

@@ -207,7 +207,7 @@ const schema = z.object({
   AI_CHAT_MODEL: z.string().default('gemini-3.5-flash-lite'),
 
   /* Lượt hỏi mỗi tài khoản mỗi ngày, reset lúc 00:00 giờ Việt Nam. */
-  AI_CHAT_TURNS_PER_DAY: z.coerce.number().int().min(0).default(5),
+  AI_CHAT_TURNS_PER_DAY: z.coerce.number().int().min(0).default(10),
   AI_SCAN_JOBS_PER_DAY: z.coerce.number().int().min(0).default(3),
 
   AI_MAX_OUTPUT_TOKENS: z.coerce.number().int().positive().default(1024),
