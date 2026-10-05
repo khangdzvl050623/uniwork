@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Loader2, MessagesSquare, SendHorizontal, Sparkles } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
@@ -7,6 +7,7 @@ import { DangTraCuu } from '@/components/tro-ly/DangTraCuu'
 import { TheDeNghiNTD } from '@/components/tro-ly/TheDeNghiNTD'
 import { useLuotConLai, useTroLy } from '@/hooks/useTroLy'
 import { danhDauThoiGian } from '@/lib/gop-tin'
+import { useCuonDanhSach } from '@/hooks/useCuonDanhSach'
 
 const TRAN_KY_TU = 2000
 
@@ -41,22 +42,26 @@ export function TroLy() {
     guiLai,
     chuyenNhaTuyenDung,
     boDeNghi,
+    conCu,
+    dangTaiCu,
+    taiCu,
   } = useTroLy()
   const { data: luot } = useLuotConLai()
 
   const [noiDung, setNoiDung] = useState('')
-  const cuoiDanhSach = useRef<HTMLDivElement>(null)
-
   /*
-   * Tự cuộn xuống khi có chữ mới.
+   * Cuộn theo chữ đang chảy — nhưng chỉ khi người dùng đang ở gần đáy.
    *
-   * `block: 'end'` chứ không `behavior: 'smooth'` cho mỗi mẩu chữ: chữ tới
-   * liên tục nên cuộn mượt sẽ xếp hàng hàng chục animation và màn hình trôi
-   * giật. Nhảy thẳng thì khó chịu hơn một chút nhưng theo kịp.
+   * Luồng trợ lý giờ sống vĩnh viễn, nên lịch sử dài ra mãi và người ta sẽ
+   * cuộn lên đọc. Kéo họ xuống đáy mỗi mẩu chữ là không đọc được gì. Xem
+   * `useCuonDanhSach`.
    */
-  useEffect(() => {
-    cuoiDanhSach.current?.scrollIntoView({ block: 'end' })
-  }, [tinNhan, toolDangChay])
+  const { cuoiRef, ghiNeo, veDay } = useCuonDanhSach(tinNhan, toolDangChay)
+
+  function hoi(cau: string) {
+    veDay()
+    void gui(cau)
+  }
 
   const hetLuot = luot !== undefined && luot.conLai <= 0
   const chuaSanSang = luot !== undefined && !luot.sanSang
@@ -82,7 +87,7 @@ export function TroLy() {
     const cau = noiDung.trim()
     if (cau === '' || khoa) return
     setNoiDung('')
-    void gui(cau)
+    hoi(cau)
   }
 
   return (
@@ -140,7 +145,7 @@ export function TroLy() {
                   key={c}
                   type="button"
                   disabled={khoa}
-                  onClick={() => void gui(c)}
+                  onClick={() => hoi(c)}
                   className="rounded-full border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition-colors hover:border-brand-400 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-50"
                 >
                   {c}
@@ -156,8 +161,24 @@ export function TroLy() {
           hôm qua, đoạn nào hỏi hôm nay — luồng trợ lý sống vĩnh viễn nên nó
           dài ra mãi.
         */}
+        {conCu && (
+          <div className="flex justify-center">
+            <button
+              type="button"
+              disabled={dangTaiCu}
+              onClick={() => {
+                ghiNeo(tinNhan[0]?.id)
+                void taiCu()
+              }}
+              className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500 transition-colors hover:border-brand-300 hover:text-brand-700 disabled:opacity-50"
+            >
+              {dangTaiCu ? 'Đang tải…' : 'Tải tin cũ hơn'}
+            </button>
+          </div>
+        )}
+
         {danhDauThoiGian(tinNhan).map(({ tin, moc, hienGio }) => (
-          <div key={tin.id} className="space-y-3">
+          <div key={tin.id} data-tin-id={tin.id} className="space-y-3">
             {moc && <p className="py-1 text-center text-xs tabular-nums text-slate-500">{moc}</p>}
             <BongChat tin={tin} hienGio={hienGio} />
           </div>
@@ -191,7 +212,7 @@ export function TroLy() {
           </div>
         )}
 
-        <div ref={cuoiDanhSach} />
+        <div ref={cuoiRef} />
       </div>
 
       <form onSubmit={guiDi} className="mt-4">

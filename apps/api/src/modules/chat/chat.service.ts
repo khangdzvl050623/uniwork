@@ -304,13 +304,31 @@ export interface TraTinNhan {
   duocGui: boolean
   /** Trạng thái phiên lúc đọc. Client hiển thị, KHÔNG tự suy từ danh sách tin. */
   state: string
+  /**
+   * Còn tin CŨ HƠN tin đầu tiên trả về không. Chỉ có khi mở luồng (không truyền
+   * cursor) — lúc tải bù thì câu hỏi này không có nghĩa, và trả `false` là nói
+   * dối, nên bỏ hẳn trường đi.
+   */
+  conCu?: boolean
 }
 
-/** Trần mỗi lần tải bù. Vượt thì client gọi tiếp với cursor mới. */
+/** Trần mỗi trang, cả tải bù lẫn tải ngược. */
 const TRAN_TAI_BU = 50
 
 /**
- * Tải bù từ một cursor. Dùng cho cả REST lẫn sự kiện `hoi-thoai:tai-bu`.
+ * Mở luồng, hoặc tải bù từ một cursor. Dùng cho cả REST lẫn `hoi-thoai:tai-bu`.
+ *
+ * ---------------------------------------------------------------------------
+ * KHÔNG CÓ CURSOR = TRANG MỚI NHẤT, KHÔNG PHẢI TRANG ĐẦU TIÊN
+ * ---------------------------------------------------------------------------
+ * Bản trước lấy `seq >= 1` tăng dần, tức 50 tin CŨ NHẤT, rồi trả cờ `conNua`
+ * mà client không đọc. Luồng quá 50 tin thì mở ra thấy đoạn đầu cuộc trò
+ * chuyện từ mấy tuần trước, còn câu vừa nói thì không bao giờ hiện — F5 cũng
+ * vậy. Trước kia hiếm vì phiên sống ngắn; từ khi luồng sống vĩnh viễn thì chắc
+ * chắn xảy ra, chỉ là sớm hay muộn.
+ *
+ * Mọi ứng dụng nhắn tin mở ở CUỐI cuộc trò chuyện. Tin cũ hơn lấy bằng
+ * `layTinCu`, cuộn lên tới đâu tải tới đó.
  *
  * ---------------------------------------------------------------------------
  * CURSOR TRẢ VỀ LÀ SEQ SERVER **ĐÃ XÉT**, KHÔNG PHẢI SEQ ĐÃ TRẢ
@@ -338,25 +356,104 @@ export async function layTinNhan(
    * một luồng, chúng là hai hàng khác nhau và `quyenTruyCapPhien` đã quyết
    * xong ai đọc được hàng nào.
    */
+  if (cursor === undefined) {
+    /*
+     * Lấy dư MỘT tin để biết còn tin cũ hơn không, khỏi tốn một câu `count`.
+     */
+    const moi = await prisma.chatMessage.findMany({
+      where: { sessionId },
+      orderBy: { seq: 'desc' },
+      take: TRAN_TAI_BU + 1,
+      select: CHON_TIN,
+    })
+    const trang = moi.slice(0, TRAN_TAI_BU).reverse()
+
+    return {
+      tinNhan: trang.map(raTinNhanItem),
+      /*
+       * Đã có trang MỚI NHẤT nên mọi tin tới `seqHienTai` coi như đã xét về
+       * phía trước. Lấy `max` với tin cuối vừa đọc: một tin chen vào giữa lúc
+       * đọc `seqHienTai` và lúc truy vấn thì nó đã nằm trong trang, khỏi tải lại.
+       */
+      cursor: dongCursor(Math.max(quyen.seqHienTai, trang.at(-1)?.seq ?? 0)),
+      conNua: false,
+      conCu: moi.length > TRAN_TAI_BU,
+      duocGui: quyen.duocGui,
+      state: quyen.trangThai,
+    }
+  }
+
   const tu = moCursor(cursor) + 1
 
   const ds = await prisma.chatMessage.findMany({
     where: { sessionId, seq: { gte: tu } },
     orderBy: { seq: 'asc' },
     take: TRAN_TAI_BU,
-    select: { id: true, seq: true, senderType: true, body: true, createdAt: true },
+    select: CHON_TIN,
   })
 
   const conNua = ds.length === TRAN_TAI_BU
   const daXet = conNua ? ds[ds.length - 1]!.seq : quyen.seqHienTai
 
   return {
-    tinNhan: ds.map((t) => ({ ...t, createdAt: t.createdAt.toISOString() })),
+    tinNhan: ds.map(raTinNhanItem),
     cursor: dongCursor(Math.max(daXet, moCursor(cursor))),
     conNua,
     duocGui: quyen.duocGui,
     state: quyen.trangThai,
   }
+}
+
+/**
+ * Trang tin CŨ HƠN `truocSeq`, để cuộn ngược lên đầu cuộc trò chuyện.
+ *
+ * ---------------------------------------------------------------------------
+ * HÀM RIÊNG, VÀ KHÔNG TRẢ CURSOR NÀO
+ * ---------------------------------------------------------------------------
+ * Cursor của `layTinNhan` đi về PHÍA TRƯỚC: "đã đồng bộ mọi tin mới tới đây".
+ * Trang cũ hơn đi ngược chiều. Nếu nó cũng trả một cursor thì sớm muộn sẽ có
+ * chỗ lỡ tay ghi đè cursor tải bù bằng nó — và khi đang mất kết nối, cursor
+ * nhảy tới `seqHienTai` là bỏ qua đúng những tin chưa nhận được.
+ *
+ * Không có trường đó thì không có gì để ghi đè nhầm.
+ */
+export async function layTinCu(
+  user: { id: string; role: Role },
+  sessionId: string,
+  truocSeq: number,
+): Promise<{ tinNhan: TinNhanItem[]; conCu: boolean }> {
+  const quyen = await quyenTruyCapPhien(user, sessionId)
+  if (!quyen) throw notFound('Không tìm thấy hội thoại')
+
+  const cu = await prisma.chatMessage.findMany({
+    where: { sessionId, seq: { lt: truocSeq } },
+    orderBy: { seq: 'desc' },
+    take: TRAN_TAI_BU + 1,
+    select: CHON_TIN,
+  })
+
+  return {
+    tinNhan: cu.slice(0, TRAN_TAI_BU).reverse().map(raTinNhanItem),
+    conCu: cu.length > TRAN_TAI_BU,
+  }
+}
+
+const CHON_TIN = {
+  id: true,
+  seq: true,
+  senderType: true,
+  body: true,
+  createdAt: true,
+} satisfies Prisma.ChatMessageSelect
+
+function raTinNhanItem(t: {
+  id: string
+  seq: number
+  senderType: ChatSenderType
+  body: string
+  createdAt: Date
+}): TinNhanItem {
+  return { ...t, createdAt: t.createdAt.toISOString() }
 }
 
 async function layPhienCuaChu(userId: string, sessionId: string) {

@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { quyenTruyCapPhien } from '../src/modules/chat/chat.access.js'
-import { guiTinNhan, layTinNhan } from '../src/modules/chat/chat.service.js'
+import { guiTinNhan, layTinCu, layTinNhan } from '../src/modules/chat/chat.service.js'
 import { moCursor } from '../src/modules/chat/cursor.js'
 
 /**
@@ -301,6 +301,73 @@ describe('layTinNhan — cursor', () => {
 
   it('người ngoài nhận 404', async () => {
     await expect(layTinNhan(ngoai, luongNTD)).rejects.toMatchObject({ status: 404 })
+  })
+})
+
+/*
+ * ===========================================================================
+ * PHÂN TRANG — MỞ Ở CUỐI CUỘC TRÒ CHUYỆN, KHÔNG PHẢI Ở ĐẦU
+ * ===========================================================================
+ * Bản trước mở luồng bằng `seq >= 1` tăng dần: 50 tin CŨ NHẤT. Luồng quá 50
+ * tin thì câu vừa nói không bao giờ hiện, F5 cũng vậy. Từ khi luồng sống vĩnh
+ * viễn thì chắc chắn xảy ra — review 2026-10-05 bỏ sót, phát hiện lúc rà lại.
+ *
+ * Dựng luồng 120 tin để có đủ ba trang: 71–120, 21–70, 1–20.
+ */
+describe('phân trang', () => {
+  async function nhoiNhieu(n: number) {
+    await nhoiTin(
+      luongAi,
+      Array.from({ length: n }, (_, i) => ({
+        senderType: (i % 2 === 0 ? 'STUDENT' : 'AI') as 'STUDENT' | 'AI',
+        body: `tin ${i + 1}`,
+      })),
+    )
+  }
+
+  it('mở luồng trả 50 tin MỚI NHẤT, sắp tăng dần, và báo còn tin cũ', async () => {
+    await nhoiNhieu(120)
+    const kq = await layTinNhan(sv, luongAi)
+
+    expect(kq.tinNhan.map((t) => t.seq)).toEqual(Array.from({ length: 50 }, (_, i) => 71 + i))
+    expect(kq.conCu).toBe(true)
+    expect(kq.conNua).toBe(false)
+  })
+
+  /*
+   * Cursor sau khi mở phải ở TIN MỚI NHẤT. Dừng ở tin thứ 50 như bản cũ thì
+   * lần tải bù kế tiếp kéo về 70 tin người dùng đã có trên màn hình.
+   */
+  it('cursor sau khi mở đứng ở tin mới nhất — tải bù ngay sau đó rỗng', async () => {
+    await nhoiNhieu(120)
+    const mo = await layTinNhan(sv, luongAi)
+    expect(moCursor(mo.cursor)).toBe(120)
+
+    const bu = await layTinNhan(sv, luongAi, mo.cursor)
+    expect(bu.tinNhan).toEqual([])
+  })
+
+  it('cuộn lên lấy đúng trang liền trước, tới đầu thì hết tin cũ', async () => {
+    await nhoiNhieu(120)
+
+    const trang2 = await layTinCu(sv, luongAi, 71)
+    expect(trang2.tinNhan.map((t) => t.seq)).toEqual(Array.from({ length: 50 }, (_, i) => 21 + i))
+    expect(trang2.conCu).toBe(true)
+
+    const trang3 = await layTinCu(sv, luongAi, 21)
+    expect(trang3.tinNhan.map((t) => t.seq)).toEqual(Array.from({ length: 20 }, (_, i) => 1 + i))
+    expect(trang3.conCu).toBe(false)
+  })
+
+  /* Đúng 50 tin: lấy dư một tin để biết còn hay hết — sai một đơn vị ở đây là báo nhầm. */
+  it('luồng đúng 50 tin thì KHÔNG báo còn tin cũ', async () => {
+    await nhoiNhieu(50)
+    expect((await layTinNhan(sv, luongAi)).conCu).toBe(false)
+  })
+
+  /* Trang cũ hơn cũng phải đi qua phân quyền — nó là một cửa đọc tin như mọi cửa khác. */
+  it('người ngoài không lấy được trang cũ', async () => {
+    await expect(layTinCu(ngoai, luongNTD, 10)).rejects.toMatchObject({ status: 404 })
   })
 })
 

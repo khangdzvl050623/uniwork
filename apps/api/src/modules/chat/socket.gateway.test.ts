@@ -7,6 +7,7 @@ import { notFound } from '../../lib/errors.js'
 import { prisma } from '../../lib/prisma.js'
 import { signAccessToken } from '../../lib/token.js'
 import { guiTinNhan, layTinNhan, quyenPhien } from './chat.service.js'
+import { moCursor } from './cursor.js'
 import { phatToiPhong } from './phat-su-kien.js'
 import { ganSocketIO, goSocketIO } from './socket.gateway.js'
 
@@ -61,20 +62,20 @@ const goi = (s: ClientSocket, ten: string, du: unknown): Promise<Record<string, 
 
 const QUYEN_CHU = {
   sessionId: 'p-1',
+  ownerUserId: 'u-1',
   vai: 'CHU' as const,
   phong: 'hoi-thoai:p-1:chu',
+  trangThai: 'HUMAN_ACTIVE',
   seqHienTai: 5,
-  docTuSeq: 1,
-  chiTinChiaSe: false,
   duocGui: true,
 }
 const QUYEN_NTD = {
   sessionId: 'p-1',
+  ownerUserId: 'u-1',
   vai: 'NTD_NHAN_HANDOFF' as const,
   phong: 'hoi-thoai:p-1:ntd',
+  trangThai: 'HUMAN_ACTIVE',
   seqHienTai: 5,
-  docTuSeq: 3,
-  chiTinChiaSe: true,
   duocGui: true,
 }
 
@@ -176,13 +177,23 @@ describe('hoi-thoai:vao', () => {
     expect(io.sockets.adapter.rooms.has('hoi-thoai:p-1:chu')).toBe(false)
   })
 
-  /* ACK trả CURSOR, không trả seq lớn nhất — với NTD thì dãy seq có lỗ hợp lệ. */
-  it('ACK trả cursor và quyền gửi, không trả seq', async () => {
+  /*
+   * ACK trả CURSOR đục, không trả `seq` trần — client không được tính toán
+   * trên nó.
+   *
+   * Và cursor phải ứng với tin MỚI NHẤT của phiên. Bản trước gọi `layTinNhan`
+   * chỉ để lấy cursor: tải 50 tin rồi vứt, mỗi lần vào phòng — và với luồng quá
+   * 50 tin thì cursor dừng ở tin thứ 50. Khẳng định cả hai: đúng `seqHienTai`,
+   * và KHÔNG tải tin nào.
+   */
+  it('ACK trả cursor ứng với tin mới nhất, và không tải tin nào', async () => {
     const s = await noi(token())
     const ack = await goi(s, 'hoi-thoai:vao', { sessionId: 'p-1' })
 
-    expect(ack).toMatchObject({ ok: true, cursor: 'CUR-1', duocGui: true, vai: 'CHU' })
+    expect(ack).toMatchObject({ ok: true, duocGui: true, vai: 'CHU' })
+    expect(moCursor((ack as { cursor: string }).cursor)).toBe(QUYEN_CHU.seqHienTai)
     expect(ack).not.toHaveProperty('seqHienTai')
+    expect(mockLayTinNhan).not.toHaveBeenCalled()
   })
 
   it('không có quyền thì ACK báo lỗi, không vào phòng nào', async () => {

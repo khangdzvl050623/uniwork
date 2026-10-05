@@ -16,6 +16,7 @@ import {
   batDauLuot,
   guiTinNhan,
   hoiThoaiCuaToi,
+  layTinCu,
   layTinNhan,
   moLuong,
 } from './chat.service.js'
@@ -56,13 +57,25 @@ export const hoiThoaiCuaToiController: RequestHandler = async (req, res) => {
 
 const thamSoId = z.object({ id: z.string().min(1) })
 
-const thamSoCursor = z.object({ cursor: z.string().max(200).optional() })
+/*
+ * `cursor` và `truocSeq` loại trừ nhau: một cái đi về phía trước (tải bù), cái
+ * kia đi ngược (cuộn lên đầu). Gửi cả hai là client đang lẫn hai việc — báo lỗi
+ * thay vì đoán xem nó muốn cái nào.
+ */
+const thamSoCursor = z
+  .object({
+    cursor: z.string().max(200).optional(),
+    truocSeq: z.coerce.number().int().min(1).optional(),
+  })
+  .refine((v) => !(v.cursor !== undefined && v.truocSeq !== undefined), {
+    message: 'Chỉ dùng một trong hai: cursor (tải bù) hoặc truocSeq (tải tin cũ)',
+  })
 
 export const layTinNhanController: RequestHandler = async (req, res) => {
   const u = nguoiGoi(req)
   const { id } = parse(thamSoId, req.params)
-  const { cursor } = parse(thamSoCursor, req.query)
-  ok(res, await layTinNhan(u, id, cursor))
+  const { cursor, truocSeq } = parse(thamSoCursor, req.query)
+  ok(res, truocSeq !== undefined ? await layTinCu(u, id, truocSeq) : await layTinNhan(u, id, cursor))
 }
 
 /**

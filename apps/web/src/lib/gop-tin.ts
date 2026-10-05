@@ -156,7 +156,39 @@ export function gopLichSu(
     kq = viTri === -1 ? [...kq, thanh] : kq.map((c, i) => (i === viTri ? thanh : c))
   }
 
-  return kq
+  return sapTheoSeq(kq)
+}
+
+/**
+ * Sắp theo `seq`; tin CHƯA có `seq` giữ nguyên thứ tự và đứng cuối.
+ *
+ * ===========================================================================
+ * VÌ SAO PHẢI SẮP — TRƯỚC ĐÂY KHÔNG CẦN
+ * ===========================================================================
+ * Trước khi có phân trang, tin chỉ tới theo MỘT chiều: mới hơn. Nối vào cuối
+ * là đủ đúng. Từ khi tải được trang CŨ HƠN thì tin tới theo cả hai chiều, và
+ * nối vào cuối là đặt một trang tin từ tuần trước nằm dưới câu vừa nói.
+ *
+ * Sắp ở ĐÂY, một chỗ, thay vì bắt nơi gọi tự chọn "chèn đầu" hay "nối cuối":
+ * tải bù sau khi mất mạng có thể chen giữa, và một tin tới qua socket có thể
+ * tới trước một tin tới qua REST dù seq lớn hơn.
+ *
+ * ---------------------------------------------------------------------------
+ * TIN CHƯA CÓ `seq` ĐỨNG CUỐI
+ * ---------------------------------------------------------------------------
+ * Đó là câu hỏi vừa gõ và câu trả lời AI đang chảy dở — luôn là thứ MỚI NHẤT.
+ * Server chưa cấp số cho chúng; so sánh `undefined` với số là để chúng nhảy
+ * loạn trong danh sách.
+ *
+ * `sort` của JS ổn định (ES2019), nên tin cùng nhóm giữ nguyên thứ tự cũ.
+ */
+function sapTheoSeq(ds: TinNhanUI[]): TinNhanUI[] {
+  return [...ds].sort((a, b) => {
+    if (a.seq === undefined && b.seq === undefined) return 0
+    if (a.seq === undefined) return 1
+    if (b.seq === undefined) return -1
+    return a.seq - b.seq
+  })
 }
 
 /** Gán `seq` cho một tin tạm, để lần phát qua socket sau đó không tạo bản sao. */

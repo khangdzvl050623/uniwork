@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { Loader2, SendHorizontal } from 'lucide-react'
 import { BongChat, type BienChat } from '@/components/tro-ly/BongChat'
 import { DangGo } from '@/components/tro-ly/DangGo'
 import { danhDauThoiGian } from '@/lib/gop-tin'
+import { useCuonDanhSach } from '@/hooks/useCuonDanhSach'
 import type { KenhHoiThoai } from '@/hooks/useKenhHoiThoai'
 import { cn } from '@/lib/utils'
 
@@ -49,16 +50,17 @@ export function KhungChat({
 }) {
   const [noiDung, setNoiDung] = useState('')
   const [dangGui, setDangGui] = useState(false)
-  const cuoiDanhSach = useRef<HTMLDivElement>(null)
-
   /*
-   * `block: 'end'` chứ không `behavior: 'smooth'`: tin tới theo cụm, cuộn mượt
-   * sẽ xếp hàng chục animation chồng nhau và màn hình trôi giật.
+   * Cuộn do `useCuonDanhSach` lo — giữ chỗ khi chèn tin cũ, chỉ cuộn xuống khi
+   * đang ở gần đáy. Truyền `hoDangGo` để chỉ báo "đang gõ" hiện ra cũng được
+   * đưa vào tầm nhìn, nếu không nó nằm khuất dưới đáy.
    */
-  useEffect(() => {
-    cuoiDanhSach.current?.scrollIntoView({ block: 'end' })
-    /* Cuộn cả khi chỉ báo "đang gõ" hiện ra — nếu không nó nằm khuất dưới đáy. */
-  }, [kenh.tinNhan, kenh.hoDangGo])
+  const { cuoiRef, ghiNeo, veDay } = useCuonDanhSach(kenh.tinNhan, kenh.hoDangGo)
+
+  function taiTinCu() {
+    ghiNeo(kenh.tinNhan[0]?.id)
+    void kenh.taiCu()
+  }
 
   const khoa = !kenh.duocGui || dangGui
 
@@ -75,6 +77,7 @@ export function KhungChat({
      */
     setNoiDung('')
     setDangGui(true)
+    veDay()
     try {
       await kenh.guiTin(cau)
     } finally {
@@ -112,8 +115,30 @@ export function KhungChat({
 
         {!kenh.dangTai && kenh.tinNhan.length === 0 && trong}
 
+        {/*
+          Nút, không tự tải khi cuộn chạm đỉnh. Tự tải cần một IntersectionObserver
+          và một cơ chế chống bắn lặp; nút thì bấm được bằng bàn phím, đọc được
+          bằng trình đọc màn hình, và người dùng biết chắc mình vừa làm gì.
+        */}
+        {kenh.conCu && (
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={taiTinCu}
+              disabled={kenh.dangTaiCu}
+              className={cn(
+                'rounded-full border px-3 py-1 text-xs transition-colors disabled:opacity-50',
+                mau.vienNhe,
+                mau.chuPhu,
+              )}
+            >
+              {kenh.dangTaiCu ? 'Đang tải…' : 'Tải tin cũ hơn'}
+            </button>
+          </div>
+        )}
+
         {danhDauThoiGian(kenh.tinNhan).map(({ tin, moc, hienGio }) => (
-          <div key={tin.id} className="space-y-3">
+          <div key={tin.id} data-tin-id={tin.id} className="space-y-3">
             {moc && (
               <p className={cn('py-1 text-center text-xs tabular-nums', mau.chuPhu)}>{moc}</p>
             )}
@@ -123,7 +148,7 @@ export function KhungChat({
 
         {kenh.hoDangGo && <DangGo ten={tenHo} bien={bien} />}
 
-        <div ref={cuoiDanhSach} />
+        <div ref={cuoiRef} />
       </div>
 
       {kenh.loi && (

@@ -15,6 +15,7 @@ import {
   phongNTD,
 } from './chat.access.js'
 import { guiTinNhan, layTinNhan, quyenPhien } from './chat.service.js'
+import { dongCursor } from './cursor.js'
 import { dangKyBoPhat } from './phat-su-kien.js'
 
 /**
@@ -207,11 +208,20 @@ const vaoPhien: Handler = async (user, socket, v) => {
   await socket.join(quyen.phong)
 
   /*
-   * ACK trả CURSOR, không trả `seq` lớn nhất của phiên. Với NTD thì dãy seq có
-   * khoảng trống hợp lệ — xem `cursor.ts`.
+   * ACK trả CURSOR — vẫn ĐỤC, client chỉ cất rồi gửi lại.
+   *
+   * Tính thẳng từ `seqHienTai` mà `quyenPhien` vừa đọc, KHÔNG gọi `layTinNhan`.
+   * Bản trước gọi nó chỉ để lấy cursor: tải 50 tin rồi vứt đi, mỗi lần vào
+   * phòng. Và nó còn sai — luồng quá 50 tin thì cursor dừng ở tin thứ 50 chứ
+   * không ở tin mới nhất. Review 2026-10-05 tính đúng chỗ này vào tải DB của
+   * mỗi lần socket nối lại.
    */
-  const bu = await layTinNhan(user, quyen.sessionId, undefined)
-  return { cursor: bu.cursor, duocGui: quyen.duocGui, vai: quyen.vai, state: quyen.trangThai }
+  return {
+    cursor: dongCursor(quyen.seqHienTai),
+    duocGui: quyen.duocGui,
+    vai: quyen.vai,
+    state: quyen.trangThai,
+  }
 }
 
 const raPhien: Handler = async (user, socket, v) => {

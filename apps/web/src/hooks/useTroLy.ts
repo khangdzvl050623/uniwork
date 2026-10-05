@@ -263,6 +263,9 @@ export function useTroLy() {
   return {
     sessionId,
     tinNhan: kenh.tinNhan,
+    conCu: kenh.conCu,
+    dangTaiCu: kenh.dangTaiCu,
+    taiCu: kenh.taiCu,
     dangChay,
     toolDangChay,
     deNghi,
