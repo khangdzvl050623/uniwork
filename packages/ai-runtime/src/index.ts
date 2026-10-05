@@ -3,7 +3,14 @@ export { modelChat, resetProviderCache } from './provider.js'
 export { kiemTraKetNoi, type KetQuaKiemTra } from './kiem-tra.js'
 export { chayLuotChat } from './chat.js'
 export type { ThamSoLuotChat, KetQuaLuotChat } from './chat.js'
-export { giuLuot, chotLuot, hoanLuot, demLuotConLai, DangBanError } from './quota.js'
+export {
+  giuLuot,
+  chotLuot,
+  hoanLuot,
+  donLuotMoCoi,
+  demLuotConLai,
+  DangBanError,
+} from './quota.js'
 export type { KetQuaGiuLuot, ClientPrisma } from './quota.js'
 
 /*

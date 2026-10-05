@@ -94,7 +94,11 @@ export async function giuLuot(tx: ClientPrisma, ts: ThamSoGiuLuot): Promise<KetQ
   } catch (e) {
     /*
      * P2002 ở đây CHỈ có thể đến từ chỉ mục một phần `ai_turns_mot_luot_dang_chay`
-     * — bảng không có unique nào khác. Nghĩa là tài khoản đang có một lượt chạy dở.
+     * — bảng không có unique nào khác. Nghĩa là tài khoản đang có một lượt chạy dở
+     * CỦA CÙNG TÍNH NĂNG (chỉ mục khoá theo `userId, feature`).
+     *
+     * Lượt đó có thể đã chết theo process cũ — `donLuotMoCoi` dọn nó trong vòng
+     * vài phút, nên 409 ở đây giờ là trạng thái tạm, không còn là vĩnh viễn.
      *
      * Ném ra để transaction rollback: bộ đếm vừa cộng ở trên được trả lại, và
      * người dùng KHÔNG mất lượt vì một lỗi vô hại.
@@ -230,4 +234,82 @@ export async function hoanLuot(
       data: { turnsRefunded: { increment: 1 } },
     })
   })
+}
+
+/* ======================================================= lượt mồ côi -- */
+
+/**
+ * Hoàn mọi lượt `RESERVED` khớp điều kiện. Trả về số lượt đã hoàn.
+ *
+ * ===========================================================================
+ * VÌ SAO HÀM NÀY TỒN TẠI — VÀ VÌ SAO THIẾU NÓ LÀ KHOÁ VĨNH VIỄN
+ * ===========================================================================
+ * Lượt nằm ở `RESERVED` suốt lúc model chạy, và chỉ rời trạng thái đó khi
+ * CHÍNH process đang chạy gọi `chotLuot` / `hoanLuot` lúc kết thúc. Process
+ * chết giữa chừng — deploy, hết RAM, Render thay máy — thì không ai gọi nữa.
+ *
+ * Hàng đó đứng nguyên trong chỉ mục một phần `ai_turns_mot_luot_dang_chay`,
+ * nên MỌI lần giữ lượt sau của tài khoản ấy đụng chỉ mục → `DangBanError` →
+ * 409 AI_BUSY. Không tự hết, không qua ngày — chỉ mục không có cột ngày nào.
+ *
+ * `reservedAt` có hai chỉ mục từ đầu, đúng để làm việc này, nhưng trước đây
+ * không dòng code nào đọc nó. Luật 17 trong `thiet-ke.md` và bước 2 của lộ
+ * trình ("circuit, sweeper") đều có ghi — chỉ là không có đường thực thi.
+ *
+ * ---------------------------------------------------------------------------
+ * HAI ĐIỀU KIỆN, HAI CA CHẾT KHÁC NHAU
+ * ---------------------------------------------------------------------------
+ *   `runnerId` — process sắp tắt dọn ĐÚNG lượt của mình (luật 17). Nhanh,
+ *                nhưng chỉ chạy được khi process còn kịp nhận SIGTERM.
+ *
+ *   `cuHon`    — lượt giữ quá lâu so với trần thời gian một lượt. Lưới an
+ *                toàn cho crash cứng, khi không ai kịp chạy gì cả.
+ *
+ * KHÔNG có điều kiện "mọi lượt của runner khác": lúc có hai instance API, lượt
+ * của instance kia đang chạy thật. Tuổi là thứ duy nhất chứng minh được một
+ * lượt đã chết mà không cần biết ai sở hữu nó.
+ *
+ * ---------------------------------------------------------------------------
+ * HOÀN, KHÔNG PHẠT
+ * ---------------------------------------------------------------------------
+ * Process chết là lỗi của ta. Người dùng có thể đã thấy nửa câu trả lời, có
+ * thể chưa thấy chữ nào — ta không biết, và trừ lượt trong lúc không biết là
+ * bắt họ trả giá cho sự cố hạ tầng.
+ */
+export async function donLuotMoCoi(
+  prisma: PrismaClient,
+  dieuKien: { runnerId: string } | { cuHon: Date },
+  errorCode: string,
+): Promise<number> {
+  const dsLuot = await prisma.aiTurn.findMany({
+    where: {
+      state: 'RESERVED',
+      ...('runnerId' in dieuKien
+        ? { runnerId: dieuKien.runnerId }
+        : { reservedAt: { lt: dieuKien.cuHon } }),
+    },
+    select: { id: true },
+    take: 500,
+  })
+
+  let daHoan = 0
+  for (const { id } of dsLuot) {
+    try {
+      await hoanLuot(prisma, id, errorCode)
+      daHoan += 1
+    } catch (e) {
+      /*
+       * P2025 = lượt vừa rời `RESERVED` giữa lúc đọc và lúc hoàn — process
+       * đang chạy kịp chốt nó. Đó là kết cục ĐÚNG, không phải lỗi: `hoanLuot`
+       * và `chotLuot` đều ghi có điều kiện `state: 'RESERVED'`, nên đúng một
+       * bên thắng và bộ đếm không bị cộng hai lần.
+       */
+      if (!laKhongTimThay(e)) throw e
+    }
+  }
+  return daHoan
+}
+
+function laKhongTimThay(e: unknown): boolean {
+  return typeof e === 'object' && e !== null && 'code' in e && e.code === 'P2025'
 }
