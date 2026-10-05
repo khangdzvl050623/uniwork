@@ -2,7 +2,7 @@ import type { ChatKind, ChatSenderType, Prisma, Role } from '@prisma/client'
 import type { ModelMessage } from '@uniwork/ai-runtime'
 import { aiConfig, DangBanError, giuLuot } from '@uniwork/ai-runtime'
 import { prisma } from '../../lib/prisma.js'
-import { conflict, forbidden, notFound, AppError } from '../../lib/errors.js'
+import { badRequest, conflict, forbidden, notFound, AppError } from '../../lib/errors.js'
 import {
   phongAdmin,
   phongChu,
@@ -13,7 +13,7 @@ import {
 } from './chat.access.js'
 import { dongCursor, moCursor } from './cursor.js'
 import { phatToiPhong } from './phat-su-kien.js'
-import { PROMPT_VERSION } from './prompts/he-thong-sinh-vien.js'
+import { cauHinhTroLy } from './tro-ly.cau-hinh.js'
 
 /* ================================================================ phiên -- */
 
@@ -83,6 +83,19 @@ export async function moLuong(
   }
   if (kind === 'AI_EMPLOYER' && role !== 'EMPLOYER') {
     throw forbidden('Luồng trợ lý nhà tuyển dụng chỉ dành cho tài khoản nhà tuyển dụng')
+  }
+
+  /*
+   * Luồng TRỢ LÝ mà chưa có trợ lý thì không mở.
+   *
+   * `AI_EMPLOYER` hợp lệ về schema nhưng hôm nay chưa có prompt hay tool nào.
+   * Mở ra thì nó nằm trong "Hội thoại của tôi" như một luồng chết: gõ vào là
+   * nhận lỗi. Từ chối ở đây thì không có luồng chết nào sinh ra.
+   *
+   * `AI_SUPPORT` KHÔNG qua kiểm này — nó là kênh người–người, không cần trợ lý.
+   */
+  if (kind !== 'AI_SUPPORT' && !cauHinhTroLy(kind)) {
+    throw badRequest('Trợ lý AI cho loại tài khoản này chưa được mở')
   }
 
   /*
@@ -373,7 +386,7 @@ export interface BatDauLuotInput {
 }
 
 export type KetQuaBatDau =
-  | { loai: 'moi'; turnId: string; seqCauHoi: number; conLai: number }
+  | { loai: 'moi'; turnId: string; seqCauHoi: number; conLai: number; kind: ChatKind }
   /** Tin này đã gửi rồi. Trả lại câu trả lời cũ, KHÔNG gọi model lần hai. */
   | { loai: 'gui-lai'; traLoiCu: string | null }
 
@@ -404,6 +417,26 @@ export type KetQuaBatDau =
  */
 export async function batDauLuot(v: BatDauLuotInput): Promise<KetQuaBatDau> {
   const phien = await layPhienCuaChu(v.userId, v.sessionId)
+
+  /*
+   * Hỏi "luồng này có trợ lý không" TRƯỚC mọi thứ khác.
+   *
+   * Điều bắt buộc là nó nằm TRONG `batDauLuot`, trước khi transaction giữ
+   * lượt commit. Bản trước chặn ở tool — tức SAU commit và sau khi đã gọi
+   * model — nên lượt bị trừ thật và token bị đốt thật.
+   *
+   * Đứng đầu hàm (thay vì ở bất kỳ đâu trước commit) thì không mở transaction,
+   * không chạy câu SQL hạn mức nào cho một yêu cầu chắc chắn bị từ chối. Đó là
+   * lý do hiệu năng, không phải đúng sai: đặt nó sau `giuLuot` trong cùng
+   * transaction thì rollback vẫn trả lượt lại. Đã kiểm bằng đột biến.
+   *
+   * Xem `tro-ly.cau-hinh.ts` về vì sao chặn theo cấu hình trợ lý, không theo tool.
+   */
+  const cauHinh = cauHinhTroLy(phien.kind)
+  if (!cauHinh) {
+    throw badRequest('Hội thoại này không có trợ lý AI')
+  }
+
   if (phien.state !== 'AI_ACTIVE') {
     throw conflict('Hội thoại này đã chuyển sang người thật hoặc đã kết thúc')
   }
@@ -415,7 +448,7 @@ export async function batDauLuot(v: BatDauLuotInput): Promise<KetQuaBatDau> {
         feature: 'CHAT',
         runnerId: v.runnerId,
         modelId: aiConfig.chatModel,
-        promptVersion: PROMPT_VERSION,
+        promptVersion: cauHinh.promptVersion,
         sessionId: v.sessionId,
       })
       if (!luot.ok) throw new HetLuotError()
@@ -451,6 +484,7 @@ export async function batDauLuot(v: BatDauLuotInput): Promise<KetQuaBatDau> {
         turnId: luot.turnId,
         seqCauHoi: sau.messageSeq,
         conLai: luot.conLai,
+        kind: phien.kind,
       }
     })
   } catch (e) {

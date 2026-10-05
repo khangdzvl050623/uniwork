@@ -216,13 +216,32 @@ export function useKenhHoiThoai(sessionId: string | null): KenhHoiThoai {
       setDuocGui(state === 'HUMAN_ACTIVE')
     }
 
-    s.on('connect', () => void vaoPhong())
+    /*
+     * =======================================================================
+     * HÀM CÓ TÊN, ĐỂ `off` ĐƯỢC — KHÔNG VIẾT TẠI CHỖ
+     * =======================================================================
+     * Bản trước viết `s.on('connect', () => void vaoPhong())`. `off` cần đúng
+     * tham chiếu hàm đã `on`, mà hàm viết tại chỗ thì không còn ai giữ tham
+     * chiếu — nên phần dọn gỡ được ba sự kiện kia, riêng cái này thì không.
+     *
+     * Socket là singleton sống suốt phiên làm việc, nên mỗi lần mở một hội
+     * thoại lại thêm một listener chết. Lần nối lại (khoảng mỗi 15 phút vì token
+     * hết hạn) TẤT CẢ cùng chạy: mỗi cái một `hoi-thoai:vao` và hai truy vấn DB
+     * cho một phiên người dùng đã rời từ lâu, và server cho socket vào lại phòng
+     * của phiên đó. Admin bấm qua 20 ticket là 20 lần như vậy mỗi lần nối lại.
+     *
+     * Review 2026-10-05.
+     */
+    const khiNoi = () => void vaoPhong()
+
+    s.on('connect', khiNoi)
     s.on('hoi-thoai:tin-moi', tinMoi)
     s.on('hoi-thoai:trang-thai', doiTrangThai)
     s.on('hoi-thoai:dang-go', dangGo)
     if (s.connected) void vaoPhong()
 
     return () => {
+      s.off('connect', khiNoi)
       s.off('hoi-thoai:tin-moi', tinMoi)
       s.off('hoi-thoai:trang-thai', doiTrangThai)
       s.off('hoi-thoai:dang-go', dangGo)
