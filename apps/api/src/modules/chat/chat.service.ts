@@ -1,6 +1,6 @@
 import type { ChatKind, ChatSenderType, Prisma, Role } from '@prisma/client'
 import type { ModelMessage } from '@uniwork/ai-runtime'
-import { aiConfig, DangBanError, giuLuot } from '@uniwork/ai-runtime'
+import { aiConfig, DangBanError, giuLuot, machChoPhep } from '@uniwork/ai-runtime'
 import { prisma } from '../../lib/prisma.js'
 import { badRequest, conflict, forbidden, notFound, AppError } from '../../lib/errors.js'
 import {
@@ -532,6 +532,24 @@ export async function batDauLuot(v: BatDauLuotInput): Promise<KetQuaBatDau> {
   const cauHinh = cauHinhTroLy(phien.kind)
   if (!cauHinh) {
     throw badRequest('Hội thoại này không có trợ lý AI')
+  }
+
+  /*
+   * Mạch ngắt mở = nhà cung cấp đang lỗi liên tiếp. Từ chối NGAY, trước khi
+   * giữ lượt và trước khi mở transaction.
+   *
+   * Cho đi tiếp thì người dùng giữ một lượt, chờ một vòng gọi model, nhận lỗi,
+   * rồi được hoàn lượt — tốn thời gian của họ và tốn ngân sách chung, đổi lấy
+   * đúng câu trả lời mà ta đã biết trước.
+   */
+  const mach = machChoPhep()
+  if (!mach.duoc) {
+    const giay = Math.ceil(mach.thuLaiSauMs / 1000)
+    throw new AppError(
+      'AI_UNAVAILABLE',
+      `Trợ lý đang quá tải, bạn thử lại sau khoảng ${giay} giây nhé. Lượt của bạn không bị trừ.`,
+      503,
+    )
   }
 
   if (phien.state !== 'AI_ACTIVE') {

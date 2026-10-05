@@ -57,6 +57,18 @@ export const aiConfig = {
   toolTimeoutMs: so('AI_TOOL_TIMEOUT_MS', 8_000),
   /** Mặc định của AI SDK là 20 — quá rộng cho hạn mức free. */
   maxToolRounds: so('AI_MAX_TOOL_ROUNDS', 4),
+
+  /*
+   * Mạch ngắt nhà cung cấp — xem `mach-ngat.ts`.
+   *
+   * 3 lỗi LIÊN TIẾP: một lỗi lẻ là chuyện thường của mạng, hai lỗi có thể vẫn
+   * là xui; tới lần thứ ba thì gọi tiếp là đang góp phần kéo dài sự cố.
+   *
+   * 60 giây: hạn mức theo phút của Gemini tính trong cửa sổ một phút, nên mở
+   * ngắn hơn thế là đóng lại đúng lúc vẫn còn bị chặn.
+   */
+  circuitFailures: so('AI_CIRCUIT_FAILURES', 3),
+  circuitCooldownMs: so('AI_CIRCUIT_COOLDOWN_MS', 60_000),
   historyMessages: so('AI_HISTORY_MESSAGES', 12),
 
   /* ------------------------------------------------------------- quota ---- */

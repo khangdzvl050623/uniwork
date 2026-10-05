@@ -1,6 +1,13 @@
 import { randomUUID } from 'node:crypto'
 import type { Role } from '@prisma/client'
-import { aiConfig, chayLuotChat, chotLuot, hoanLuot } from '@uniwork/ai-runtime'
+import {
+  aiConfig,
+  chayLuotChat,
+  chotLuot,
+  ghiLoi,
+  ghiThanhCong,
+  hoanLuot,
+} from '@uniwork/ai-runtime'
 import { logger } from '../../lib/logger.js'
 import { prisma } from '../../lib/prisma.js'
 import { boCoDangChay, ghiTraLoi, layLichSu } from './chat.service.js'
@@ -67,6 +74,12 @@ export async function chayLuot(v: ChayLuotInput): Promise<TomTatLuot | null> {
       },
       onTool: (ten) => v.phat('tool', { ten }),
     })
+
+    /*
+     * Báo mạch ngắt NGAY khi model trả lời xong — trước mọi bước ghi database.
+     * Lỗi ở các bước sau là lỗi của ta, không nói gì về nhà cung cấp.
+     */
+    ghiThanhCong()
 
     /*
      * Lời đề nghị chuyển sang nhà tuyển dụng đi ra như một sự kiện RIÊNG, không
@@ -149,6 +162,12 @@ export async function chayLuot(v: ChayLuotInput): Promise<TomTatLuot | null> {
 async function xuLyLoi(v: ChayLuotInput, e: unknown, coChu: boolean): Promise<void> {
   const boQua = v.tinHieu.aborted
   const ma = boQua ? 'ABORTED' : 'PROVIDER_ERROR'
+
+  /*
+   * `ghiLoi` tự lọc: người dùng tự huỷ, hay lỗi do code của ta, đều KHÔNG
+   * được tính vào mạch ngắt — xem `laLoiNhaCungCap`.
+   */
+  if (ghiLoi(e, boQua)) logger.warn('Lỗi nhà cung cấp AI', { turnId: v.turnId })
 
   console.error(`[tro-ly] lượt ${v.turnId} hỏng (${ma})`, e)
 

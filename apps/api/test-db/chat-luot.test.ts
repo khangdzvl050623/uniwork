@@ -1,5 +1,13 @@
 import { PrismaClient } from '@prisma/client'
-import { aiConfig, chotLuot, hoanLuot, ngayVN } from '@uniwork/ai-runtime'
+import {
+  APICallError,
+  _datLaiMach,
+  aiConfig,
+  chotLuot,
+  ghiLoi,
+  hoanLuot,
+  ngayVN,
+} from '@uniwork/ai-runtime'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { AppError } from '../src/lib/errors.js'
 import { batDauLuot, ghiTraLoi, layLichSu, moLuong } from '../src/modules/chat/chat.service.js'
@@ -305,6 +313,37 @@ describe('batDauLuot — ba việc, một transaction', () => {
 
     await expect(moLuong(ntd.id, 'EMPLOYER', 'AI_EMPLOYER')).rejects.toMatchObject({ status: 400 })
     expect(await prisma.chatSession.count({ where: { ownerUserId: ntd.id } })).toBe(0)
+  })
+
+  /*
+   * Mạch ngắt mở = nhà cung cấp đang lỗi liên tiếp. Từ chối NGAY — trước khi
+   * giữ lượt. Cho đi tiếp thì người dùng giữ một lượt, chờ một vòng gọi model,
+   * nhận lỗi, rồi mới được hoàn: tốn thời gian của họ và tốn ngân sách chung
+   * để có đúng câu trả lời ta đã biết trước.
+   *
+   * Khẳng định trên số `AiTurn`, không chỉ trên mã lỗi: mã 503 đúng mà vẫn ghi
+   * lượt thì đó là chặn SAU khi giữ lượt, đúng thứ cần tránh.
+   */
+  it('mạch ngắt mở thì từ chối 503 và KHÔNG giữ lượt nào', async () => {
+    const loi = new APICallError({
+      message: 'Resource has been exhausted',
+      url: 'https://generativelanguage.googleapis.com',
+      requestBodyValues: {},
+      statusCode: 429,
+      isRetryable: true,
+    })
+    for (let i = 0; i < aiConfig.circuitFailures; i += 1) ghiLoi(loi, false)
+
+    try {
+      const truoc = await prisma.aiTurn.count({ where: { userId } })
+      await expect(hoi('cm-mach-mo')).rejects.toMatchObject({
+        code: 'AI_UNAVAILABLE',
+        status: 503,
+      })
+      expect(await prisma.aiTurn.count({ where: { userId } })).toBe(truoc)
+    } finally {
+      _datLaiMach()
+    }
   })
 
   it('người khác không mở được phiên của mình, và nhận 404 chứ không 403', async () => {
