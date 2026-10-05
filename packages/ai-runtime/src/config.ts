@@ -60,23 +60,16 @@ export const aiConfig = {
   historyMessages: so('AI_HISTORY_MESSAGES', 12),
 
   /* ------------------------------------------------------------- quota ---- */
-  chatTurnsPerDay: so('AI_CHAT_TURNS_PER_DAY', 5),
+  chatTurnsPerDay: so('AI_CHAT_TURNS_PER_DAY', 10),
   scanJobsPerDay: so('AI_SCAN_JOBS_PER_DAY', 3),
 } as const
 
-/**
- * Có khoá thật hay không.
- *
- * Cùng mẫu `HAS_REAL_KEY` của `lib/cloudinary.ts` và `lib/mailer.ts`: không có
- * nhánh này thì cả nhóm phải có API key mới chạy được dự án trên máy, và mọi
- * test chạm tới AI sẽ gọi mạng thật.
- */
 export const CO_KHOA_THAT = aiConfig.googleApiKey !== ''
 
 /* ------------------------------------------------------------- múi giờ --- */
 
 /**
- * Ngày của NGƯỜI DÙNG. Quota "5 lượt/ngày" reset lúc nửa đêm giờ Việt Nam.
+ * Ngày của NGƯỜI DÙNG. Quota lượt/ngày reset lúc nửa đêm giờ Việt Nam.
  *
  * `sv-SE` cho ra đúng dạng YYYY-MM-DD.
  */

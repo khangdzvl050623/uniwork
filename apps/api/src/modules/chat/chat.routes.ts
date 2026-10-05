@@ -145,7 +145,7 @@ troLyRoutes.use(requireAuth, requireRole('STUDENT', 'EMPLOYER'))
  * 30 lượt/phút, đếm theo `userId`.
  *
  * Đây KHÔNG phải tầng chống lạm dụng chính — tầng đó là hạn mức ngày
- * (`AI_CHAT_TURNS_PER_DAY`, mặc định 5) và nó nằm trong cùng transaction với
+ * (`AI_CHAT_TURNS_PER_DAY`, mặc định 10) và nó nằm trong cùng transaction với
  * việc ghi tin. Giới hạn ở đây lo một việc khác hẳn: chặn một vòng lặp gõ vào
  * endpoint trước khi nó kịp chạm database, vì mỗi lần chạm là một transaction
  * trên Neon gói free.
