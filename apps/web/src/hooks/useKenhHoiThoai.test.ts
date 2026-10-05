@@ -41,9 +41,15 @@ const socketGia = vi.hoisted(() => {
   }
 })
 
-/* Trả lời theo TÊN sự kiện, để từng ca dựng đúng cảnh nó cần. */
+/*
+ * Trả lời theo TÊN sự kiện, để từng ca dựng đúng cảnh nó cần.
+ *
+ * Kiểu khai TƯỜNG MINH `Promise<unknown>`. Để TypeScript tự suy thì nó chốt
+ * kiểu theo cài đặt ĐẦU TIÊN — `tinNhan: never[]` vì mảng rỗng — và mọi
+ * `mockImplementation` sau đó trả tin thật đều lệch kiểu.
+ */
 const goiSocketGia = vi.hoisted(() =>
-  vi.fn(async (_s: unknown, ten: string) =>
+  vi.fn<(s: unknown, ten: string) => Promise<unknown>>(async (_s, ten) =>
     ten === 'hoi-thoai:vao'
       ? { ok: true, cursor: 'c', duocGui: false, vai: 'CHU', state: 'AI_ACTIVE' }
       : { ok: true, tinNhan: [], cursor: 'c', conNua: false },
@@ -165,7 +171,7 @@ describe('useKenhHoiThoai — phân trang', () => {
    */
   it('tải bù gọi tiếp cho tới khi hết conNua', async () => {
     let lan = 0
-    goiSocketGia.mockImplementation(async (_s: unknown, ten: string) => {
+    goiSocketGia.mockImplementation(async (_s, ten) => {
       if (ten === 'hoi-thoai:vao') {
         return { ok: true, cursor: 'moi-hon', duocGui: false, vai: 'CHU', state: 'AI_ACTIVE' }
       }
