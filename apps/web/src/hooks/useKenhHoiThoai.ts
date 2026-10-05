@@ -36,10 +36,20 @@ interface TraTinNhan {
   conNua: boolean
   duocGui: boolean
   state: string
+  /** Còn tin cũ hơn tin đầu tiên. Chỉ có khi mở luồng, không có khi tải bù. */
+  conCu?: boolean
 }
+
+/** Trần số trang tải bù liên tiếp — 20 trang × 50 tin. Xem `taiBu`. */
+const TRAN_TRANG_TAI_BU = 20
 
 export interface KenhHoiThoai {
   tinNhan: TinNhanUI[]
+  /** Còn tin cũ hơn tin đầu tiên đang hiển thị. */
+  conCu: boolean
+  dangTaiCu: boolean
+  /** Tải trang liền trước tin cũ nhất đang có. Gọi lặp an toàn. */
+  taiCu: () => Promise<void>
   /** Người bên kia vừa gõ trong vài giây gần đây. */
   hoDangGo: boolean
   /** Gọi mỗi khi người dùng gõ. Tự hãm nhịp bên trong. */
@@ -85,6 +95,17 @@ export function useKenhHoiThoai(sessionId: string | null): KenhHoiThoai {
   const [dangTai, setDangTai] = useState(false)
   const [loi, setLoi] = useState<string | null>(null)
   const [hoDangGo, setHoDangGo] = useState(false)
+  const [conCu, setConCu] = useState(false)
+  const [dangTaiCu, setDangTaiCu] = useState(false)
+
+  /*
+   * Phiên ĐANG mở, đọc được trong callback bất đồng bộ.
+   *
+   * `taiCu` chờ mạng vài trăm mili giây. Admin bấm sang ticket khác đúng lúc đó
+   * thì trang tin cũ của ticket TRƯỚC về tới và bị gộp vào ticket SAU — hai
+   * cuộc trò chuyện trộn vào nhau. So với giá trị này trước khi gộp là đủ chặn.
+   */
+  const phienDangMo = useRef<string | null>(null)
 
   /*
    * Hai hẹn giờ cho hai việc ngược nhau, và cả hai đều là `ref`:
@@ -102,9 +123,9 @@ export function useKenhHoiThoai(sessionId: string | null): KenhHoiThoai {
   /*
    * Cursor ĐỤC — chỉ cất rồi gửi lại, không đọc, không so sánh, không tính.
    *
-   * Nó mã hoá "seq lớn nhất server ĐÃ XÉT", không phải "seq lớn nhất client đã
-   * nhận" — hai thứ khác nhau khi có tin bị lọc mất vì `visibleToEmployer`.
-   * Tự suy ra cursor từ danh sách tin đang có là bỏ sót đúng những tin đó.
+   * Nó chỉ đi về PHÍA TRƯỚC: "đã đồng bộ mọi tin mới tới đây". Trang cũ hơn
+   * (`taiCu`) không đụng tới nó — server cố ý không trả cursor nào cho trang
+   * đó, để không có chỗ nào lỡ tay ghi đè.
    *
    * Để trong ref chứ không state: đổi nó không cần vẽ lại gì, và nó phải đọc
    * được ngay trong callback socket mà không dính giá trị cũ của closure.
@@ -126,6 +147,8 @@ export function useKenhHoiThoai(sessionId: string | null): KenhHoiThoai {
      */
     setTinNhan([])
     cursor.current = undefined
+    phienDangMo.current = sessionId
+    setConCu(false)
     setDangTai(true)
     setLoi(null)
 
@@ -135,6 +158,7 @@ export function useKenhHoiThoai(sessionId: string | null): KenhHoiThoai {
         if (huy) return
         setTinNhan((ds) => gopLichSu(ds, cu.tinNhan, toiLa))
         cursor.current = cu.cursor
+        setConCu(cu.conCu ?? false)
         setDuocGui(cu.duocGui)
         setTrangThai(cu.state)
       } catch (e) {
@@ -155,16 +179,30 @@ export function useKenhHoiThoai(sessionId: string | null): KenhHoiThoai {
     if (!sessionId) return
     const s = moSocket()
 
-    /* Tải bù: mảng RỖNG kèm cursor tiến là kết quả ĐÚNG, không phải lỗi. */
+    /*
+     * Tải bù: LẶP tới khi server báo hết `conNua`.
+     *
+     * Bản trước gọi đúng MỘT lần, nên mất mạng lâu — gập máy cả buổi rồi mở
+     * lại — mà lỡ hơn 50 tin thì chỉ nhận về 50 tin đầu, phần còn lại không bao
+     * giờ tới cho tới khi F5. Server luôn trả `conNua`; client chưa từng đọc.
+     *
+     * Có trần số trang: một vòng lặp mạng không có điểm dừng là thứ không được
+     * phép tồn tại, kể cả khi "về lý thuyết" server luôn tiến cursor.
+     *
+     * Mảng RỖNG kèm cursor tiến là kết quả ĐÚNG, không phải lỗi.
+     */
     const taiBu = async () => {
-      const kq = await goiSocket<{ tinNhan: TinTuApi[]; cursor: string; conNua: boolean }>(
-        s,
-        'hoi-thoai:tai-bu',
-        { sessionId, cursor: cursor.current },
-      )
-      if (!kq.ok) return
-      cursor.current = kq.cursor
-      if (kq.tinNhan.length > 0) setTinNhan((ds) => gopLichSu(ds, kq.tinNhan, toiLa))
+      for (let trang = 0; trang < TRAN_TRANG_TAI_BU; trang += 1) {
+        const kq = await goiSocket<{ tinNhan: TinTuApi[]; cursor: string; conNua: boolean }>(
+          s,
+          'hoi-thoai:tai-bu',
+          { sessionId, cursor: cursor.current },
+        )
+        if (!kq.ok || phienDangMo.current !== sessionId) return
+        cursor.current = kq.cursor
+        if (kq.tinNhan.length > 0) setTinNhan((ds) => gopLichSu(ds, kq.tinNhan, toiLa))
+        if (!kq.conNua) return
+      }
     }
 
     /*
@@ -294,8 +332,40 @@ export function useKenhHoiThoai(sessionId: string | null): KenhHoiThoai {
     moSocket().emit('hoi-thoai:dang-go', { sessionId })
   }, [sessionId])
 
+  /**
+   * Tải trang tin cũ hơn tin cũ nhất đang có.
+   *
+   * Lấy mốc từ `seq` NHỎ NHẤT trong danh sách, không từ phần tử đầu: tin đang
+   * chảy dở chưa có `seq`, và về lý thuyết danh sách có thể đang chờ sắp lại.
+   */
+  const taiCu = useCallback(async () => {
+    if (!sessionId || dangTaiCu || !conCu) return
+    const nhoNhat = tinNhan.reduce<number | null>(
+      (m, t) => (t.seq === undefined ? m : m === null ? t.seq : Math.min(m, t.seq)),
+      null,
+    )
+    if (nhoNhat === null) return
+
+    setDangTaiCu(true)
+    try {
+      const kq = await apiFetch<{ tinNhan: TinTuApi[]; conCu: boolean }>(
+        `/api/hoi-thoai/${sessionId}/tin-nhan?truocSeq=${nhoNhat}`,
+      )
+      if (phienDangMo.current !== sessionId) return
+      setTinNhan((ds) => gopLichSu(ds, kq.tinNhan, toiLa))
+      setConCu(kq.conCu)
+    } catch (e) {
+      setLoi(e instanceof ApiClientError ? e.message : 'Không tải được tin cũ hơn')
+    } finally {
+      setDangTaiCu(false)
+    }
+  }, [sessionId, dangTaiCu, conCu, tinNhan, toiLa])
+
   return {
     tinNhan,
+    conCu,
+    dangTaiCu,
+    taiCu,
     hoDangGo,
     baoDangGo,
     trangThai,

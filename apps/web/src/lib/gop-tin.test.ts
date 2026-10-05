@@ -117,11 +117,39 @@ describe('gopLichSu — khử trùng theo seq', () => {
     expect(ds[0]).toMatchObject({ id: 'db-7', seq: 7 })
   })
 
-  it('tin đang chảy dở CHƯA có seq thì không bị đụng tới', () => {
+  /*
+   * Tin đang chảy dở chưa có `seq`: không bị đụng tới, VÀ đứng CUỐI.
+   *
+   * Bản trước khẳng định nó ở vị trí 0 — nhưng đó chỉ là hệ quả của việc nối
+   * tin mới vào cuối, không phải điều đúng. Tin đang chảy dở là tin MỚI NHẤT;
+   * từ khi `gopLichSu` sắp theo `seq`, nó đứng đúng chỗ của nó: dưới cùng.
+   */
+  it('tin đang chảy dở CHƯA có seq thì không bị đụng tới, và đứng cuối', () => {
     const dangChay: TinNhanUI[] = [{ id: 'ai-tam', vai: 'ai', noiDung: 'Có…', dangViet: true }]
     const ds = gopLichSu(dangChay, [tuServer(3, 'câu khác')], 'STUDENT')
-    expect(ds).toHaveLength(2)
-    expect(ds[0]!.id).toBe('ai-tam')
+    expect(ds.map((t) => t.id)).toEqual(['db-3', 'ai-tam'])
+    expect(ds[1]).toMatchObject({ noiDung: 'Có…', dangViet: true })
+  })
+
+  /*
+   * =======================================================================
+   * CHÈN TRANG CŨ HƠN — LÝ DO `gopLichSu` PHẢI SẮP
+   * =======================================================================
+   * Trước phân trang, tin chỉ tới theo một chiều nên nối vào cuối là đủ. Giờ
+   * cuộn lên tải được trang cũ hơn, và nối vào cuối là đặt tin từ tuần trước
+   * nằm DƯỚI câu vừa nói.
+   */
+  it('chèn trang cũ hơn vẫn đúng thứ tự seq', () => {
+    const dangCo = gopLichSu([], [tuServer(51, 'mới 1'), tuServer(52, 'mới 2')], 'STUDENT')
+    const sau = gopLichSu(dangCo, [tuServer(49, 'cũ 1'), tuServer(50, 'cũ 2')], 'STUDENT')
+    expect(sau.map((t) => t.seq)).toEqual([49, 50, 51, 52])
+  })
+
+  /* Tải bù sau khi mất mạng có thể CHEN GIỮA hai tin đã có. */
+  it('tin tới chen giữa cũng vào đúng chỗ', () => {
+    const dangCo = gopLichSu([], [tuServer(10, 'a'), tuServer(13, 'd')], 'STUDENT')
+    const sau = gopLichSu(dangCo, [tuServer(12, 'c'), tuServer(11, 'b')], 'STUDENT')
+    expect(sau.map((t) => t.noiDung)).toEqual(['a', 'b', 'c', 'd'])
   })
 
   it('gọi HAI LẦN trên cùng đầu vào ra cùng kết quả', () => {
