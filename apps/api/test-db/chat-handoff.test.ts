@@ -7,6 +7,7 @@ import {
   hopThuNTD,
   huyCho,
   ketThuc,
+  ntdChuDongTraoDoi,
   tiepNhan,
 } from '../src/modules/chat/handoff.service.js'
 
@@ -40,6 +41,7 @@ let employerProfileId: string
 let employerKhacId: string
 let jobId: string
 let jobKhacId: string
+let hoSoSvId: string
 /** Luồng TRỢ LÝ của sinh viên. Vĩnh viễn, không bao giờ rời `AI_ACTIVE`. */
 let luongAi: string
 
@@ -79,6 +81,16 @@ async function taoNTD(email: string, ten: string, daXacMinh: boolean) {
       },
       select: { id: true },
     }))
+  /*
+   * Đưa tin về MỞ ở đầu MỖI ca. Ca "tin đã đóng" đóng nó; bản trước mở lại ở
+   * cuối chính ca đó, nên ca đó đỏ giữa chừng là tin kẹt ở trạng thái đóng và
+   * mọi ca sau đỏ dây chuyền với "tin đã đóng" — người đọc log đi tìm lỗi ở
+   * nhầm chỗ. Dọn ở `beforeEach`, không dọn ở cuối ca.
+   */
+  await prisma.job.update({
+    where: { id: j.id },
+    data: { status: 'OPEN', goBoiAdminId: null, lyDoGo: null },
+  })
   return { user: u, employerProfileId: hs.id, jobId: j.id }
 }
 
@@ -101,6 +113,8 @@ async function dungDuLieu() {
     create: { userId: sv.id, fullName: 'Nguyễn Văn An' },
     select: { id: true },
   })
+  hoSoSvId = hs.id
+  await prisma.application.deleteMany({ where: { studentProfileId: hs.id } })
 
   /*
    * Dọn SẠCH mọi luồng của sinh viên trước mỗi ca.
@@ -140,6 +154,15 @@ const chuyen = (job = jobId) => chuyenNhaTuyenDung(sv.id, job, '')
 /** Mở luồng với Quán A và trả về id của chính luồng đó. */
 async function moLuongA(): Promise<string> {
   return (await chuyen()).sessionId
+}
+
+/** Sinh viên nộp đơn vào tin của Quán A, ở trạng thái cho trước. */
+async function nopDon(status: 'PENDING' | 'VIEWED' | 'WITHDRAWN' = 'PENDING'): Promise<string> {
+  const d = await prisma.application.create({
+    data: { jobId, studentProfileId: hoSoSvId, status },
+    select: { id: true },
+  })
+  return d.id
 }
 
 beforeEach(dungDuLieu)
@@ -225,10 +248,62 @@ describe('mở luồng với nhà tuyển dụng', () => {
     expect(await prisma.chatMessage.count({ where: { sessionId: id } })).toBe(soTinCu + 1)
   })
 
-  it('tin đã đóng thì không mở luồng được', async () => {
+  /*
+   * =====================================================================
+   * AI ĐƯỢC HỎI: THEO TRẠNG THÁI TIN, KHÔNG THEO ĐƠN
+   * =====================================================================
+   * Tin mở → hỏi được khi CHƯA nộp đơn (việc chính của nút, và của thẻ đề
+   * nghị bên trợ lý). Tin đóng → chỉ người đã nộp đơn chưa rút. Tin bị gỡ →
+   * không ai. Mọi ca ở trên đều chạy KHÔNG có đơn nào — chính chúng là bằng
+   * chứng cho vế đầu.
+   */
+  it('tin đang mở: chưa nộp đơn vẫn hỏi được', async () => {
+    expect(await prisma.application.count({ where: { studentProfileId: hoSoSvId } })).toBe(0)
+    expect((await chuyen()).state).toBe('WAITING_EMPLOYER')
+  })
+
+  it('tin đã đóng, chưa nộp đơn: không mở luồng được', async () => {
     await prisma.job.update({ where: { id: jobId }, data: { status: 'CLOSED' } })
     await expect(chuyen()).rejects.toMatchObject({ status: 404 })
-    await prisma.job.update({ where: { id: jobId }, data: { status: 'OPEN' } })
+  })
+
+  it('tin đã đóng, ĐÃ nộp đơn: vẫn trao đổi tiếp được về đơn đó', async () => {
+    await nopDon('VIEWED')
+    await prisma.job.update({ where: { id: jobId }, data: { status: 'CLOSED' } })
+    expect((await chuyen()).state).toBe('WAITING_EMPLOYER')
+  })
+
+  it('tin đã đóng, đơn đã RÚT: không mở luồng được', async () => {
+    await nopDon('WITHDRAWN')
+    await prisma.job.update({ where: { id: jobId }, data: { status: 'CLOSED' } })
+    await expect(chuyen()).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('tin bị quản trị viên GỠ: đã nộp đơn cũng không mở được', async () => {
+    await nopDon('VIEWED')
+    const admin = await prisma.user.upsert({
+      where: { email: 'handoff-admin@test.local' },
+      update: {},
+      create: { email: 'handoff-admin@test.local', role: 'ADMIN', passwordHash: null },
+      select: { id: true },
+    })
+    await prisma.job.update({
+      where: { id: jobId },
+      data: { status: 'CLOSED', goBoiAdminId: admin.id, lyDoGo: 'Tin lừa đảo' },
+    })
+    await expect(chuyen()).rejects.toMatchObject({ status: 404 })
+  })
+
+  /*
+   * Kế hoạch: nút trao đổi "mở hội thoại hiện có hoặc gửi yêu cầu mới". Báo
+   * trùng phải kèm id, nếu không giao diện chỉ hiện được một câu lỗi.
+   */
+  it('báo trùng kèm id luồng đang có', async () => {
+    const id = await moLuongA()
+    await expect(chuyen()).rejects.toMatchObject({
+      code: 'CONFLICT',
+      details: { sessionId: [id] },
+    })
   })
 
   it('nhà tuyển dụng chưa xác minh thì không mở luồng được', async () => {
@@ -448,5 +523,85 @@ describe('hội thoại của tôi', () => {
 
     const { hoiThoai } = await hoiThoaiCuaToi(sv.id)
     expect(hoiThoai.find((h) => h.sessionId === id)?.tinCuoi).toBe('em hỏi thêm một câu')
+  })
+})
+
+/* ===================================================================== */
+
+/*
+ * Nhà tuyển dụng mở lời từ một ĐƠN của tin mình. Thứ đáng canh nhất: bấm lại
+ * không ghi thêm gì — đây là lối vào cuộc trò chuyện từ màn hình ứng viên, bị
+ * bấm nhiều lần là chuyện thường.
+ */
+describe('nhà tuyển dụng mở lời từ đơn ứng tuyển', () => {
+  const soTin = (id: string) => prisma.chatMessage.count({ where: { sessionId: id } })
+  const soThongBaoSv = () => prisma.notification.count({ where: { userId: sv.id } })
+
+  it('mở lời → HUMAN_ACTIVE, đúng một tin hệ thống, báo sinh viên', async () => {
+    const don = await nopDon()
+    const kq = await ntdChuDongTraoDoi(ntd, don, 'Chào bạn, bên mình muốn hẹn phỏng vấn')
+
+    const luong = await doc(kq.sessionId)
+    expect(luong.kind).toBe('NTD')
+    expect(luong.state).toBe('HUMAN_ACTIVE')
+    expect(luong.handoffEmployerProfileId).toBe(employerProfileId)
+    expect(kq.tin?.senderType).toBe('SYSTEM')
+    expect(await soTin(kq.sessionId)).toBe(1)
+    expect(await soThongBaoSv()).toBe(1)
+  })
+
+  it('bấm lại khi đang trao đổi: không ghi thêm tin, không báo thêm', async () => {
+    const don = await nopDon()
+    const dau = await ntdChuDongTraoDoi(ntd, don)
+
+    const lai = await ntdChuDongTraoDoi(ntd, don)
+
+    expect(lai.sessionId).toBe(dau.sessionId)
+    expect(lai.tin).toBeNull()
+    expect(await soTin(dau.sessionId)).toBe(1)
+    expect(await soThongBaoSv()).toBe(1)
+  })
+
+  it('sinh viên đang chờ: mở lời chính là tiếp nhận, cùng một luồng', async () => {
+    const don = await nopDon()
+    const cho = await moLuongA()
+
+    const kq = await ntdChuDongTraoDoi(ntd, don)
+
+    expect(kq.sessionId).toBe(cho)
+    expect((await doc(cho)).state).toBe('HUMAN_ACTIVE')
+  })
+
+  it('luồng đã đóng thì mở lại, lịch sử còn nguyên', async () => {
+    const don = await nopDon()
+    const dau = await ntdChuDongTraoDoi(ntd, don)
+    await ketThuc(sv, dau.sessionId)
+    const truoc = await soTin(dau.sessionId)
+
+    const lai = await ntdChuDongTraoDoi(ntd, don)
+
+    expect(lai.sessionId).toBe(dau.sessionId)
+    expect((await doc(dau.sessionId)).state).toBe('HUMAN_ACTIVE')
+    expect(await soTin(dau.sessionId)).toBe(truoc + 1)
+  })
+
+  it('đơn của tin nơi khác → 403, không tạo luồng nào', async () => {
+    const don = await nopDon()
+    await expect(ntdChuDongTraoDoi(ntdKhac, don)).rejects.toMatchObject({ status: 403 })
+    expect(await prisma.chatSession.count({ where: { ownerUserId: sv.id, kind: 'NTD' } })).toBe(0)
+  })
+
+  it('đơn đã rút → từ chối', async () => {
+    const don = await nopDon('WITHDRAWN')
+    await expect(ntdChuDongTraoDoi(ntd, don)).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+  })
+
+  it('doanh nghiệp chưa xác minh → từ chối', async () => {
+    const don = await nopDon()
+    await prisma.employerProfile.update({
+      where: { id: employerProfileId },
+      data: { verifiedAt: null },
+    })
+    await expect(ntdChuDongTraoDoi(ntd, don)).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
   })
 })

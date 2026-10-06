@@ -382,22 +382,3 @@ export const TRANG_THAI_XONG_VIEC: ApplicationStatus[] = [
 
 /** Trạng thái NTD còn phải xử lý — dùng cho tab mặc định ở màn hình ứng viên. */
 export const TRANG_THAI_DANG_XU_LY: ApplicationStatus[] = ['PENDING', 'VIEWED']
-
-/** Danh mục các vấn đề cần hỗ trợ người dùng. */
-export const DANH_MUC_HO_TRO = [
-  'HE_THONG',
-  'TAI_KHOAN',
-  'XAC_MINH',
-  'KIEU_NAI',
-  'KHAC',
-] as const
-export type DanhMucHoTro = (typeof DANH_MUC_HO_TRO)[number]
-
-export const DANH_MUC_HO_TRO_LABELS: Record<DanhMucHoTro, string> = {
-  HE_THONG: 'Lỗi hệ thống & kỹ thuật',
-  TAI_KHOAN: 'Vấn đề tài khoản & đăng nhập',
-  XAC_MINH: 'Xác minh doanh nghiệp & hồ sơ',
-  KIEU_NAI: 'Khiếu nại kiểm duyệt',
-  KHAC: 'Vấn đề khác',
-}
-

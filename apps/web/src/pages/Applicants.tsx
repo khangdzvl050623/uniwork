@@ -181,11 +181,16 @@ function HangUngVien({ a, jobId }: { a: ApplicantItem; jobId: string }) {
     setLoiChat(null)
     setDangMoChat(true)
     try {
-      await apiFetch<{ sessionId: string }>('/api/hoi-thoai/ntd-trao-doi', {
+      /*
+       * Bấm bao nhiêu lần cũng được: luồng đang trao đổi thì server chỉ trả id,
+       * không ghi thêm gì. Mở thẳng cuộc trò chuyện, không về hộp thư — người
+       * bấm "Nhắn tin" muốn nhắn ngay với đúng ứng viên này.
+       */
+      const kq = await apiFetch<{ sessionId: string }>('/api/hoi-thoai/ntd-trao-doi', {
         method: 'POST',
         body: JSON.stringify({ applicationId: a.id }),
       })
-      dieuHuong('/ntd/hoi-thoai')
+      dieuHuong(`/hoi-thoai/${kq.sessionId}`)
     } catch (e) {
       setLoiChat(e instanceof Error ? e.message : 'Không mở được hội thoại')
     } finally {
@@ -321,9 +326,9 @@ function HangUngVien({ a, jobId }: { a: ApplicantItem; jobId: string }) {
               title="Chủ động nhắn tin trao đổi với ứng viên"
             >
               {dangMoChat ? (
-                <Loader2 size={14} className="animate-spin" />
+                <Loader2 size={14} className="animate-spin motion-reduce:animate-none" />
               ) : (
-                <MessagesSquare size={14} />
+                <MessagesSquare size={14} aria-hidden="true" />
               )}
               Nhắn tin
             </Button>

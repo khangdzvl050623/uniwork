@@ -1,11 +1,10 @@
-import type { Prisma, Role } from '@prisma/client'
+import type { Role } from '@prisma/client'
 import { prisma } from '../../lib/prisma.js'
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js'
 import { createNotification } from '../notifications/notifications.service.js'
 import { phongHopThuNTD, quyenTruyCapPhien } from './chat.access.js'
 import {
   ghiTinHeThong,
-  khoaLuongNTD,
   moLuongNTD,
   phatTinMoi,
   phatTrangThai,
@@ -32,6 +31,8 @@ import { phatToiPhong } from './phat-su-kien.js'
  */
 
 /* ============================================================== dùng chung -- */
+
+const KHONG_THAY_TIN = 'Không tìm thấy tin tuyển dụng, hoặc tin đã đóng'
 
 export interface KetQuaChuyen {
   sessionId: string
@@ -65,12 +66,40 @@ async function phienCuaChu(userId: string, sessionId: string) {
  * Mở (hoặc mở lại) luồng với nhà tuyển dụng sở hữu tin.
  *
  * ===========================================================================
- * QUY TẮC NGHIỆP VỤ (YÊU CẦU 2):
- * - Phải ứng tuyển đúng tin mới được yêu cầu trao đổi về tin đó.
- * - Không tự tạo yêu cầu chat cho mọi đơn; SV chủ động gửi khi cần.
- * - Tin đóng thì ngừng yêu cầu hỏi mới trước ứng tuyển; trao đổi về đơn đã nộp
- *   vẫn có thể tiếp tục theo trạng thái tuyển dụng.
+ * KHÔNG CÒN "CHUYỂN" LUỒNG NÀO CẢ
  * ===========================================================================
+ * Bản trước BIẾN chính luồng trợ lý của sinh viên thành luồng với nhà tuyển
+ * dụng. Nên hỏi nơi thứ hai là phải đẻ một luồng trợ lý mới, và lịch sử trò
+ * chuyện với AI bị cắt thành nhiều mảnh rời.
+ *
+ * Giờ luồng trợ lý đứng yên, còn đây mở một luồng RIÊNG cho cặp (sinh viên,
+ * nhà tuyển dụng). Hỏi nơi thứ hai là mở luồng thứ hai — không ảnh hưởng gì
+ * tới luồng thứ nhất, và không ai phải "tạo hội thoại mới".
+ *
+ * ---------------------------------------------------------------------------
+ * MỞ LẠI LUỒNG ĐÃ ĐÓNG LÀ CHUYỆN BÌNH THƯỜNG
+ * ---------------------------------------------------------------------------
+ * Nhà tuyển dụng từ chối hoặc hai bên kết thúc → luồng `CLOSED`. Sinh viên hỏi
+ * lại nơi đó vài tháng sau thì CHÍNH luồng ấy mở lại, mang theo cả lịch sử cũ.
+ *
+ * Đó là điều mọi ứng dụng nhắn tin làm, và nó cũng xoá luôn câu hỏi "đã đóng
+ * thì chỉ mục còn giữ không" — câu hỏi đã sinh ra hai lỗi thật ở bản trước.
+ *
+ * ---------------------------------------------------------------------------
+ * AI ĐƯỢC HỎI: THEO TRẠNG THÁI TIN, KHÔNG THEO ĐƠN
+ * ---------------------------------------------------------------------------
+ *   Tin đang MỞ   → ai cũng hỏi được, CHƯA cần nộp đơn. Đây là việc chính của
+ *                   nút này: hỏi ca, hỏi lương trước khi quyết định nộp — và
+ *                   là thứ thẻ đề nghị của trợ lý mở ra [03, nhóm câu hỏi 2].
+ *   Tin đã ĐÓNG   → chỉ người đã nộp đơn (chưa rút): không còn gì để hỏi
+ *                   "trước khi ứng tuyển", nhưng trao đổi về đơn đã nộp phải
+ *                   tiếp tục được (kế hoạch chat SV–NTD, mục 1).
+ *   Tin bị GỠ     → không ai mở được, kể cả người đã nộp đơn: tin vi phạm
+ *                   không phải chủ đề để mở thêm cuộc trò chuyện.
+ *
+ * Bản 2026-10-06 bắt buộc có đơn ở MỌI trường hợp. Thẻ đề nghị của trợ lý
+ * thành nút luôn trả lỗi với người chưa nộp đơn, và 25 ca ở làn database đỏ —
+ * CI không chạy làn đó nên không ai thấy.
  */
 export async function chuyenNhaTuyenDung(
   userId: string,
@@ -83,11 +112,17 @@ export async function chuyenNhaTuyenDung(
       id: true,
       title: true,
       status: true,
+      goBoiAdminId: true,
       employerProfileId: true,
       employerProfile: { select: { userId: true, verifiedAt: true, companyName: true } },
     },
   })
-  if (!tin) throw notFound('Không tìm thấy tin tuyển dụng')
+  if (!tin || tin.goBoiAdminId !== null) throw notFound(KHONG_THAY_TIN)
+
+  /*
+   * Nhà tuyển dụng phải đã được xác minh. Sinh viên không nên bị đẩy sang nói
+   * chuyện với một doanh nghiệp chưa ai kiểm giấy tờ.
+   */
   if (!tin.employerProfile.verifiedAt) {
     throw badRequest('Nhà tuyển dụng này chưa được xác minh')
   }
@@ -98,29 +133,14 @@ export async function chuyenNhaTuyenDung(
   })
   if (!hoSo) throw notFound('Chưa có hồ sơ sinh viên')
 
-  /*
-   * Kiểm tra đơn ứng tuyển của sinh viên:
-   * "Phải ứng tuyển đúng tin mới được yêu cầu trao đổi về tin đó."
-   */
-  const donUngTuyen = await prisma.application.findUnique({
-    where: {
-      jobId_studentProfileId: {
-        jobId: tin.id,
-        studentProfileId: hoSo.id,
-      },
-    },
-    select: { id: true, status: true },
-  })
-
-  if (!donUngTuyen) {
-    if (tin.status !== 'OPEN') {
-      throw badRequest('Tin tuyển dụng đã đóng, không thể gửi yêu cầu hỏi mới')
-    }
-    throw badRequest('Bạn cần ứng tuyển đúng tin trước khi yêu cầu trao đổi về tin đó')
-  }
-
-  if (donUngTuyen.status === 'WITHDRAWN') {
-    throw badRequest('Bạn đã rút đơn ứng tuyển cho tin này, không thể yêu cầu trao đổi')
+  if (tin.status !== 'OPEN') {
+    const don = await prisma.application.findUnique({
+      where: { jobId_studentProfileId: { jobId: tin.id, studentProfileId: hoSo.id } },
+      select: { status: true },
+    })
+    // Cùng 404 với "không có tin": người chưa nộp đơn không cần biết tin
+    // đóng hay chưa từng có — với họ, nó không còn để hỏi nữa.
+    if (!don || don.status === 'WITHDRAWN') throw notFound(KHONG_THAY_TIN)
   }
 
   const luong = await moLuongNTD({
@@ -132,11 +152,25 @@ export async function chuyenNhaTuyenDung(
   const sessionId = luong.sessionId
 
   const kq = await prisma.$transaction(async (tx) => {
+    /*
+     * Chỉ luồng ĐANG ĐÓNG mới cần mở lại. Đang chờ hoặc đang trao đổi thì bấm
+     * thêm lần nữa là trùng — báo rõ thay vì lặng lẽ ghi thêm một lời nhắn mở
+     * đầu thứ hai vào giữa cuộc trò chuyện.
+     *
+     * `vuaTao` là thứ phân biệt được hai ca giống hệt nhau qua `state`: luồng
+     * NTD ra đời đã ở `WAITING_EMPLOYER` (CHECK cấm `AI_ACTIVE`), nên thiếu cờ
+     * này thì chính lần bấm ĐẦU TIÊN bị báo trùng.
+     *
+     * Báo trùng KÈM id luồng: kế hoạch nói nút trao đổi "mở hội thoại hiện có
+     * hoặc gửi yêu cầu mới". Giao diện dùng id này để đưa người dùng tới đúng
+     * cuộc trò chuyện đang có, thay vì để họ đứng trước một câu báo lỗi.
+     */
+    const luongDangCo = { sessionId: [sessionId] }
     if (!luong.vuaTao && luong.state === 'WAITING_EMPLOYER') {
-      throw conflict('Bạn đã gửi yêu cầu và đang chờ nhà tuyển dụng này trả lời.')
+      throw conflict('Bạn đã gửi yêu cầu và đang chờ nhà tuyển dụng này trả lời.', luongDangCo)
     }
     if (luong.state === 'HUMAN_ACTIVE') {
-      throw conflict('Bạn đang trao đổi trực tiếp với nhà tuyển dụng này rồi.')
+      throw conflict('Bạn đang trao đổi trực tiếp với nhà tuyển dụng này rồi.', luongDangCo)
     }
 
     if (luong.state === 'CLOSED') {
@@ -152,10 +186,10 @@ export async function chuyenNhaTuyenDung(
       })
       if (doi.count === 0) throw conflict('Luồng vừa đổi trạng thái, thử lại giúp tôi')
     } else {
-      /* Luồng vừa được tạo ở `WAITING_EMPLOYER`; cập nhật thời điểm và gắn đúng jobId. */
+      /* Luồng vừa được tạo ở `WAITING_EMPLOYER`; chỉ cần đóng dấu thời điểm. */
       await tx.chatSession.update({
         where: { id: sessionId },
-        data: { handoffRequestedAt: new Date(), jobId: tin.id },
+        data: { handoffRequestedAt: new Date() },
       })
     }
 
@@ -188,9 +222,9 @@ export async function chuyenNhaTuyenDung(
  * Lời nhắn mở đầu, LUÔN đính kèm tên tin.
  *
  * Một luồng NTD sống lâu và có thể bàn về nhiều tin của cùng nơi đó — cột
- * `jobId` chỉ ghi tin ĐẦU TIÊN. Nên mỗi lần mở lại phải nói rõ lần này hỏi về
- * cái gì, nếu không nhà tuyển dụng đọc một câu hỏi lơ lửng giữa một cuộc trò
- * chuyện cũ.
+ * `jobId` chỉ giữ tin của lần mở GẦN NHẤT (hộp thư nhà tuyển dụng hiện tên tin
+ * theo cột này). Nên mỗi lần mở lại phải nói rõ lần này hỏi về cái gì, nếu
+ * không nhà tuyển dụng đọc một câu hỏi lơ lửng giữa một cuộc trò chuyện cũ.
  *
  * Bản trước chỉ đính kèm khi tin KHÁC tin đã gắn. Đúng với mô hình cũ (một
  * luồng một lần trao đổi), sai với luồng vĩnh viễn.
@@ -272,6 +306,125 @@ export async function tiepNhan(
 
   phatTinMoi(sessionId, tin)
   phatTrangThai(sessionId, 'HUMAN_ACTIVE', phien.ownerUserId)
+  return { sessionId, state: 'HUMAN_ACTIVE', tin }
+}
+
+/* ============================== C2 — nhà tuyển dụng mở lời từ một đơn -- */
+
+export interface KetQuaTraoDoi {
+  sessionId: string
+  state: 'HUMAN_ACTIVE'
+  /** `null` = luồng vốn đang trao đổi, không có gì được ghi thêm. */
+  tin: TinNhanItem | null
+}
+
+/**
+ * Nhà tuyển dụng mở trao đổi với một ứng viên, từ ĐƠN của tin mình.
+ *
+ * Kế hoạch chat SV–NTD, mục 1: "NTD chỉ được chủ động liên hệ từ đơn ứng tuyển
+ * thuộc tin của mình; SV được từ chối/chặn." Không có đơn thì không có cửa —
+ * nhà tuyển dụng không lấy được danh sách sinh viên để nhắn tuỳ ý.
+ *
+ * ---------------------------------------------------------------------------
+ * BẤM LẠI KHÔNG GHI THÊM GÌ
+ * ---------------------------------------------------------------------------
+ * Đây là lối vào cuộc trò chuyện từ màn hình ứng viên, nên sẽ bị bấm nhiều lần.
+ * Bản 2026-10-06 mỗi lần bấm ghi một tin hệ thống và gửi một thông báo — mười
+ * lần mở là mười dòng "nhà tuyển dụng muốn trao đổi" trong chuông của sinh
+ * viên. Giờ chỉ khi luồng thật sự ĐỔI trạng thái mới có tin và thông báo.
+ *
+ * ---------------------------------------------------------------------------
+ * BA TRẠNG THÁI NGUỒN, MỘT CÂU UPDATE CÓ ĐIỀU KIỆN
+ * ---------------------------------------------------------------------------
+ *   vừa tạo / `CLOSED`   → `HUMAN_ACTIVE`: nhà tuyển dụng mở lời.
+ *   `WAITING_EMPLOYER`   → `HUMAN_ACTIVE`: sinh viên đã hỏi trước; mở lời lúc
+ *                          này chính là tiếp nhận.
+ *   `HUMAN_ACTIVE`       → giữ nguyên, chỉ trả id để mở ra.
+ *
+ * Vào thẳng `HUMAN_ACTIVE`, không chờ sinh viên đồng ý: họ là người đã nộp đơn
+ * cho chính tin này, và "Kết thúc" đóng luồng bất cứ lúc nào — đó là quyền từ
+ * chối của kế hoạch. Chặn hẳn một nhà tuyển dụng là việc còn nợ.
+ */
+export async function ntdChuDongTraoDoi(
+  user: { id: string; role: Role },
+  applicationId: string,
+  loiNhan = '',
+): Promise<KetQuaTraoDoi> {
+  const don = await prisma.application.findUnique({
+    where: { id: applicationId },
+    select: {
+      status: true,
+      jobId: true,
+      studentProfileId: true,
+      studentProfile: { select: { userId: true } },
+      job: {
+        select: {
+          title: true,
+          goBoiAdminId: true,
+          employerProfileId: true,
+          employerProfile: { select: { userId: true, verifiedAt: true } },
+        },
+      },
+    },
+  })
+  if (!don) throw notFound('Không tìm thấy đơn ứng tuyển')
+  // 403 như phần còn lại của module đơn ứng tuyển (`layTinCuaNtd`).
+  if (don.job.employerProfile.userId !== user.id) {
+    throw forbidden('Đơn ứng tuyển này không thuộc tin của bạn')
+  }
+  if (don.status === 'WITHDRAWN') throw badRequest('Ứng viên đã rút đơn này')
+  if (don.job.goBoiAdminId !== null) throw badRequest('Tin này đã bị gỡ khỏi trang')
+  /* Cùng luật với phía sinh viên: doanh nghiệp chưa ai kiểm giấy tờ thì không mở lời. */
+  if (!don.job.employerProfile.verifiedAt) {
+    throw badRequest('Hồ sơ doanh nghiệp của bạn chưa được xác minh')
+  }
+
+  const ownerUserId = don.studentProfile.userId
+  const luong = await moLuongNTD({
+    userId: ownerUserId,
+    studentProfileId: don.studentProfileId,
+    employerProfileId: don.job.employerProfileId,
+    jobId: don.jobId,
+  })
+  const sessionId = luong.sessionId
+  if (luong.state === 'HUMAN_ACTIVE') return { sessionId, state: 'HUMAN_ACTIVE', tin: null }
+
+  const tin = await prisma.$transaction(async (tx) => {
+    const doi = await tx.chatSession.updateMany({
+      where: { id: sessionId, state: { in: ['WAITING_EMPLOYER', 'CLOSED'] } },
+      data: {
+        state: 'HUMAN_ACTIVE',
+        jobId: don.jobId,
+        handoffAcceptedAt: new Date(),
+        closedAt: null,
+        closedByUserId: null,
+      },
+    })
+    /*
+     * `count === 0` chỉ có một nghĩa ở đây: giữa lúc đọc và lúc ghi, luồng đã
+     * sang `HUMAN_ACTIVE` (chính nhà tuyển dụng bấm ở tab khác). Đích đã đạt,
+     * không có gì để ghi — không phải lỗi.
+     */
+    if (doi.count === 0) return null
+
+    const than = loiNhan.trim() === '' ? 'Nhà tuyển dụng muốn trao đổi với bạn.' : loiNhan.trim()
+    const tinMo = await ghiTinHeThong(tx, sessionId, `${than}\n(Về đơn ứng tuyển tin: ${don.job.title})`)
+
+    await createNotification(tx, {
+      userId: ownerUserId,
+      type: 'CHAT_HANDOFF_ACCEPTED',
+      title: 'Nhà tuyển dụng muốn trao đổi',
+      body: `Về đơn ứng tuyển tin “${don.job.title}”.`,
+      link: `/hoi-thoai/${sessionId}`,
+    })
+
+    return tinMo
+  })
+
+  if (tin) {
+    phatTinMoi(sessionId, tin)
+    phatTrangThai(sessionId, 'HUMAN_ACTIVE', ownerUserId)
+  }
   return { sessionId, state: 'HUMAN_ACTIVE', tin }
 }
 
@@ -532,159 +685,4 @@ function vietTat(ten: string | null | undefined): string {
   const tu = (ten ?? '').trim().split(/\s+/).filter(Boolean)
   if (tu.length === 0) return 'Ẩn danh'
   return tu.map((t) => [...t][0]!.toLocaleUpperCase('vi-VN')).join('.')
-}
-
-/* =========================================== NTD chủ động trao đổi từ đơn = */
-
-/**
- * Nhà tuyển dụng chủ động bắt đầu hoặc mở lại trao đổi từ một đơn ứng tuyển.
- *
- * ===========================================================================
- * QUY TẮC NGHIỆP VỤ:
- * - NTD có thể chủ động trao đổi từ đơn ứng tuyển bất kỳ (PENDING, VIEWED, ...).
- * - Không bắt buộc đợi tới phỏng vấn mới được chat.
- * - Luồng chuyển thẳng sang `HUMAN_ACTIVE`.
- * ===========================================================================
- */
-export async function ntdChuDongTraoDoi(
-  user: { id: string; role: Role },
-  applicationId: string,
-  loiNhan?: string,
-): Promise<KetQuaChuyen> {
-  if (user.role !== 'EMPLOYER') {
-    throw forbidden('Chỉ nhà tuyển dụng mới có thể chủ động trao đổi từ đơn ứng tuyển')
-  }
-
-  const don = await prisma.application.findUnique({
-    where: { id: applicationId },
-    select: {
-      id: true,
-      jobId: true,
-      status: true,
-      studentProfileId: true,
-      studentProfile: { select: { id: true, userId: true, fullName: true } },
-      job: {
-        select: {
-          id: true,
-          title: true,
-          employerProfileId: true,
-          employerProfile: { select: { userId: true, verifiedAt: true } },
-        },
-      },
-    },
-  })
-  if (!don) throw notFound('Không tìm thấy đơn ứng tuyển')
-  if (don.job.employerProfile.userId !== user.id) {
-    throw forbidden('Đơn ứng tuyển này không thuộc về tin của bạn')
-  }
-  if (don.status === 'WITHDRAWN') {
-    throw badRequest('Ứng viên đã rút đơn ứng tuyển này')
-  }
-
-  const luong = await moLuongNTD({
-    userId: don.studentProfile.userId,
-    studentProfileId: don.studentProfileId,
-    employerProfileId: don.job.employerProfileId,
-    jobId: don.jobId,
-  })
-  const sessionId = luong.sessionId
-
-  const kq = await prisma.$transaction(async (tx) => {
-    await tx.chatSession.update({
-      where: { id: sessionId },
-      data: {
-        state: 'HUMAN_ACTIVE',
-        jobId: don.jobId,
-        handoffAcceptedAt: new Date(),
-        closedAt: null,
-        closedByUserId: null,
-      },
-    })
-
-    const cauChao =
-      loiNhan && loiNhan.trim() !== ''
-        ? `Nhà tuyển dụng đã bắt đầu trao đổi: ${loiNhan.trim()}\n(Về tin: ${don.job.title})`
-        : `Nhà tuyển dụng đã bắt đầu trao đổi trực tiếp với bạn về đơn ứng tuyển tin “${don.job.title}”.`
-
-    const tinNhan = await ghiTinHeThong(tx, sessionId, cauChao)
-
-    await createNotification(tx, {
-      userId: don.studentProfile.userId,
-      type: 'CHAT_HANDOFF_ACCEPTED',
-      title: 'Nhà tuyển dụng muốn trao đổi',
-      body: `Nhà tuyển dụng muốn trao đổi với bạn về đơn ứng tuyển tin “${don.job.title}”.`,
-      link: `/hoi-thoai/${sessionId}`,
-    })
-
-    return tinNhan
-  })
-
-  phatTinMoi(sessionId, kq)
-  phatTrangThai(sessionId, 'HUMAN_ACTIVE', don.studentProfile.userId)
-
-  return { sessionId, state: 'HUMAN_ACTIVE', tin: kq }
-}
-
-/**
- * Tự động tạo hoặc mở lại hội thoại khi NTD mời phỏng vấn (SHORTLISTED).
- *
- * Chạy trong cùng transaction với `updateApplicationStatus`.
- */
-export async function kichHoatLuongKhiMoiPhongVan(
-  tx: Prisma.TransactionClient,
-  v: {
-    studentUserId: string
-    studentProfileId: string
-    employerProfileId: string
-    jobId: string
-    jobTitle: string
-    note?: string
-  },
-): Promise<{ sessionId: string; tin: TinNhanItem } | null> {
-  if (!tx.chatSession?.findUnique) return null
-
-  const khoaLuong = khoaLuongNTD(v.employerProfileId)
-  let phien = await tx.chatSession.findUnique({
-    where: {
-      ownerUserId_clientSessionId: {
-        ownerUserId: v.studentUserId,
-        clientSessionId: khoaLuong,
-      },
-    },
-    select: { id: true, state: true },
-  })
-
-  if (!phien) {
-    phien = await tx.chatSession.create({
-      data: {
-        kind: 'NTD',
-        ownerUserId: v.studentUserId,
-        clientSessionId: khoaLuong,
-        studentProfileId: v.studentProfileId,
-        handoffEmployerProfileId: v.employerProfileId,
-        jobId: v.jobId,
-        state: 'HUMAN_ACTIVE',
-        handoffAcceptedAt: new Date(),
-      },
-      select: { id: true, state: true },
-    })
-  } else {
-    await tx.chatSession.update({
-      where: { id: phien.id },
-      data: {
-        state: 'HUMAN_ACTIVE',
-        jobId: v.jobId,
-        handoffAcceptedAt: new Date(),
-        closedAt: null,
-        closedByUserId: null,
-      },
-    })
-  }
-
-  const thongBao = v.note?.trim()
-    ? `Nhà tuyển dụng đã mời phỏng vấn cho tin “${v.jobTitle}”.\nLời nhắn: ${v.note.trim()}`
-    : `Nhà tuyển dụng đã mời bạn phỏng vấn cho tin “${v.jobTitle}”. Hai bên có thể trao đổi trực tiếp tại đây.`
-
-  const tin = await ghiTinHeThong(tx, phien.id, thongBao)
-  return { sessionId: phien.id, tin }
 }

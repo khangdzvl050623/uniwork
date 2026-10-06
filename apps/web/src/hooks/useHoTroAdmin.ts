@@ -14,22 +14,10 @@ export interface MucHangDoiHoTro {
   state: string
   /** Câu người dùng mô tả lúc bấm xin hỗ trợ. `null` nếu họ để trống. */
   moTaDau: string | null
-  danhMuc: string | null
+  /** Đã có quản trị viên nhận chưa. */
   handoffAdminUserId: string | null
   handoffRequestedAt: string | null
   lastMessageAt: string
-}
-
-export interface MucHoTroKhach {
-  id: string
-  email: string
-  hoTen: string
-  phone?: string
-  danhMuc: string
-  moTa: string
-  createdAt: string
-  status: 'WAITING_ADMIN' | 'RESOLVED' | 'CLOSED'
-  ghiChuXuLy?: string
 }
 
 /**
@@ -48,10 +36,8 @@ function useYeuCauMoi() {
     const s = moSocket()
     const moi = () => void qc.invalidateQueries({ queryKey: KHOA })
     s.on('ho-tro:yeu-cau-moi', moi)
-    s.on('ho-tro:khach-moi', moi)
     return () => {
       s.off('ho-tro:yeu-cau-moi', moi)
-      s.off('ho-tro:khach-moi', moi)
     }
   }, [qc])
 }
@@ -61,8 +47,7 @@ export function useHangDoiHoTro() {
 
   return useQuery({
     queryKey: KHOA,
-    queryFn: () =>
-      apiFetch<{ hoTro: MucHangDoiHoTro[]; hoTroKhach: MucHoTroKhach[] }>('/api/admin/ho-tro'),
+    queryFn: () => apiFetch<{ hoTro: MucHangDoiHoTro[] }>('/api/admin/ho-tro'),
     /*
      * 30 giây — ngắn hơn hộp thư nhà tuyển dụng (60 s) vì đây là hàng đợi
      * TRỰC: người bên kia đang ngồi chờ có ai trả lời. Ngắn hơn nữa thì thành
@@ -95,22 +80,5 @@ export function useChuyenDoiHoTro() {
     onSuccess: lamMoi,
   })
 
-  const xuLyKhach = useMutation({
-    mutationFn: ({
-      ticketId,
-      status,
-      ghiChu,
-    }: {
-      ticketId: string
-      status: 'RESOLVED' | 'CLOSED'
-      ghiChu?: string
-    }) =>
-      apiFetch<{ ticket: MucHoTroKhach }>(`/api/admin/ho-tro/khach/${ticketId}/xu-ly`, {
-        method: 'POST',
-        body: JSON.stringify({ status, ghiChu }),
-      }),
-    onSuccess: lamMoi,
-  })
-
-  return { tiepNhan, ketThuc, xuLyKhach }
+  return { tiepNhan, ketThuc }
 }
