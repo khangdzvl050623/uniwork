@@ -4,8 +4,10 @@ import { conHanNop } from '../../lib/han-nop.js'
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js'
 import { createNotification } from '../notifications/notifications.service.js'
 import { phongHopThuNTD, quyenTruyCapPhien } from './chat.access.js'
+import { daChan } from './chan-ntd.service.js'
 import {
   ghiTinHeThong,
+  khoaLuongNTD,
   moLuongNTD,
   phatTinMoi,
   phatTrangThai,
@@ -34,6 +36,13 @@ import { phatToiPhong } from './phat-su-kien.js'
 /* ============================================================== dùng chung -- */
 
 const KHONG_THAY_TIN = 'Không tìm thấy tin tuyển dụng, hoặc tin đã đóng'
+
+/*
+ * Câu cho nhà tuyển dụng khi sinh viên đã chặn họ. Không nói chữ "chặn": nói
+ * đủ để họ hiểu vì sao nút không ăn, không hơn — cùng tinh thần với việc
+ * không báo cho họ lúc bị chặn.
+ */
+const UNG_VIEN_KHONG_NHAN_TIN = 'Ứng viên này hiện không nhận tin nhắn từ bạn.'
 
 export interface KetQuaChuyen {
   sessionId: string
@@ -152,6 +161,27 @@ export async function chuyenNhaTuyenDung(
     if (!don || don.status === 'WITHDRAWN') throw notFound(KHONG_THAY_TIN)
   }
 
+  /*
+   * Đã chặn nơi này thì phải bỏ chặn trước — không tự bỏ hộ, xem
+   * `chan-ntd.service.ts`. Kèm id luồng: giao diện hiện nút "Mở hội thoại",
+   * và nút "Bỏ chặn" nằm ngay trong luồng đó.
+   */
+  if (await daChan(prisma, userId, tin.employerProfileId)) {
+    const cu = await prisma.chatSession.findUnique({
+      where: {
+        ownerUserId_clientSessionId: {
+          ownerUserId: userId,
+          clientSessionId: khoaLuongNTD(tin.employerProfileId),
+        },
+      },
+      select: { id: true },
+    })
+    throw conflict(
+      'Bạn đã chặn nhà tuyển dụng này. Bỏ chặn trong cuộc trò chuyện với họ để trao đổi lại.',
+      cu ? { sessionId: [cu.id] } : undefined,
+    )
+  }
+
   const luong = await moLuongNTD({
     userId,
     studentProfileId: hoSo.id,
@@ -209,7 +239,7 @@ export async function chuyenNhaTuyenDung(
       type: 'CHAT_HANDOFF_REQUESTED',
       title: 'Có sinh viên muốn trao đổi',
       body: `Một sinh viên đang chờ bạn trả lời về tin “${tin.title}”.`,
-      link: `/ntd/hoi-thoai`,
+      link: `/ntd/hoi-thoai?phien=${sessionId}`,
     })
 
     return tinMo
@@ -389,6 +419,12 @@ export async function ntdChuDongTraoDoi(
   }
 
   const ownerUserId = don.studentProfile.userId
+
+  /* Kiểm sớm: chưa có luồng thì đừng tạo ra một luồng chỉ để từ chối. */
+  if (await daChan(prisma, ownerUserId, don.job.employerProfileId)) {
+    throw forbidden(UNG_VIEN_KHONG_NHAN_TIN)
+  }
+
   const luong = await moLuongNTD({
     userId: ownerUserId,
     studentProfileId: don.studentProfileId,
@@ -415,6 +451,17 @@ export async function ntdChuDongTraoDoi(
      * không có gì để ghi — không phải lỗi.
      */
     if (doi.count === 0) return null
+
+    /*
+     * Kiểm LẠI, trong transaction, SAU câu UPDATE. Lần kiểm sớm ở trên có khe:
+     * sinh viên bấm chặn đúng lúc này. Câu UPDATE đã khoá hàng luồng, nên giao
+     * dịch chặn (cũng UPDATE hàng đó để đóng luồng) hoặc đã commit — và lần
+     * đọc này thấy nó — hoặc phải chờ ta xong rồi mới đóng luồng lại. Không có
+     * thứ tự nào để luồng mở với một người đã chặn.
+     */
+    if (await daChan(tx, ownerUserId, don.job.employerProfileId)) {
+      throw forbidden(UNG_VIEN_KHONG_NHAN_TIN)
+    }
 
     const than = loiNhan.trim() === '' ? 'Nhà tuyển dụng muốn trao đổi với bạn.' : loiNhan.trim()
     const tinMo = await ghiTinHeThong(tx, sessionId, `${than}\n(Về đơn ứng tuyển tin: ${don.job.title})`)

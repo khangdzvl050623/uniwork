@@ -28,6 +28,12 @@ vi.mock('./chat.service.js', () => ({
   moLuong: vi.fn(),
 }))
 
+vi.mock('./chan-ntd.service.js', () => ({
+  chanNhaTuyenDung: vi.fn(async () => ({ sessionId: 'sess-1', daChan: true, state: 'CLOSED' })),
+  boChanNhaTuyenDung: vi.fn(async () => ({ sessionId: 'sess-1', daChan: false, state: 'CLOSED' })),
+  daChan: vi.fn(async () => false),
+}))
+
 vi.mock('../../lib/prisma.js', () => ({ prisma: {} }))
 
 const mockChuyenNhaTuyenDung = chuyenNhaTuyenDung as unknown as Mock
@@ -193,5 +199,34 @@ describe('Các trạng thái luồng (Hủy, Tiếp nhận, Từ chối, Kết t
       'sess-1',
     )
     expect(res.body.data.state).toBe('CLOSED')
+  })
+})
+
+/*
+ * Chặn là quyền của SINH VIÊN với luồng của chính mình. Nhà tuyển dụng gọi được
+ * đường này thì họ tự "chặn" để đóng ngang một luồng sinh viên đang chờ.
+ */
+describe('Chặn nhà tuyển dụng — chỉ sinh viên', () => {
+  it('chưa đăng nhập → 401', async () => {
+    await request(app).post('/api/hoi-thoai/sess-1/chan').expect(401)
+  })
+
+  it('nhà tuyển dụng gọi → 403, cả chặn lẫn bỏ chặn', async () => {
+    await request(app)
+      .post('/api/hoi-thoai/sess-1/chan')
+      .set('Authorization', `Bearer ${ntdToken}`)
+      .expect(403)
+    await request(app)
+      .delete('/api/hoi-thoai/sess-1/chan')
+      .set('Authorization', `Bearer ${ntdToken}`)
+      .expect(403)
+  })
+
+  it('sinh viên chặn → 200, daChan = true', async () => {
+    const res = await request(app)
+      .post('/api/hoi-thoai/sess-1/chan')
+      .set('Authorization', `Bearer ${svToken}`)
+      .expect(200)
+    expect(res.body.data.daChan).toBe(true)
   })
 })

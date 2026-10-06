@@ -2,6 +2,7 @@ import { PrismaClient } from '@prisma/client'
 import { afterAll, beforeEach, describe, expect, it } from 'vitest'
 import { quyenTruyCapPhien } from '../src/modules/chat/chat.access.js'
 import { guiTinNhan, hoiThoaiCuaToi } from '../src/modules/chat/chat.service.js'
+import { boChanNhaTuyenDung, chanNhaTuyenDung } from '../src/modules/chat/chan-ntd.service.js'
 import {
   chuyenNhaTuyenDung,
   hopThuNTD,
@@ -125,6 +126,7 @@ async function dungDuLieu() {
   })
   hoSoSvId = hs.id
   await prisma.application.deleteMany({ where: { studentProfileId: hs.id } })
+  await prisma.employerBlock.deleteMany({ where: { studentUserId: sv.id } })
 
   /*
    * Dọn SẠCH mọi luồng của sinh viên trước mỗi ca.
@@ -634,5 +636,112 @@ describe('nhà tuyển dụng mở lời từ đơn ứng tuyển', () => {
       data: { verifiedAt: null },
     })
     await expect(ntdChuDongTraoDoi(ntd, don)).rejects.toMatchObject({ code: 'VALIDATION_ERROR' })
+  })
+})
+
+/* ===================================================================== */
+
+/*
+ * Sinh viên chặn nhà tuyển dụng — chỉ phần nhắn tin. Thứ đáng canh: sau khi
+ * chặn, KHÔNG có đường nào mở lại luồng từ phía nhà tuyển dụng, và đơn ứng
+ * tuyển không bị đụng tới.
+ */
+describe('sinh viên chặn nhà tuyển dụng', () => {
+  const soTin = (id: string) => prisma.chatMessage.count({ where: { sessionId: id } })
+  const muc = async (id: string) =>
+    (await hoiThoaiCuaToi(sv.id)).hoiThoai.find((h) => h.sessionId === id)
+
+  it('chặn khi đang trao đổi → luồng ĐÓNG, ghi đúng câu của "Kết thúc"', async () => {
+    const don = await nopDon()
+    const { sessionId } = await ntdChuDongTraoDoi(ntd, don)
+
+    const kq = await chanNhaTuyenDung(sv.id, sessionId)
+
+    expect(kq).toMatchObject({ daChan: true, state: 'CLOSED' })
+    expect((await doc(sessionId)).state).toBe('CLOSED')
+    const cuoi = await prisma.chatMessage.findFirst({
+      where: { sessionId },
+      orderBy: { seq: 'desc' },
+    })
+    // Nhà tuyển dụng thấy cuộc trò chuyện kết thúc, KHÔNG thấy chữ "chặn".
+    expect(cuoi?.body).toBe('Người dùng đã kết thúc hội thoại.')
+  })
+
+  it('đã chặn: nhà tuyển dụng mở lời từ đơn bị từ chối, luồng không mở, không ghi gì', async () => {
+    const don = await nopDon()
+    const { sessionId } = await ntdChuDongTraoDoi(ntd, don)
+    await chanNhaTuyenDung(sv.id, sessionId)
+    const truoc = await soTin(sessionId)
+
+    await expect(ntdChuDongTraoDoi(ntd, don)).rejects.toMatchObject({ status: 403 })
+
+    expect((await doc(sessionId)).state).toBe('CLOSED')
+    expect(await soTin(sessionId)).toBe(truoc)
+  })
+
+  it('đã chặn: KHÔNG tự tạo luồng mới cho nhà tuyển dụng chưa từng nhắn', async () => {
+    const id = await moLuongA()
+    await chanNhaTuyenDung(sv.id, id)
+    await prisma.chatMessage.deleteMany({ where: { sessionId: id } })
+    await prisma.chatSession.delete({ where: { id } })
+
+    const don = await nopDon()
+    await expect(ntdChuDongTraoDoi(ntd, don)).rejects.toMatchObject({ status: 403 })
+    expect(await prisma.chatSession.count({ where: { ownerUserId: sv.id, kind: 'NTD' } })).toBe(0)
+  })
+
+  it('đã chặn: sinh viên hỏi lại thì được bảo bỏ chặn trước, kèm id luồng', async () => {
+    const id = await moLuongA()
+    await chanNhaTuyenDung(sv.id, id)
+
+    await expect(chuyen()).rejects.toMatchObject({
+      code: 'CONFLICT',
+      details: { sessionId: [id] },
+    })
+    expect((await doc(id)).state).toBe('CLOSED')
+  })
+
+  it('bỏ chặn → nhà tuyển dụng mở lời lại được, chính luồng cũ', async () => {
+    const don = await nopDon()
+    const { sessionId } = await ntdChuDongTraoDoi(ntd, don)
+    await chanNhaTuyenDung(sv.id, sessionId)
+
+    const bo = await boChanNhaTuyenDung(sv.id, sessionId)
+    expect(bo).toMatchObject({ daChan: false, state: 'CLOSED' }) // bỏ chặn KHÔNG tự mở luồng
+
+    const lai = await ntdChuDongTraoDoi(ntd, don)
+    expect(lai.sessionId).toBe(sessionId)
+    expect((await doc(sessionId)).state).toBe('HUMAN_ACTIVE')
+  })
+
+  it('chặn hai lần không lỗi, chỉ một hàng', async () => {
+    const id = await moLuongA()
+    await chanNhaTuyenDung(sv.id, id)
+    await chanNhaTuyenDung(sv.id, id)
+    expect(await prisma.employerBlock.count({ where: { studentUserId: sv.id } })).toBe(1)
+  })
+
+  it('đơn ứng tuyển KHÔNG bị đụng tới', async () => {
+    const don = await nopDon('VIEWED')
+    const { sessionId } = await ntdChuDongTraoDoi(ntd, don)
+    await chanNhaTuyenDung(sv.id, sessionId)
+    expect((await prisma.application.findUniqueOrThrow({ where: { id: don } })).status).toBe('VIEWED')
+  })
+
+  it('danh sách hội thoại báo đúng cờ daChan, và chỉ cho đúng nơi bị chặn', async () => {
+    const a = await moLuongA()
+    const b = (await chuyen(jobKhacId)).sessionId
+    await chanNhaTuyenDung(sv.id, a)
+
+    expect((await muc(a))?.daChan).toBe(true)
+    expect((await muc(b))?.daChan).toBe(false)
+    expect((await muc(luongAi))?.daChan).toBe(false)
+  })
+
+  it('không chặn được luồng không phải luồng NTD của mình → 404', async () => {
+    const id = await moLuongA()
+    await expect(chanNhaTuyenDung(ntd.id, id)).rejects.toMatchObject({ status: 404 })
+    await expect(chanNhaTuyenDung(sv.id, luongAi)).rejects.toMatchObject({ status: 404 })
+    expect(await prisma.employerBlock.count({ where: { studentUserId: sv.id } })).toBe(0)
   })
 })

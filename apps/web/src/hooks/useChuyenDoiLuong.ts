@@ -30,5 +30,18 @@ export function useChuyenDoiLuong() {
     onSuccess: lamMoi,
   })
 
-  return { huyCho, ketThuc }
+  /* Chặn / bỏ chặn nhà tuyển dụng của luồng — chỉ phần nhắn tin. */
+  const chan = useMutation({
+    mutationFn: (sessionId: string) =>
+      apiFetch<{ daChan: boolean }>(`/api/hoi-thoai/${sessionId}/chan`, { method: 'POST' }),
+    onSuccess: lamMoi,
+  })
+
+  const boChan = useMutation({
+    mutationFn: (sessionId: string) =>
+      apiFetch<{ daChan: boolean }>(`/api/hoi-thoai/${sessionId}/chan`, { method: 'DELETE' }),
+    onSuccess: lamMoi,
+  })
+
+  return { huyCho, ketThuc, chan, boChan }
 }

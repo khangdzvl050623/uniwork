@@ -23,6 +23,7 @@ import {
 } from './chat.service.js'
 import * as handoff from './handoff.service.js'
 import * as hoTro from './ho-tro.service.js'
+import * as chanNTD from './chan-ntd.service.js'
 import { KenhSSE } from './sse.js'
 import { chayLuot, RUNNER_ID } from './tro-ly.service.js'
 
@@ -254,4 +255,17 @@ export const tiepNhanHoTroController: RequestHandler = async (req, res) => {
 
 export const hangDoiHoTroController: RequestHandler = async (_req, res) => {
   ok(res, await hoTro.hangDoiHoTro())
+}
+
+/** Sinh viên chặn nhà tuyển dụng của luồng này — chỉ phần nhắn tin. */
+export const chanController: RequestHandler = async (req, res) => {
+  const u = nguoiGoi(req)
+  const { id } = parse(thamSoId, req.params)
+  ok(res, await chanNTD.chanNhaTuyenDung(u.id, id))
+}
+
+export const boChanController: RequestHandler = async (req, res) => {
+  const u = nguoiGoi(req)
+  const { id } = parse(thamSoId, req.params)
+  ok(res, await chanNTD.boChanNhaTuyenDung(u.id, id))
 }

@@ -2,6 +2,8 @@ import { Router } from 'express'
 import { requireAuth, requireRole } from '../../middlewares/auth.js'
 import { rateLimit } from '../../middlewares/rate-limit.js'
 import {
+  boChanController,
+  chanController,
   chuyenNTDController,
   guiTinNhanController,
   hangDoiHoTroController,
@@ -111,6 +113,13 @@ hoiThoaiRoutes.post('/:id/huy-cho', requireRole('STUDENT'), huyChoController)
 hoiThoaiRoutes.post('/:id/tiep-nhan', requireRole('EMPLOYER'), tiepNhanController)
 hoiThoaiRoutes.post('/:id/tu-choi', requireRole('EMPLOYER'), tuChoiYeuCauController)
 hoiThoaiRoutes.post('/:id/ket-thuc', ketThucController)
+/*
+ * Sinh viên chặn / bỏ chặn nhà tuyển dụng của luồng — xem `chan-ntd.service.ts`.
+ * Đường vào là luồng, không phải mã nhà tuyển dụng: có luồng của chính mình với
+ * nơi đó tức là đã có quan hệ, khỏi phải kiểm thêm.
+ */
+hoiThoaiRoutes.post('/:id/chan', requireRole('STUDENT'), chanController)
+hoiThoaiRoutes.delete('/:id/chan', requireRole('STUDENT'), boChanController)
 
 /*
  * Kênh hỗ trợ. Cả hai vai đều mở được — nhà tuyển dụng cũng cần hỗ trợ.

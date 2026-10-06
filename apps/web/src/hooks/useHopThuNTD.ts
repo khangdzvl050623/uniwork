@@ -12,7 +12,8 @@ import { moSocket } from '@/lib/socket'
  * bẩn cache của danh sách và kéo theo một lần gọi lại API không cần thiết.
  */
 
-const KHOA = ['ntd', 'hop-thu'] as const
+export const KHOA_HOP_THU_NTD = ['ntd', 'hop-thu'] as const
+const KHOA = KHOA_HOP_THU_NTD
 
 export interface MucHopThu {
   sessionId: string

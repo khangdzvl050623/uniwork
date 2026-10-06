@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   BriefcaseBusiness,
@@ -26,6 +27,7 @@ import { ChipPhuHop } from '@/components/ChipPhuHop'
 import { DialogTuChoi } from '@/components/DialogTuChoi'
 import { useApplicants, useUpdateApplicationStatus } from '@/hooks/useApplications'
 import { useMyJobs } from '@/hooks/useEmployerJobs'
+import { KHOA_HOP_THU_NTD } from '@/hooks/useHopThuNTD'
 import { apiFetch } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
@@ -176,6 +178,7 @@ function HangUngVien({ a, jobId }: { a: ApplicantItem; jobId: string }) {
   const [dangMoChat, setDangMoChat] = useState(false)
   const [loiChat, setLoiChat] = useState<string | null>(null)
   const dieuHuong = useNavigate()
+  const qc = useQueryClient()
 
   async function moChat() {
     setLoiChat(null)
@@ -183,14 +186,16 @@ function HangUngVien({ a, jobId }: { a: ApplicantItem; jobId: string }) {
     try {
       /*
        * Bấm bao nhiêu lần cũng được: luồng đang trao đổi thì server chỉ trả id,
-       * không ghi thêm gì. Mở thẳng cuộc trò chuyện, không về hộp thư — người
-       * bấm "Nhắn tin" muốn nhắn ngay với đúng ứng viên này.
+       * không ghi thêm gì. Mở hộp thư với ĐÚNG luồng đó được chọn sẵn — người
+       * bấm "Nhắn tin" muốn nhắn ngay với ứng viên này. Làm mới hộp thư trước,
+       * nếu không bản lưu đệm cũ chưa có luồng vừa mở.
        */
       const kq = await apiFetch<{ sessionId: string }>('/api/hoi-thoai/ntd-trao-doi', {
         method: 'POST',
         body: JSON.stringify({ applicationId: a.id }),
       })
-      dieuHuong(`/hoi-thoai/${kq.sessionId}`)
+      await qc.invalidateQueries({ queryKey: KHOA_HOP_THU_NTD })
+      dieuHuong(`/ntd/hoi-thoai?phien=${kq.sessionId}`)
     } catch (e) {
       setLoiChat(e instanceof Error ? e.message : 'Không mở được hội thoại')
     } finally {

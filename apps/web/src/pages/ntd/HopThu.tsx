@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { Check, Inbox, Loader2, MessagesSquare, X } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -41,7 +41,13 @@ function baoLau(iso: string): string {
 
 export function HopThuNTD() {
   const { data, isLoading } = useHopThuNTD()
-  const [dangChon, setDangChon] = useState<string | null>(null)
+  /*
+   * `?phien=<id>` chọn sẵn một luồng — lối vào từ nút "Nhắn tin" ở trang ứng
+   * viên và từ thông báo. Hộp thư là màn hình của nhà tuyển dụng; `/hoi-thoai/:id`
+   * dựng cho NGƯỜI SỞ HỮU luồng (sinh viên), mở nó từ phía NTD là sai vai.
+   */
+  const [thamSo] = useSearchParams()
+  const [dangChon, setDangChon] = useState<string | null>(thamSo.get('phien'))
 
   /*
    * `useMemo` không phải để tối ưu — nó để effect bên dưới KHÔNG chạy mỗi lần

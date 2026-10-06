@@ -22,6 +22,8 @@ export interface MucHoiThoaiCuaToi {
   /** Nơi đã nhận handoff. `null` khi hội thoại chưa chuyển đi đâu. */
   congTy: string | null
   tinCuoi: string | null
+  /** Chỉ luồng `NTD`: mình đã chặn nhà tuyển dụng này. */
+  daChan: boolean
   lastMessageAt: string
 }
 

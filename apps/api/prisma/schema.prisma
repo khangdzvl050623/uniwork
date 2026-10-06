@@ -179,6 +179,8 @@ model User {
   baoCaoDaXuLy   JobReport[]    @relation("AdminXuLyBaoCao")
   /// Tin do chinh admin nay go khoi trang cong khai.
   tinDaGo        Job[]          @relation("JobGoBoiAdmin")
+  /// Nhà tuyển dụng người này (sinh viên) đã chặn nhắn tin.
+  ntdDaChan      EmployerBlock[]
 
   @@map("users")
 }
@@ -392,6 +394,7 @@ model EmployerProfile {
   jobs         Job[]
   documents    EmployerDocument[]
   chatHandoffs ChatSession[]
+  biChan       EmployerBlock[]
 
   @@map("employer_profiles")
 }
@@ -1231,4 +1234,33 @@ model JobReport {
   /// Danh sách báo cáo của chính người gửi.
   @@index([reporterUserId, createdAt])
   @@map("job_reports")
+}
+
+/// Sinh viên chặn một nhà tuyển dụng — CHỈ phần nhắn tin.
+///
+/// Kế hoạch chat SV–NTD, mục 1: "NTD chỉ được chủ động liên hệ từ đơn ứng tuyển
+/// thuộc tin của mình; SV được từ chối/chặn." Từ khi nhà tuyển dụng mở lời được,
+/// sinh viên cần một cách để nói "đừng nhắn tôi nữa" mà không phải rút đơn.
+///
+/// Phạm vi CỐ Ý hẹp: chặn không đụng tới đơn ứng tuyển — nhà tuyển dụng vẫn xem
+/// và xử lý đơn như thường. Chặn luôn cả đơn là bắt sinh viên chọn giữa "được
+/// yên" và "được xét tuyển", và họ sẽ chọn chịu đựng.
+///
+/// Một hàng cho mỗi cặp. Không có cột "đang chặn": bỏ chặn là XOÁ hàng, nên sự
+/// tồn tại của hàng chính là trạng thái — không có hàng "đã bỏ chặn" nào để
+/// quên lọc.
+model EmployerBlock {
+  id String @id @default(cuid())
+
+  studentUserId String
+  studentUser   User   @relation(fields: [studentUserId], references: [id], onDelete: Cascade)
+
+  employerProfileId String
+  employerProfile   EmployerProfile @relation(fields: [employerProfileId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([studentUserId, employerProfileId])
+  @@index([employerProfileId])
+  @@map("employer_blocks")
 }

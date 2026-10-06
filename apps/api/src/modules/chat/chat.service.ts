@@ -214,6 +214,8 @@ export interface MucHoiThoaiCuaToi {
   congTy: string | null
   /** Câu cuối cùng, để nhận ra hội thoại nào là hội thoại nào. */
   tinCuoi: string | null
+  /** Chỉ luồng `NTD`: chủ luồng đã chặn nhà tuyển dụng này. Kênh khác luôn `false`. */
+  daChan: boolean
   lastMessageAt: string
 }
 
@@ -256,6 +258,7 @@ export async function hoiThoaiCuaToi(userId: string): Promise<{ hoiThoai: MucHoi
       state: true,
       jobId: true,
       lastMessageAt: true,
+      handoffEmployerProfileId: true,
       job: { select: { title: true } },
       handoffEmployer: { select: { companyName: true } },
       /*
@@ -275,6 +278,16 @@ export async function hoiThoaiCuaToi(userId: string): Promise<{ hoiThoai: MucHoi
     },
   })
 
+  /* Một câu cho cả danh sách, không một câu cho mỗi luồng. */
+  const chan = new Set(
+    (
+      await prisma.employerBlock.findMany({
+        where: { studentUserId: userId },
+        select: { employerProfileId: true },
+      })
+    ).map((b) => b.employerProfileId),
+  )
+
   return {
     hoiThoai: ds.map((p) => ({
       sessionId: p.id,
@@ -284,6 +297,8 @@ export async function hoiThoaiCuaToi(userId: string): Promise<{ hoiThoai: MucHoi
       tenTin: p.job?.title ?? null,
       congTy: p.handoffEmployer?.companyName ?? null,
       tinCuoi: p.messages[0]?.body ?? null,
+      daChan:
+        p.kind === 'NTD' && p.handoffEmployerProfileId !== null && chan.has(p.handoffEmployerProfileId),
       lastMessageAt: p.lastMessageAt.toISOString(),
     })),
   }
