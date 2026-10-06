@@ -13,6 +13,7 @@ import {
   hoiController,
   layTinNhanController,
   luotConLaiController,
+  ntdChuDongTraoDoiController,
   taoPhienController,
   tiepNhanController,
   tiepNhanHoTroController,
@@ -101,6 +102,11 @@ hoiThoaiRoutes.post('/:id/tin-nhan', guiTinNhanController)
  * dụng xác định luồng. Đường này MỞ luồng chứ không chuyển đổi một luồng có sẵn.
  */
 hoiThoaiRoutes.post('/hoi-ntd', chuyenLimit, requireRole('STUDENT'), chuyenNTDController)
+/*
+ * Nhà tuyển dụng mở lời từ một ĐƠN của tin mình — chỉ từ đơn, không từ danh
+ * sách sinh viên. Xem `ntdChuDongTraoDoi`.
+ */
+hoiThoaiRoutes.post('/ntd-trao-doi', chuyenLimit, requireRole('EMPLOYER'), ntdChuDongTraoDoiController)
 hoiThoaiRoutes.post('/:id/huy-cho', requireRole('STUDENT'), huyChoController)
 hoiThoaiRoutes.post('/:id/tiep-nhan', requireRole('EMPLOYER'), tiepNhanController)
 hoiThoaiRoutes.post('/:id/tu-choi', requireRole('EMPLOYER'), tuChoiYeuCauController)

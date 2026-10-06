@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Headset, Loader2 } from 'lucide-react'
+import { Headset, Loader2, ShieldCheck } from 'lucide-react'
 import { StatusBadge } from '@/components/admin/Charts'
 import { PageHeader } from '@/components/admin/Table'
 import { KhungChat } from '@/components/hoi-thoai/KhungChat'
@@ -74,6 +74,16 @@ export function AdminHoTro() {
             : 'Không có ai đang chờ. Phiên đang trả lời vẫn hiện ở đây.'
         }
       />
+
+      {/* Nhắc ranh giới ngay trên màn hình — cùng luật `quyenTruyCapPhien` canh ở server. */}
+      <div className="flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-2.5 text-xs text-emerald-800 dark:text-emerald-300">
+        <ShieldCheck size={16} className="shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden="true" />
+        <span>
+          <strong>Ranh giới:</strong> chỉ những phiên người dùng chủ động mở ra xin hỗ trợ. Quản trị
+          viên không đọc được trò chuyện giữa sinh viên và nhà tuyển dụng, cũng không đọc được lịch
+          sử trợ lý AI.
+        </span>
+      </div>
 
       <div className="grid gap-4 lg:grid-cols-[19rem_1fr]">
         <DanhSach ds={ds} dangTai={isLoading} dangChon={dangChon} onChon={setDangChon} />
@@ -155,9 +165,12 @@ function DanhSach({
                 {m.moTaDau ?? 'Không ghi mô tả'}
               </p>
               {nhan && (
-                <span className="mt-1.5 inline-block">
+                <div className="mt-1.5 flex items-center justify-between">
                   <StatusBadge tone={nhan.tone}>{nhan.chu}</StatusBadge>
-                </span>
+                  {m.handoffAdminUserId && (
+                    <span className="text-dash-muted text-[11px]">Đã nhận</span>
+                  )}
+                </div>
               )}
             </button>
           </li>
@@ -250,7 +263,7 @@ function ChiTiet({ muc }: { muc: MucHangDoiHoTro }) {
             </div>
 
             {muc.moTaDau && (
-              <p className="bg-dash-raised text-dash-text mt-3 rounded-lg px-3 py-2 text-sm">
+              <p className="bg-dash-raised text-dash-text mt-3 whitespace-pre-wrap rounded-lg px-3 py-2 text-sm">
                 <span className="text-dash-muted block text-xs">Họ mô tả lúc gửi yêu cầu</span>
                 {muc.moTaDau}
               </p>

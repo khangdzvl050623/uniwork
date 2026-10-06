@@ -33,7 +33,8 @@ export const forbidden = (message = 'Bạn không có quyền thực hiện thao
 export const notFound = (message = 'Không tìm thấy dữ liệu') =>
   new AppError('NOT_FOUND', message, 404)
 
-export const conflict = (message: string) => new AppError('CONFLICT', message, 409)
+export const conflict = (message: string, details?: Record<string, string[]>) =>
+  new AppError('CONFLICT', message, 409, details)
 
 export const tooManyRequests = (message = 'Bạn thao tác quá nhanh, thử lại sau ít phút') =>
   new AppError('RATE_LIMITED', message, 429)

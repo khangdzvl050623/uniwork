@@ -4,6 +4,7 @@ import {
   hoiNhaTuyenDungSchema,
   guiTinNhanSchema,
   hoiTroLySchema,
+  ntdChuDongTraoDoiSchema,
   taoPhienChatSchema,
   tuChoiYeuCauSchema,
   yeuCauHoTroSchema,
@@ -215,6 +216,13 @@ export const ketThucController: RequestHandler = async (req, res) => {
 export const hopThuNTDController: RequestHandler = async (req, res) => {
   const u = nguoiGoi(req)
   ok(res, await handoff.hopThuNTD(u.id))
+}
+
+/** Nhà tuyển dụng chủ động bắt đầu hoặc mở lại trao đổi từ một đơn ứng tuyển. */
+export const ntdChuDongTraoDoiController: RequestHandler = async (req, res) => {
+  const u = nguoiGoi(req)
+  const v = parse(ntdChuDongTraoDoiSchema, req.body)
+  ok(res, await handoff.ntdChuDongTraoDoi(u, v.applicationId, v.loiNhan))
 }
 
 /** Nhà tuyển dụng từ chối yêu cầu trao đổi. Đóng hẳn để sinh viên hỏi lại được sau. */

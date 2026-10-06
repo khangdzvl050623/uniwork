@@ -14,6 +14,8 @@ export interface MucHangDoiHoTro {
   state: string
   /** Câu người dùng mô tả lúc bấm xin hỗ trợ. `null` nếu họ để trống. */
   moTaDau: string | null
+  /** Đã có quản trị viên nhận chưa. */
+  handoffAdminUserId: string | null
   handoffRequestedAt: string | null
   lastMessageAt: string
 }

@@ -12,7 +12,7 @@ import {
 import { logger } from '../../lib/logger.js'
 import { prisma } from '../../lib/prisma.js'
 import { boCoDangChay, ghiTraLoi, layLichSu } from './chat.service.js'
-import { layDeNghi, suyNhan } from './nhan.js'
+import { layBieuMauBaoCao, layDeNghi, suyNhan } from './nhan.js'
 import type { ChatKind } from '@prisma/client'
 import { cauHinhTroLy } from './tro-ly.cau-hinh.js'
 
@@ -91,6 +91,9 @@ export async function chayLuot(v: ChayLuotInput): Promise<TomTatLuot | null> {
      */
     const deNghi = layDeNghi(kq.goiTool)
     if (deNghi !== null) v.phat('de-nghi', deNghi)
+
+    const bieuMauBaoCao = layBieuMauBaoCao(kq.goiTool)
+    if (bieuMauBaoCao !== null) v.phat('bieu-mau-bao-cao', bieuMauBaoCao)
 
     const traLoi = kq.chamTran ? cauHinh.cauKhiChamTran : kq.traLoi
     if (kq.chamTran) v.phat('chu', traLoi)

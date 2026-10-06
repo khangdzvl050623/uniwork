@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   BriefcaseBusiness,
   Download,
   Loader2,
   Lock,
   Mail,
+  MessagesSquare,
   Phone,
   PhoneCall,
   Quote,
@@ -25,6 +26,7 @@ import { ChipPhuHop } from '@/components/ChipPhuHop'
 import { DialogTuChoi } from '@/components/DialogTuChoi'
 import { useApplicants, useUpdateApplicationStatus } from '@/hooks/useApplications'
 import { useMyJobs } from '@/hooks/useEmployerJobs'
+import { apiFetch } from '@/lib/api'
 import { cn } from '@/lib/utils'
 
 const TABS: { key: ApplicationStatus | 'ALL'; label: string }[] = [
@@ -171,6 +173,30 @@ export function Applicants() {
 function HangUngVien({ a, jobId }: { a: ApplicantItem; jobId: string }) {
   const doi = useUpdateApplicationStatus(jobId)
   const [moTuChoi, setMoTuChoi] = useState(false)
+  const [dangMoChat, setDangMoChat] = useState(false)
+  const [loiChat, setLoiChat] = useState<string | null>(null)
+  const dieuHuong = useNavigate()
+
+  async function moChat() {
+    setLoiChat(null)
+    setDangMoChat(true)
+    try {
+      /*
+       * Bấm bao nhiêu lần cũng được: luồng đang trao đổi thì server chỉ trả id,
+       * không ghi thêm gì. Mở thẳng cuộc trò chuyện, không về hộp thư — người
+       * bấm "Nhắn tin" muốn nhắn ngay với đúng ứng viên này.
+       */
+      const kq = await apiFetch<{ sessionId: string }>('/api/hoi-thoai/ntd-trao-doi', {
+        method: 'POST',
+        body: JSON.stringify({ applicationId: a.id }),
+      })
+      dieuHuong(`/hoi-thoai/${kq.sessionId}`)
+    } catch (e) {
+      setLoiChat(e instanceof Error ? e.message : 'Không mở được hội thoại')
+    } finally {
+      setDangMoChat(false)
+    }
+  }
 
   /*
    * Nút hiện đúng bằng `buocTiepTheo` SERVER trả về, không tự tra bảng chuyển
@@ -290,6 +316,24 @@ function HangUngVien({ a, jobId }: { a: ApplicantItem; jobId: string }) {
             <span className="px-2.5 text-sm text-slate-400">Chưa có CV</span>
           )}
 
+          {a.status !== 'WITHDRAWN' && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={dangMoChat}
+              onClick={() => void moChat()}
+              className="text-slate-600 hover:text-brand-700"
+              title="Chủ động nhắn tin trao đổi với ứng viên"
+            >
+              {dangMoChat ? (
+                <Loader2 size={14} className="animate-spin motion-reduce:animate-none" />
+              ) : (
+                <MessagesSquare size={14} aria-hidden="true" />
+              )}
+              Nhắn tin
+            </Button>
+          )}
+
           {/*
             MỘT nút chính, phần còn lại lùi xuống.
 
@@ -346,6 +390,12 @@ function HangUngVien({ a, jobId }: { a: ApplicantItem; jobId: string }) {
         {doi.isError && (
           <p className="mt-1 text-right text-xs text-rose-600">
             {doi.error instanceof Error ? doi.error.message : 'Không đổi được trạng thái'}
+          </p>
+        )}
+
+        {loiChat && (
+          <p className="mt-1 text-right text-xs text-rose-600">
+            {loiChat}
           </p>
         )}
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { BriefcaseBusiness, Clock3, Lock, Loader2, Mail, Phone, RotateCcw } from 'lucide-react'
+import { BriefcaseBusiness, Clock3, Lock, Loader2, Mail, MessagesSquare, Phone, RotateCcw } from 'lucide-react'
 import {
   APPLICATION_STATUS_LABELS,
   TRANG_THAI_KET_THUC,
@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ChipPhuHop } from '@/components/ChipPhuHop'
+import { DialogHoiNTD } from '@/components/hoi-thoai/DialogHoiNTD'
 import { useMyApplications, useWithdrawApplication } from '@/hooks/useApplications'
 
 const statusTone: Record<ApplicationStatus, string> = {
@@ -63,6 +64,7 @@ function ApplicationCard({ application }: { application: StudentApplicationItem 
   // giao diện, không dịch được câu chữ, và chặn cả luồng trong lúc chờ. Mọi chỗ
   // xác nhận khác của dự án đều dùng `Dialog`.
   const [moXacNhan, setMoXacNhan] = useState(false)
+  const [moHoiNTD, setMoHoiNTD] = useState(false)
 
   return (
     <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
@@ -84,18 +86,33 @@ function ApplicationCard({ application }: { application: StudentApplicationItem 
             {APPLICATION_STATUS_LABELS[application.status]}
           </span>
         </div>
-        {coTheRut(application.status) && (
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => setMoXacNhan(true)}
-            disabled={withdraw.isPending}
-            className="text-rose-600 hover:text-rose-700"
-          >
-            <RotateCcw size={15} />
-            {withdraw.isPending ? 'Đang rút…' : 'Rút đơn'}
-          </Button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {application.status !== 'WITHDRAWN' && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setMoHoiNTD(true)}
+              className="gap-1.5 text-slate-700"
+            >
+              <MessagesSquare size={14} />
+              Trao đổi về đơn ứng tuyển
+            </Button>
+          )}
+          {coTheRut(application.status) && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setMoXacNhan(true)}
+              disabled={withdraw.isPending}
+              className="text-rose-600 hover:text-rose-700"
+            >
+              <RotateCcw size={14} />
+              {withdraw.isPending ? 'Đang rút…' : 'Rút đơn'}
+            </Button>
+          )}
+        </div>
       </div>
       {/*
         Hiện CHI TIẾT từng thành phần, không hiện con số tổng hợp.
@@ -186,6 +203,14 @@ function ApplicationCard({ application }: { application: StudentApplicationItem 
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <DialogHoiNTD
+        jobId={application.jobId}
+        tenTin={application.jobTitle}
+        congTy={application.companyName}
+        open={moHoiNTD}
+        onOpenChange={setMoHoiNTD}
+      />
     </article>
   )
 }

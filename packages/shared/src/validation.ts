@@ -956,6 +956,12 @@ export const hoiNhaTuyenDungSchema = z.object({
   loiNhan: z.string().trim().max(500, 'Lời nhắn tối đa 500 ký tự').optional(),
 })
 
+/** Nhà tuyển dụng chủ động mở hoặc mở lại trao đổi từ một đơn ứng tuyển. */
+export const ntdChuDongTraoDoiSchema = z.object({
+  applicationId: z.string().trim().min(1, 'Chưa chọn đơn ứng tuyển').max(40),
+  loiNhan: z.string().trim().max(500, 'Lời nhắn tối đa 500 ký tự').optional(),
+})
+
 /** Yêu cầu gặp quản trị viên. Mô tả không bắt buộc — lịch sử hội thoại là ngữ cảnh. */
 export const yeuCauHoTroSchema = z.object({
   moTa: z.string().trim().max(1000, 'Tối đa 1000 ký tự').default(''),

@@ -206,6 +206,8 @@ export interface MucHangDoiHoTro {
   ownerVai: Role
   state: string
   moTaDau: string | null
+  /** Đã có quản trị viên nhận chưa — danh sách hiện nhãn "Đã nhận". */
+  handoffAdminUserId: string | null
   handoffRequestedAt: string | null
   lastMessageAt: string
 }
@@ -225,6 +227,7 @@ export async function hangDoiHoTro(): Promise<{ hoTro: MucHangDoiHoTro[] }> {
     select: {
       id: true,
       state: true,
+      handoffAdminUserId: true,
       handoffRequestedAt: true,
       lastMessageAt: true,
       owner: { select: { role: true } },
@@ -253,6 +256,7 @@ export async function hangDoiHoTro(): Promise<{ hoTro: MucHangDoiHoTro[] }> {
       ownerVai: p.owner.role,
       state: p.state,
       moTaDau: p.messages[0]?.body ?? null,
+      handoffAdminUserId: p.handoffAdminUserId,
       handoffRequestedAt: p.handoffRequestedAt?.toISOString() ?? null,
       lastMessageAt: p.lastMessageAt.toISOString(),
     })),

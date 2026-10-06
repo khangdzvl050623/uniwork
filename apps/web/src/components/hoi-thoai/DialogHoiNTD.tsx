@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ApiClientError, apiFetch } from '@/lib/api'
+import { luongDangCo } from '@/lib/luong-ntd'
 
 const TRAN = 500
 
@@ -32,6 +33,10 @@ const TRAN = 500
  * Đã có hội thoại đang mở với chính nhà tuyển dụng này, tin đã đóng, doanh
  * nghiệp chưa xác minh — cả ba đều trả về một câu rõ nghĩa. Hiện nguyên câu
  * đó chứ không dịch lại: nó chính xác hơn bất cứ câu chung chung nào ta đoán.
+ *
+ * Ca "đã có hội thoại" thì kèm luôn nút mở nó — kế hoạch: nút trao đổi "mở
+ * hội thoại hiện có hoặc gửi yêu cầu mới". KHÔNG tự chuyển trang: người dùng
+ * vừa gõ một câu hỏi, chuyển đi là câu đó mất trước khi họ kịp chép lại.
  */
 export function DialogHoiNTD({
   jobId,
@@ -50,9 +55,11 @@ export function DialogHoiNTD({
   const [loiNhan, setLoiNhan] = useState('')
   const [dangGui, setDangGui] = useState(false)
   const [loi, setLoi] = useState<string | null>(null)
+  const [luongCo, setLuongCo] = useState<string | null>(null)
 
   async function gui() {
     setLoi(null)
+    setLuongCo(null)
     setDangGui(true)
     try {
       /*
@@ -66,6 +73,7 @@ export function DialogHoiNTD({
       onOpenChange(false)
       dieuHuong(`/hoi-thoai/${kq.sessionId}`)
     } catch (e) {
+      setLuongCo(luongDangCo(e))
       setLoi(e instanceof ApiClientError ? e.message : 'Không gửi được yêu cầu')
     } finally {
       setDangGui(false)
@@ -116,10 +124,21 @@ export function DialogHoiNTD({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Huỷ
           </Button>
-          <Button disabled={dangGui} onClick={() => void gui()}>
-            {dangGui && <Loader2 size={16} className="animate-spin motion-reduce:animate-none" />}
-            Gửi cho nhà tuyển dụng
-          </Button>
+          {luongCo ? (
+            <Button
+              onClick={() => {
+                onOpenChange(false)
+                dieuHuong(`/hoi-thoai/${luongCo}`)
+              }}
+            >
+              Mở hội thoại
+            </Button>
+          ) : (
+            <Button disabled={dangGui} onClick={() => void gui()}>
+              {dangGui && <Loader2 size={16} className="animate-spin motion-reduce:animate-none" />}
+              Gửi cho nhà tuyển dụng
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
