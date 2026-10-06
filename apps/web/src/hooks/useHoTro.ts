@@ -31,32 +31,21 @@ interface PhienResponse {
   jobId: string | null
 }
 
-export function useHoTro() {
+import type { DanhMucHoTro } from '@uniwork/shared'
+
+export function useHoTro(options?: { enabled?: boolean }) {
+  const duocChay = options?.enabled ?? true
   const [sessionId, setSessionId] = useState<string | null>(null)
   const kenh = useKenhHoiThoai(sessionId)
   const { datTrangThai, datLoi } = kenh
 
-  const [dangMo, setDangMo] = useState(true)
+  const [dangMo, setDangMo] = useState(duocChay)
 
-  /*
-   * Mở luồng hỗ trợ.
-   *
-   * =========================================================================
-   * CLIENT KHÔNG CÒN CHỌN LUỒNG NÀO CẢ
-   * =========================================================================
-   * `POST /api/hoi-thoai { kind }` — không có `clientSessionId`. Server suy
-   * luồng từ `kind` cộng người đang đăng nhập, và mỗi người chỉ có MỘT luồng
-   * hỗ trợ, vĩnh viễn.
-   *
-   * Bản trước client chọn bằng một khoá trong localStorage. Khoá không khớp —
-   * đổi máy, đổi trình duyệt, cửa sổ ẩn danh, xoá storage — là server tạo
-   * luồng THỨ HAI, và người dùng nhìn một hội thoại trống trong khi quản trị
-   * viên đang trả lời họ ở luồng thật. Đã xảy ra đúng như vậy.
-   *
-   * Cũng không còn phải xoay khoá khi luồng `CLOSED`: `yeuCauHoTro` mở lại
-   * chính luồng ấy, mang theo lịch sử.
-   */
   useEffect(() => {
+    if (!duocChay) {
+      setDangMo(false)
+      return
+    }
     let huy = false
 
     void (async () => {
@@ -78,16 +67,22 @@ export function useHoTro() {
     return () => {
       huy = true
     }
-  }, [datTrangThai, datLoi])
+  }, [duocChay, datTrangThai, datLoi])
 
-  /** `AI_ACTIVE` → `WAITING_ADMIN`. KHÔNG tốn lượt AI, không gọi model. */
+  /** `AI_ACTIVE` hoặc `CLOSED` → `WAITING_ADMIN`. KHÔNG tốn lượt AI, không gọi model. */
   const xinGapNguoiThat = useCallback(
-    async (moTa: string) => {
+    async (
+      inputOrMoTa: string | { danhMuc?: DanhMucHoTro; moTa?: string; tomTatAi?: string },
+    ) => {
       if (!sessionId) return
       try {
+        const body =
+          typeof inputOrMoTa === 'string'
+            ? { moTa: inputOrMoTa }
+            : inputOrMoTa
         const kq = await apiFetch<{ state: string }>(`/api/hoi-thoai/${sessionId}/yeu-cau-ho-tro`, {
           method: 'POST',
-          body: JSON.stringify({ moTa }),
+          body: JSON.stringify(body),
         })
         datTrangThai(kq.state)
       } catch (e) {

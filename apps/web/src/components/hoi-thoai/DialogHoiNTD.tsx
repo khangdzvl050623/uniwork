@@ -53,6 +53,11 @@ export function DialogHoiNTD({
 
   async function gui() {
     setLoi(null)
+    const cauHoi = loiNhan.trim()
+    if (!cauHoi) {
+      setLoi('Vui lòng nhập câu hỏi mở đầu để gửi yêu cầu trao đổi.')
+      return
+    }
     setDangGui(true)
     try {
       /*
@@ -61,7 +66,7 @@ export function DialogHoiNTD({
        */
       const kq = await apiFetch<{ sessionId: string }>('/api/hoi-thoai/hoi-ntd', {
         method: 'POST',
-        body: JSON.stringify({ jobId, loiNhan: loiNhan.trim() }),
+        body: JSON.stringify({ jobId, loiNhan: cauHoi }),
       })
       onOpenChange(false)
       dieuHuong(`/hoi-thoai/${kq.sessionId}`)
@@ -78,7 +83,7 @@ export function DialogHoiNTD({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MessagesSquare size={18} className="text-brand-600" aria-hidden="true" />
-            Hỏi nhà tuyển dụng
+            Trao đổi với nhà tuyển dụng
           </DialogTitle>
           <DialogDescription>
             {tenTin} · {congTy}
@@ -86,14 +91,19 @@ export function DialogHoiNTD({
         </DialogHeader>
 
         <p className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-600">
-          Nhà tuyển dụng thấy tên viết tắt của bạn và <strong>chỉ cuộc trò chuyện này</strong> —
-          không thấy đoạn bạn hỏi trợ lý, cũng không thấy bạn nói gì với nơi khác. Tên đầy đủ và
-          liên hệ chỉ mở khi bạn nộp đơn và được chuyển vào vòng trong.
+          Sau khi ứng tuyển thành công, bạn gửi yêu cầu trao đổi kèm một câu hỏi mở đầu. Yêu cầu sẽ ở
+          trạng thái chờ nhà tuyển dụng tiếp nhận (WAITING_EMPLOYER). Khi tiếp nhận (HUMAN_ACTIVE), hai
+          bên sẽ nhắn tin trực tiếp.
+        </p>
+
+        <p className="text-xs text-slate-500">
+          * Nhà tuyển dụng chỉ thấy tên viết tắt và ngữ cảnh tin tuyển dụng — không thể đọc lịch sử
+          AI riêng, và quyền chat không tự mở thêm quyền xem CV hoặc thông tin liên hệ của bạn.
         </p>
 
         <div>
           <label htmlFor="loi-nhan-ntd" className="text-sm font-medium text-slate-900">
-            Bạn muốn hỏi gì? (không bắt buộc)
+            Câu hỏi mở đầu cho nhà tuyển dụng <span className="text-rose-600">*</span>
           </label>
           <textarea
             id="loi-nhan-ntd"
@@ -101,7 +111,7 @@ export function DialogHoiNTD({
             value={loiNhan}
             maxLength={TRAN}
             onChange={(e) => setLoiNhan(e.target.value)}
-            placeholder="Ví dụ: em học sáng thứ 3 và thứ 5, ca chiều còn nhận không ạ?"
+            placeholder="Ví dụ: Em đã nộp đơn ứng tuyển cho tin này, em muốn hỏi thêm về lịch làm việc chi tiết ca chiều ạ..."
             className="mt-2 w-full resize-none rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition-colors focus:border-brand-500"
           />
         </div>
@@ -118,7 +128,7 @@ export function DialogHoiNTD({
           </Button>
           <Button disabled={dangGui} onClick={() => void gui()}>
             {dangGui && <Loader2 size={16} className="animate-spin motion-reduce:animate-none" />}
-            Gửi cho nhà tuyển dụng
+            Gửi yêu cầu trao đổi
           </Button>
         </DialogFooter>
       </DialogContent>

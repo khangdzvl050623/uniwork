@@ -3,7 +3,10 @@ import { z } from 'zod'
 import {
   hoiNhaTuyenDungSchema,
   guiTinNhanSchema,
+  hoTroKhachGuiOtpSchema,
+  hoTroKhachSchema,
   hoiTroLySchema,
+  ntdChuDongTraoDoiSchema,
   taoPhienChatSchema,
   tuChoiYeuCauSchema,
   yeuCauHoTroSchema,
@@ -217,6 +220,13 @@ export const hopThuNTDController: RequestHandler = async (req, res) => {
   ok(res, await handoff.hopThuNTD(u.id))
 }
 
+/** Nhà tuyển dụng chủ động bắt đầu hoặc mở lại trao đổi từ một đơn ứng tuyển. */
+export const ntdChuDongTraoDoiController: RequestHandler = async (req, res) => {
+  const u = nguoiGoi(req)
+  const v = parse(ntdChuDongTraoDoiSchema, req.body)
+  ok(res, await handoff.ntdChuDongTraoDoi(u, v.applicationId, v.loiNhan))
+}
+
 /** Nhà tuyển dụng từ chối yêu cầu trao đổi. Đóng hẳn để sinh viên hỏi lại được sau. */
 export const tuChoiYeuCauController: RequestHandler = async (req, res) => {
   const u = nguoiGoi(req)
@@ -231,7 +241,7 @@ export const yeuCauHoTroController: RequestHandler = async (req, res) => {
   const u = nguoiGoi(req)
   const { id } = parse(thamSoId, req.params)
   const v = parse(yeuCauHoTroSchema, req.body)
-  ok(res, await hoTro.yeuCauHoTro(u.id, id, v.moTa))
+  ok(res, await hoTro.yeuCauHoTro(u.id, id, v))
 }
 
 export const huyYeuCauHoTroController: RequestHandler = async (req, res) => {
@@ -247,3 +257,28 @@ export const tiepNhanHoTroController: RequestHandler = async (req, res) => {
 export const hangDoiHoTroController: RequestHandler = async (_req, res) => {
   ok(res, await hoTro.hangDoiHoTro())
 }
+
+/** Khách gửi OTP xác minh email khi không thể đăng nhập. */
+export const hoTroKhachGuiOtpController: RequestHandler = async (req, res) => {
+  const v = parse(hoTroKhachGuiOtpSchema, req.body)
+  ok(res, await hoTro.guiOtpKhach(v.email))
+}
+
+/** Khách gửi thông tin yêu cầu hỗ trợ kèm OTP đã xác thực. */
+export const hoTroKhachGuiYeuCauController: RequestHandler = async (req, res) => {
+  const v = parse(hoTroKhachSchema, req.body)
+  ok(res, await hoTro.guiYeuCauKhach(v))
+}
+
+/** Admin cập nhật trạng thái xử lý yêu cầu của khách. */
+export const xuLyYeuCauKhachController: RequestHandler = async (req, res) => {
+  const u = nguoiGoi(req)
+  const { id } = parse(thamSoId, req.params)
+  const schema = z.object({
+    status: z.enum(['RESOLVED', 'CLOSED']),
+    ghiChu: z.string().trim().max(500).optional(),
+  })
+  const v = parse(schema, req.body)
+  ok(res, await hoTro.xuLyYeuCauKhach(u.id, id, v.status, v.ghiChu))
+}
+

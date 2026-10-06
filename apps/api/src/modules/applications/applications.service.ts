@@ -28,6 +28,8 @@ import { conflict, forbidden, notFound } from '../../lib/errors.js'
 import { applicationNotificationEmail, sendMail } from '../../lib/mailer.js'
 import { logger } from '../../lib/logger.js'
 import { createNotification } from '../notifications/notifications.service.js'
+import { kichHoatLuongKhiMoiPhongVan } from '../chat/handoff.service.js'
+import { phatTinMoi, phatTrangThai, type TinNhanItem } from '../chat/chat.service.js'
 
 /**
  * Nghiệp vụ đơn ứng tuyển.
@@ -537,7 +539,12 @@ const CHON_UNG_VIEN_MO = {
 async function layTinCuaNtd(userId: string, jobId: string) {
   const job = await prisma.job.findUnique({
     where: { id: jobId },
-    select: { id: true, title: true, employerProfile: { select: { userId: true } } },
+    select: {
+      id: true,
+      title: true,
+      employerProfileId: true,
+      employerProfile: { select: { userId: true } },
+    },
   })
   if (!job) throw notFound('Không tìm thấy tin tuyển dụng')
   if (job.employerProfile.userId !== userId) throw forbidden('Tin này không thuộc về bạn')
@@ -695,7 +702,7 @@ export async function updateApplicationStatus(
   applicationId: string,
   input: UpdateApplicationStatusInput,
 ): Promise<UpdateApplicationStatusResponse> {
-  await layTinCuaNtd(userId, jobId)
+  const job = await layTinCuaNtd(userId, jobId)
 
   const hienTai = await prisma.application.findFirst({
     // Lọc kèm `jobId` chứ không chỉ `id`: không có nó thì NTD đổi được đơn của
@@ -723,7 +730,7 @@ export async function updateApplicationStatus(
     )
   }
 
-  const { don, event } = await prisma.$transaction(async (tx) => {
+  const { don, event, phongVanChat } = await prisma.$transaction(async (tx) => {
     const capNhat = await tx.application.update({
       where: { id: applicationId },
       data: { status: input.status, statusChangedAt: new Date() },
@@ -747,6 +754,18 @@ export async function updateApplicationStatus(
       note: input.note,
     })
 
+    let chatPhongVan: { sessionId: string; tin: TinNhanItem } | null = null
+    if (input.status === 'SHORTLISTED') {
+      chatPhongVan = await kichHoatLuongKhiMoiPhongVan(tx, {
+        studentUserId: capNhat.studentProfile.userId,
+        studentProfileId: capNhat.studentProfile.id,
+        employerProfileId: job.employerProfileId,
+        jobId: job.id,
+        jobTitle: job.title,
+        note: input.note ?? undefined,
+      })
+    }
+
     if (
       input.status === 'SHORTLISTED' ||
       input.status === 'ACCEPTED' ||
@@ -764,8 +783,13 @@ export async function updateApplicationStatus(
       })
     }
 
-    return { don: capNhat, event: ev }
+    return { don: capNhat, event: ev, phongVanChat: chatPhongVan }
   })
+
+  if (phongVanChat) {
+    phatTinMoi(phongVanChat.sessionId, phongVanChat.tin)
+    phatTrangThai(phongVanChat.sessionId, 'HUMAN_ACTIVE', don.studentProfile.userId)
+  }
 
   /*
    * Gọi thẳng `prisma.user`, KHÔNG ép kiểu phòng thủ.
