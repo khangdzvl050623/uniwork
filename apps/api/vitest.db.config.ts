@@ -26,5 +26,16 @@ export default defineConfig({
 
     // Test nạp lại seed tốn vài giây vì phải băm mật khẩu bằng Argon2.
     testTimeout: 120_000,
+
+    /*
+     * Ghim hạn mức ở đây, KHÔNG dựa vào mặc định trong `config.ts`.
+     *
+     * `ai-quota.test.ts` kỳ vọng một con số đặt sẵn (5) chứ không đọc lại từ
+     * code — đúng cách, vì đọc lại thì test đồng ý với mọi con số. Nhưng bản
+     * trước không ghim: nâng mặc định lên 10 là ba ca đỏ dù code không sai gì.
+     */
+    env: {
+      AI_CHAT_TURNS_PER_DAY: '5',
+    },
   },
 })

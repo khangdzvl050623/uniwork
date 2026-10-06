@@ -113,6 +113,19 @@ export function laLoiNhaCungCap(e: unknown): boolean {
 }
 
 /**
+ * Bản an toàn để ghi log.
+ *
+ * `APICallError` mang theo `requestBodyValues` — NGUYÊN prompt đã gửi, tức
+ * lịch sử hội thoại của người dùng. In nguyên nó ra console là đổ nội dung đó
+ * vào log của Render. Lỗi của ta thì giữ nguyên: cần stack mới sửa được.
+ */
+export function loiDeIn(e: unknown): unknown {
+  const goc = RetryError.isInstance(e) ? e.lastError : e
+  if (!APICallError.isInstance(goc)) return e
+  return { ten: goc.name, status: goc.statusCode, thongBao: goc.message }
+}
+
+/**
  * Chờ bao lâu. 429 kèm `retry-after` thì nghe theo nhà cung cấp — họ biết
  * cửa sổ hạn mức của họ còn bao lâu — nhưng không ngắn hơn mặc định và không
  * dài quá trần.

@@ -1,5 +1,5 @@
 export { aiConfig, CO_KHOA_THAT, ngayVN, ngayPacific, ngayUTC } from './config.js'
-export { modelChat, resetProviderCache } from './provider.js'
+export { modelChat, resetProviderCache, _datMangGia } from './provider.js'
 export { kiemTraKetNoi, type KetQuaKiemTra } from './kiem-tra.js'
 export { chayLuotChat } from './chat.js'
 export {
@@ -7,6 +7,7 @@ export {
   ghiThanhCong,
   ghiLoi,
   laLoiNhaCungCap,
+  loiDeIn,
   _datLaiMach,
   type KetQuaXinPhep,
 } from './mach-ngat.js'
