@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/Button'
 import { BongChat } from '@/components/tro-ly/BongChat'
 import { DangTraCuu } from '@/components/tro-ly/DangTraCuu'
 import { TheDeNghiNTD } from '@/components/tro-ly/TheDeNghiNTD'
+import { TheBaoCaoTin } from '@/components/tro-ly/TheBaoCaoTin'
+import { DialogBaoCao } from '@/components/bao-cao/DialogBaoCao'
 import { useLuotConLai, useTroLy } from '@/hooks/useTroLy'
 import { danhDauThoiGian } from '@/lib/gop-tin'
 import { useCuonDanhSach } from '@/hooks/useCuonDanhSach'
@@ -36,12 +38,14 @@ export function TroLy() {
     dangChay,
     toolDangChay,
     deNghi,
+    bieuMauBaoCao,
     loi,
     coTheGuiLai,
     gui,
     guiLai,
     chuyenNhaTuyenDung,
     boDeNghi,
+    boBieuMauBaoCao,
     conCu,
     dangTaiCu,
     taiCu,
@@ -49,6 +53,7 @@ export function TroLy() {
   const { data: luot } = useLuotConLai()
 
   const [noiDung, setNoiDung] = useState('')
+  const [moBaoCao, setMoBaoCao] = useState(false)
   /*
    * Cuộn theo chữ đang chảy — nhưng chỉ khi người dùng đang ở gần đáy.
    *
@@ -198,6 +203,14 @@ export function TroLy() {
           />
         )}
 
+        {bieuMauBaoCao && (
+          <TheBaoCaoTin
+            bieuMau={bieuMauBaoCao}
+            onBo={boBieuMauBaoCao}
+            onXacNhan={() => setMoBaoCao(true)}
+          />
+        )}
+
         {loi && (
           <div
             role="alert"
@@ -256,6 +269,20 @@ export function TroLy() {
           </Button>
         </div>
       </form>
+
+      {bieuMauBaoCao && (
+        <DialogBaoCao
+          jobId={bieuMauBaoCao.jobId}
+          tenTin={bieuMauBaoCao.tenTin}
+          initialReason={bieuMauBaoCao.lyDo}
+          initialMoTa={bieuMauBaoCao.moTa}
+          open={moBaoCao}
+          onOpenChange={(v) => {
+            setMoBaoCao(v)
+            if (!v) boBieuMauBaoCao()
+          }}
+        />
+      )}
     </div>
   )
 }

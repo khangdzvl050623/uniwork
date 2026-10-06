@@ -47,11 +47,15 @@ export function DialogBaoCao({
   tenTin,
   open,
   onOpenChange,
+  initialReason,
+  initialMoTa,
 }: {
   jobId: string
   tenTin: string
   open: boolean
   onOpenChange: (v: boolean) => void
+  initialReason?: JobReportReasonValue
+  initialMoTa?: string
 }) {
   /*
    * `key` đổi theo `open` nên toàn bộ state bên trong được dựng lại mỗi lần
@@ -61,7 +65,16 @@ export function DialogBaoCao({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
-        {open && <NoiDung key={jobId} jobId={jobId} tenTin={tenTin} onDong={() => onOpenChange(false)} />}
+        {open && (
+          <NoiDung
+            key={`${jobId}-${initialReason ?? ''}`}
+            jobId={jobId}
+            tenTin={tenTin}
+            initialReason={initialReason}
+            initialMoTa={initialMoTa}
+            onDong={() => onOpenChange(false)}
+          />
+        )}
       </DialogContent>
     </Dialog>
   )
@@ -70,15 +83,19 @@ export function DialogBaoCao({
 function NoiDung({
   jobId,
   tenTin,
+  initialReason,
+  initialMoTa,
   onDong,
 }: {
   jobId: string
   tenTin: string
+  initialReason?: JobReportReasonValue
+  initialMoTa?: string
   onDong: () => void
 }) {
   const [clientReportId] = useState(() => `br-${crypto.randomUUID()}`)
-  const [reason, setReason] = useState<JobReportReasonValue>('LUA_DAO')
-  const [moTa, setMoTa] = useState('')
+  const [reason, setReason] = useState<JobReportReasonValue>(initialReason ?? 'LUA_DAO')
+  const [moTa, setMoTa] = useState(initialMoTa ?? '')
   const [loi, setLoi] = useState<string | null>(null)
   const [xong, setXong] = useState<'moi' | 'da-co' | null>(null)
 

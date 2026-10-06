@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { layDeNghi, suyNhan, type GoiTool } from './nhan.js'
+import { layBieuMauBaoCao, layDeNghi, suyNhan, type GoiTool } from './nhan.js'
 
 const g = (ten: string, ketQua: unknown): GoiTool => ({ ten, ketQua })
 
@@ -32,6 +32,42 @@ describe('layDeNghi', () => {
   })
 })
 
+describe('layBieuMauBaoCao', () => {
+  it('lấy biểu mẫu báo cáo khi model gọi tool baoCaoTin chuẩn bị biểu mẫu', () => {
+    const kq = layBieuMauBaoCao([
+      g('baoCaoTin', {
+        ok: true,
+        bieuMau: {
+          jobId: 'j2',
+          tenTin: 'Gia sư Toán',
+          congTy: 'Trung tâm B',
+          lyDo: 'LUA_DAO',
+          moTa: 'Thu phí đặt cọc 500k trước khi nhận lớp',
+        },
+      }),
+    ])
+    expect(kq).toEqual({
+      jobId: 'j2',
+      tenTin: 'Gia sư Toán',
+      congTy: 'Trung tâm B',
+      lyDo: 'LUA_DAO',
+      moTa: 'Thu phí đặt cọc 500k trước khi nhận lớp',
+    })
+  })
+
+  it('trả null khi tool từ chối hoặc không có bieuMau', () => {
+    expect(
+      layBieuMauBaoCao([
+        g('baoCaoTin', { ok: true, bieuMau: null, lyDoTuChoi: 'Không tìm thấy tin' }),
+      ]),
+    ).toBeNull()
+  })
+
+  it('trả null khi model không gọi tool baoCaoTin', () => {
+    expect(layBieuMauBaoCao([g('timViecLam', { ok: true, tin: [] })])).toBeNull()
+  })
+})
+
 describe('suyNhan — telemetry, KHÔNG phải thước đo chất lượng', () => {
   /*
    * ---------------------------------------------------------------------
@@ -55,6 +91,15 @@ describe('suyNhan — telemetry, KHÔNG phải thước đo chất lượng', ()
         g('deNghiChuyenNhaTuyenDung', {}),
       ]),
     ).toBe('CAN_NHA_TUYEN_DUNG')
+  })
+
+  it('gọi baoCaoTin thì là BAO_CAO_TIN', () => {
+    expect(
+      suyNhan([
+        g('timViecLam', { ok: true, tin: [{ id: 'j1' }] }),
+        g('baoCaoTin', {}),
+      ]),
+    ).toBe('BAO_CAO_TIN')
   })
 
   it('gọi huongDanSuDung thì là HUONG_DAN_SU_DUNG', () => {

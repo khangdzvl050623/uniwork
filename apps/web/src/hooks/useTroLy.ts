@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { JobReportReasonValue } from '@uniwork/shared'
 import { ApiClientError, apiFetch } from '@/lib/api'
 import { danhDauXong, danhSoTin, gopChu } from '@/lib/gop-tin'
 import { moKenhSSE } from '@/lib/sse'
@@ -35,6 +36,14 @@ export interface DeNghiNTD {
   lyDo: string
 }
 
+export interface BieuMauBaoCao {
+  jobId: string
+  tenTin: string
+  congTy: string
+  lyDo: JobReportReasonValue
+  moTa: string
+}
+
 interface PhienResponse {
   sessionId: string
   kind: string
@@ -67,6 +76,7 @@ export function useTroLy() {
   const [dangChay, setDangChay] = useState(false)
   const [toolDangChay, setToolDangChay] = useState<string | null>(null)
   const [deNghi, setDeNghi] = useState<DeNghiNTD | null>(null)
+  const [bieuMauBaoCao, setBieuMauBaoCao] = useState<BieuMauBaoCao | null>(null)
 
   /** Câu hỏi chưa gửi xong, giữ lại để bấm "gửi lại" mà không gõ lại. */
   /*
@@ -128,6 +138,7 @@ export function useTroLy() {
 
       datLoi(null)
       setDeNghi(null)
+      setBieuMauBaoCao(null)
       setDangChay(true)
       setToolDangChay(null)
       setChuaXong({ clientMessageId, noiDung })
@@ -160,6 +171,11 @@ export function useTroLy() {
 
             if (sk.ten === 'de-nghi') {
               setDeNghi(sk.du as DeNghiNTD)
+              return
+            }
+
+            if (sk.ten === 'bieu-mau-bao-cao') {
+              setBieuMauBaoCao(sk.du as BieuMauBaoCao)
               return
             }
 
@@ -269,6 +285,7 @@ export function useTroLy() {
     dangChay,
     toolDangChay,
     deNghi,
+    bieuMauBaoCao,
     loi: kenh.loi,
     coTheGuiLai: chuaXong !== null && !dangChay,
     gui,
@@ -276,5 +293,6 @@ export function useTroLy() {
     huy,
     chuyenNhaTuyenDung,
     boDeNghi: () => setDeNghi(null),
+    boBieuMauBaoCao: () => setBieuMauBaoCao(null),
   }
 }

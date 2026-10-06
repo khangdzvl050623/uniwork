@@ -16,6 +16,7 @@ export interface BaoCaoItem {
   ketLuan: string | null
   createdAt: string
   handledAt: string | null
+  anhChupTin?: AnhChupTin
 }
 
 /**
