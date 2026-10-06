@@ -3,6 +3,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import type { JobReportReasonValue } from '@uniwork/shared'
 import { ApiClientError, apiFetch } from '@/lib/api'
 import { danhDauXong, danhSoTin, gopChu } from '@/lib/gop-tin'
+import { luongDangCo } from '@/lib/luong-ntd'
 import { moKenhSSE } from '@/lib/sse'
 import { useKenhHoiThoai } from '@/hooks/useKenhHoiThoai'
 
@@ -257,6 +258,12 @@ export function useTroLy() {
         setDeNghi(null)
         return kq.sessionId
       } catch (e) {
+        /* Đã có luồng với nơi này → mở luồng đó, không báo lỗi. */
+        const coSan = luongDangCo(e)
+        if (coSan) {
+          setDeNghi(null)
+          return coSan
+        }
         datLoi(e instanceof ApiClientError ? e.message : 'Không mở được hội thoại')
         return null
       }

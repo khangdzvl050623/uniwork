@@ -14,7 +14,6 @@ import {
 import { dongCursor, moCursor } from './cursor.js'
 import { phatToiPhong } from './phat-su-kien.js'
 import { cauHinhTroLy } from './tro-ly.cau-hinh.js'
-import { createNotification } from '../notifications/notifications.service.js'
 
 /* ================================================================ phiên -- */
 
@@ -798,74 +797,6 @@ export async function guiTinNhan(
      * hiện trên màn hình người kia — và nó biến mất ở lần tải lại tiếp theo.
      */
     phatTinMoi(sessionId, message)
-
-    /*
-     * Hai bên online thì nhận qua socket realtime; offline vẫn lưu tin và nhận thông báo khi có phản hồi.
-     */
-    try {
-      if (prisma.chatSession?.findUnique) {
-        const phien = await prisma.chatSession.findUnique({
-          where: { id: sessionId },
-          select: {
-            kind: true,
-            ownerUserId: true,
-            handoffAdminUserId: true,
-            handoffEmployerProfileId: true,
-          },
-        })
-        const hasNotification =
-          typeof (prisma as unknown as { notification?: { create?: unknown } }).notification
-            ?.create === 'function'
-        if (phien && hasNotification) {
-          const preview = noiDung.length > 80 ? noiDung.slice(0, 80) + '…' : noiDung
-          if (phien.kind === 'AI_SUPPORT') {
-            if (user.role === 'ADMIN' && phien.ownerUserId !== user.id) {
-              await createNotification(prisma, {
-                userId: phien.ownerUserId,
-                type: 'CHAT_HANDOFF_ACCEPTED',
-                title: 'Phản hồi từ quản trị viên',
-                body: preview,
-                link: '/ho-tro',
-              })
-            } else if (phien.handoffAdminUserId && phien.handoffAdminUserId !== user.id) {
-              await createNotification(prisma, {
-                userId: phien.handoffAdminUserId,
-                type: 'CHAT_HANDOFF_REQUESTED',
-                title: 'Tin nhắn mới từ người dùng hỗ trợ',
-                body: preview,
-                link: '/admin/ho-tro',
-              })
-            }
-          } else if (phien.kind === 'NTD') {
-            if (user.role === 'EMPLOYER' && phien.ownerUserId !== user.id) {
-              await createNotification(prisma, {
-                userId: phien.ownerUserId,
-                type: 'CHAT_HANDOFF_ACCEPTED',
-                title: 'Tin nhắn mới từ nhà tuyển dụng',
-                body: preview,
-                link: `/hoi-thoai/${sessionId}`,
-              })
-            } else if (user.role === 'STUDENT' && phien.handoffEmployerProfileId) {
-              const ntd = await prisma.employerProfile.findUnique({
-                where: { id: phien.handoffEmployerProfileId },
-                select: { userId: true },
-              })
-              if (ntd && ntd.userId !== user.id) {
-                await createNotification(prisma, {
-                  userId: ntd.userId,
-                  type: 'CHAT_HANDOFF_REQUESTED',
-                  title: 'Tin nhắn mới từ sinh viên',
-                  body: preview,
-                  link: '/ntd/hoi-thoai',
-                })
-              }
-            }
-          }
-        }
-      }
-    } catch {
-      // Thông báo là kênh phụ cho offline, không chặn dòng chính nếu có lỗi gửi thông báo
-    }
 
     return { message, cursor: dongCursor(seqHienTai), daCo: false }
   } catch (e) {

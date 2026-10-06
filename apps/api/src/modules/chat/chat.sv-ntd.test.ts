@@ -19,7 +19,6 @@ vi.mock('./handoff.service.js', () => ({
   ketThuc: vi.fn(),
   hopThuNTD: vi.fn(),
   ntdChuDongTraoDoi: vi.fn(),
-  kichHoatLuongKhiMoiPhongVan: vi.fn(),
 }))
 
 vi.mock('./chat.service.js', () => ({

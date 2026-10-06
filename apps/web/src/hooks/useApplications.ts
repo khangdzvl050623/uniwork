@@ -14,12 +14,11 @@ import { apiFetch } from '@/lib/api'
 const KHOA_DON = ['toi', 'don-ung-tuyen'] as const
 const KHOA_UNG_VIEN = ['ntd', 'ung-vien'] as const
 
-export function useMyApplications(options?: { enabled?: boolean }) {
+export function useMyApplications() {
   return useQuery({
     queryKey: KHOA_DON,
     queryFn: () => apiFetch<StudentApplicationListResponse>('/api/toi/don-ung-tuyen'),
     staleTime: 0,
-    enabled: options?.enabled,
   })
 }
 

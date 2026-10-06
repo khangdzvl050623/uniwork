@@ -96,7 +96,7 @@ function ApplicationCard({ application }: { application: StudentApplicationItem 
               className="gap-1.5 text-slate-700"
             >
               <MessagesSquare size={14} />
-              Trao đổi với NTD
+              Trao đổi về đơn ứng tuyển
             </Button>
           )}
           {coTheRut(application.status) && (

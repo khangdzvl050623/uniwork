@@ -25,7 +25,6 @@ import { DialogBaoCao } from '@/components/bao-cao/DialogBaoCao'
 import { DialogHoiNTD } from '@/components/hoi-thoai/DialogHoiNTD'
 import { useAvailability } from '@/hooks/useProfile'
 import { useAuth } from '@/hooks/useAuth'
-import { useMyApplications } from '@/hooks/useApplications'
 import { usePublicJob } from '@/hooks/usePublicJobs'
 import { cn, formatSalary } from '@/lib/utils'
 
@@ -69,12 +68,6 @@ export function JobDetail() {
   // Chỉ gọi khi người xem là sinh viên: nhà tuyển dụng và khách không có lịch
   // rảnh, gọi vào chỉ nhận 403 rồi hiện lỗi cho một thứ không liên quan tới họ.
   const { data: lichRanh } = useAvailability({ enabled: laSinhVien })
-  const { data: donUngTuyenData } = useMyApplications({ enabled: laSinhVien })
-  const daUngTuyen = Boolean(
-    donUngTuyenData?.applications.some(
-      (a) => a.jobId === job?.id && a.status !== 'WITHDRAWN',
-    ),
-  )
 
   if (isLoading) {
     return (
@@ -339,18 +332,11 @@ export function JobDetail() {
                 <Button
                   variant="outline"
                   className="w-full"
-                  disabled={!daUngTuyen}
                   onClick={() => setMoHoiNTD(true)}
-                  title={!daUngTuyen ? 'Cần ứng tuyển tin trước khi gửi yêu cầu trao đổi' : undefined}
                 >
                   <MessagesSquare size={16} />
-                  Trao đổi với nhà tuyển dụng
+                  Hỏi nhà tuyển dụng
                 </Button>
-                {!daUngTuyen && (
-                  <p className="text-center text-xs text-slate-500">
-                    Cần ứng tuyển trước khi gửi yêu cầu trao đổi về tin này
-                  </p>
-                )}
                 <DialogHoiNTD
                   jobId={job.id}
                   tenTin={job.title}

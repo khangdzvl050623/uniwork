@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { ApiClientError, apiFetch } from '@/lib/api'
+import { luongDangCo } from '@/lib/luong-ntd'
 
 const TRAN = 500
 
@@ -32,6 +33,10 @@ const TRAN = 500
  * Đã có hội thoại đang mở với chính nhà tuyển dụng này, tin đã đóng, doanh
  * nghiệp chưa xác minh — cả ba đều trả về một câu rõ nghĩa. Hiện nguyên câu
  * đó chứ không dịch lại: nó chính xác hơn bất cứ câu chung chung nào ta đoán.
+ *
+ * Ca "đã có hội thoại" thì kèm luôn nút mở nó — kế hoạch: nút trao đổi "mở
+ * hội thoại hiện có hoặc gửi yêu cầu mới". KHÔNG tự chuyển trang: người dùng
+ * vừa gõ một câu hỏi, chuyển đi là câu đó mất trước khi họ kịp chép lại.
  */
 export function DialogHoiNTD({
   jobId,
@@ -50,14 +55,11 @@ export function DialogHoiNTD({
   const [loiNhan, setLoiNhan] = useState('')
   const [dangGui, setDangGui] = useState(false)
   const [loi, setLoi] = useState<string | null>(null)
+  const [luongCo, setLuongCo] = useState<string | null>(null)
 
   async function gui() {
     setLoi(null)
-    const cauHoi = loiNhan.trim()
-    if (!cauHoi) {
-      setLoi('Vui lòng nhập câu hỏi mở đầu để gửi yêu cầu trao đổi.')
-      return
-    }
+    setLuongCo(null)
     setDangGui(true)
     try {
       /*
@@ -66,11 +68,12 @@ export function DialogHoiNTD({
        */
       const kq = await apiFetch<{ sessionId: string }>('/api/hoi-thoai/hoi-ntd', {
         method: 'POST',
-        body: JSON.stringify({ jobId, loiNhan: cauHoi }),
+        body: JSON.stringify({ jobId, loiNhan: loiNhan.trim() }),
       })
       onOpenChange(false)
       dieuHuong(`/hoi-thoai/${kq.sessionId}`)
     } catch (e) {
+      setLuongCo(luongDangCo(e))
       setLoi(e instanceof ApiClientError ? e.message : 'Không gửi được yêu cầu')
     } finally {
       setDangGui(false)
@@ -83,7 +86,7 @@ export function DialogHoiNTD({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MessagesSquare size={18} className="text-brand-600" aria-hidden="true" />
-            Trao đổi với nhà tuyển dụng
+            Hỏi nhà tuyển dụng
           </DialogTitle>
           <DialogDescription>
             {tenTin} · {congTy}
@@ -91,19 +94,14 @@ export function DialogHoiNTD({
         </DialogHeader>
 
         <p className="rounded-lg bg-slate-50 px-3 py-2.5 text-sm text-slate-600">
-          Sau khi ứng tuyển thành công, bạn gửi yêu cầu trao đổi kèm một câu hỏi mở đầu. Yêu cầu sẽ ở
-          trạng thái chờ nhà tuyển dụng tiếp nhận (WAITING_EMPLOYER). Khi tiếp nhận (HUMAN_ACTIVE), hai
-          bên sẽ nhắn tin trực tiếp.
-        </p>
-
-        <p className="text-xs text-slate-500">
-          * Nhà tuyển dụng chỉ thấy tên viết tắt và ngữ cảnh tin tuyển dụng — không thể đọc lịch sử
-          AI riêng, và quyền chat không tự mở thêm quyền xem CV hoặc thông tin liên hệ của bạn.
+          Nhà tuyển dụng thấy tên viết tắt của bạn và <strong>chỉ cuộc trò chuyện này</strong> —
+          không thấy đoạn bạn hỏi trợ lý, cũng không thấy bạn nói gì với nơi khác. Tên đầy đủ và
+          liên hệ chỉ mở khi bạn nộp đơn và được chuyển vào vòng trong.
         </p>
 
         <div>
           <label htmlFor="loi-nhan-ntd" className="text-sm font-medium text-slate-900">
-            Câu hỏi mở đầu cho nhà tuyển dụng <span className="text-rose-600">*</span>
+            Bạn muốn hỏi gì? (không bắt buộc)
           </label>
           <textarea
             id="loi-nhan-ntd"
@@ -111,7 +109,7 @@ export function DialogHoiNTD({
             value={loiNhan}
             maxLength={TRAN}
             onChange={(e) => setLoiNhan(e.target.value)}
-            placeholder="Ví dụ: Em đã nộp đơn ứng tuyển cho tin này, em muốn hỏi thêm về lịch làm việc chi tiết ca chiều ạ..."
+            placeholder="Ví dụ: em học sáng thứ 3 và thứ 5, ca chiều còn nhận không ạ?"
             className="mt-2 w-full resize-none rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition-colors focus:border-brand-500"
           />
         </div>
@@ -126,10 +124,21 @@ export function DialogHoiNTD({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Huỷ
           </Button>
-          <Button disabled={dangGui} onClick={() => void gui()}>
-            {dangGui && <Loader2 size={16} className="animate-spin motion-reduce:animate-none" />}
-            Gửi yêu cầu trao đổi
-          </Button>
+          {luongCo ? (
+            <Button
+              onClick={() => {
+                onOpenChange(false)
+                dieuHuong(`/hoi-thoai/${luongCo}`)
+              }}
+            >
+              Mở hội thoại
+            </Button>
+          ) : (
+            <Button disabled={dangGui} onClick={() => void gui()}>
+              {dangGui && <Loader2 size={16} className="animate-spin motion-reduce:animate-none" />}
+              Gửi cho nhà tuyển dụng
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
