@@ -42,6 +42,7 @@ export interface BaoCaoItem {
   ketLuan: string | null
   createdAt: string
   handledAt: string | null
+  anhChupTin?: AnhChupTin
 }
 
 function toItem(r: {
@@ -53,6 +54,7 @@ function toItem(r: {
   ketLuan: string | null
   createdAt: Date
   handledAt: Date | null
+  anhChupTin?: unknown
 }): BaoCaoItem {
   return {
     id: r.id,
@@ -63,6 +65,7 @@ function toItem(r: {
     ketLuan: r.ketLuan,
     createdAt: r.createdAt.toISOString(),
     handledAt: r.handledAt?.toISOString() ?? null,
+    anhChupTin: r.anhChupTin as AnhChupTin | undefined,
   }
 }
 
@@ -75,6 +78,7 @@ const CHON_ITEM = {
   ketLuan: true,
   createdAt: true,
   handledAt: true,
+  anhChupTin: true,
 } satisfies Prisma.JobReportSelect
 
 /* ============================================================== gửi báo cáo -- */

@@ -17,11 +17,28 @@ export interface DeNghiNTD {
   lyDo: string
 }
 
+export interface BieuMauBaoCao {
+  jobId: string
+  tenTin: string
+  congTy: string
+  lyDo: string
+  moTa: string
+}
+
 export function layDeNghi(goiTool: GoiTool[]): DeNghiNTD | null {
   for (const g of goiTool) {
     if (g.ten !== 'deNghiChuyenNhaTuyenDung') continue
     const d = (g.ketQua as { deNghi?: DeNghiNTD | null }).deNghi
     if (d) return d
+  }
+  return null
+}
+
+export function layBieuMauBaoCao(goiTool: GoiTool[]): BieuMauBaoCao | null {
+  for (const g of goiTool) {
+    if (g.ten !== 'baoCaoTin') continue
+    const b = (g.ketQua as { bieuMau?: BieuMauBaoCao | null })?.bieuMau
+    if (b) return b
   }
   return null
 }
@@ -44,6 +61,7 @@ export function suyNhan(goiTool: GoiTool[]): string {
   if (goiTool.length === 0) return 'UNKNOWN'
   const ten = new Set(goiTool.map((g) => g.ten))
   if (ten.has('deNghiChuyenNhaTuyenDung')) return 'CAN_NHA_TUYEN_DUNG'
+  if (ten.has('baoCaoTin')) return 'BAO_CAO_TIN'
   if (ten.has('huongDanSuDung')) return 'HUONG_DAN_SU_DUNG'
   return goiTool.some(coDuLieu) ? 'TRA_CUU' : 'KHONG_CO_DU_LIEU'
 }
