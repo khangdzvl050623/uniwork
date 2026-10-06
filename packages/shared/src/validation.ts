@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { APPLICANT_SORTS, SIGNUP_ROLES } from './api.js'
 import {
   APPLICATION_STATUSES,
+  DANH_MUC_HO_TRO,
   DAY_FULL_LABELS,
   JOB_STATUSES,
   PUBLIC_JOB_SORTS,
@@ -956,10 +957,39 @@ export const hoiNhaTuyenDungSchema = z.object({
   loiNhan: z.string().trim().max(500, 'Lời nhắn tối đa 500 ký tự').optional(),
 })
 
-/** Yêu cầu gặp quản trị viên. Mô tả không bắt buộc — lịch sử hội thoại là ngữ cảnh. */
-export const yeuCauHoTroSchema = z.object({
-  moTa: z.string().trim().max(1000, 'Tối đa 1000 ký tự').default(''),
+/** Nhà tuyển dụng chủ động mở hoặc mở lại trao đổi từ một đơn ứng tuyển. */
+export const ntdChuDongTraoDoiSchema = z.object({
+  applicationId: z.string().trim().min(1, 'Chưa chọn đơn ứng tuyển').max(40),
+  loiNhan: z.string().trim().max(500, 'Lời nhắn tối đa 500 ký tự').optional(),
 })
+
+/** Yêu cầu gặp quản trị viên. */
+export const yeuCauHoTroSchema = z.object({
+  danhMuc: z.enum(DANH_MUC_HO_TRO).default('KHAC'),
+  moTa: z.string().trim().max(1000, 'Tối đa 1000 ký tự').default(''),
+  tomTatAi: z.string().trim().max(1000, 'Tối đa 1000 ký tự').optional(),
+})
+
+export type YeuCauHoTroInput = z.infer<typeof yeuCauHoTroSchema>
+
+/** Khách gửi yêu cầu nhận mã OTP xác minh email để liên hệ hỗ trợ khi không đăng nhập được. */
+export const hoTroKhachGuiOtpSchema = z.object({
+  email: z.string().trim().email('Email không hợp lệ'),
+})
+
+export type HoTroKhachGuiOtpInput = z.infer<typeof hoTroKhachGuiOtpSchema>
+
+/** Khách gửi yêu cầu hỗ trợ khi không thể đăng nhập (kèm mã OTP đã xác minh). */
+export const hoTroKhachSchema = z.object({
+  email: z.string().trim().email('Email không hợp lệ'),
+  code: z.string().trim().length(6, 'Mã xác thực gồm 6 chữ số'),
+  hoTen: z.string().trim().min(2, 'Họ tên tối thiểu 2 ký tự').max(100, 'Họ tên tối đa 100 ký tự'),
+  phone: z.string().trim().max(20, 'Số điện thoại tối đa 20 ký tự').optional(),
+  danhMuc: z.enum(DANH_MUC_HO_TRO).default('TAI_KHOAN'),
+  moTa: z.string().trim().min(5, 'Vui lòng mô tả vấn đề (tối thiểu 5 ký tự)').max(1000, 'Tối đa 1000 ký tự'),
+})
+
+export type HoTroKhachInput = z.infer<typeof hoTroKhachSchema>
 
 /**
  * Nhà tuyển dụng từ chối yêu cầu trao đổi.

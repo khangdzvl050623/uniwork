@@ -14,6 +14,7 @@ import { adminSkillsRoutes, skillsRoutes } from './modules/skills/skills.routes.
 import { notificationRoutes } from './modules/notifications/notifications.routes.js'
 import {
   adminHoTroRoutes,
+  hoTroKhachRoutes,
   hoiThoaiRoutes,
   hopThuNTDRoutes,
   troLyRoutes,
@@ -108,3 +109,6 @@ apiRouter.use('/admin/bao-cao', adminBaoCaoRoutes)
 
 /* Hàng đợi hỗ trợ — chỉ ADMIN. Người dùng gửi yêu cầu ở `/hoi-thoai/:id/yeu-cau-ho-tro`. */
 apiRouter.use('/admin/ho-tro', adminHoTroRoutes)
+
+/* Đường liên hệ hỗ trợ riêng cho khách không đăng nhập được — công khai. */
+apiRouter.use('/ho-tro/khach', hoTroKhachRoutes)

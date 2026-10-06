@@ -11,12 +11,16 @@ import {
   huyYeuCauHoTroController,
   ketThucController,
   hoiController,
+  hoTroKhachGuiOtpController,
+  hoTroKhachGuiYeuCauController,
   layTinNhanController,
   luotConLaiController,
+  ntdChuDongTraoDoiController,
   taoPhienController,
   tiepNhanController,
   tiepNhanHoTroController,
   tuChoiYeuCauController,
+  xuLyYeuCauKhachController,
   yeuCauHoTroController,
 } from './chat.controller.js'
 
@@ -101,6 +105,7 @@ hoiThoaiRoutes.post('/:id/tin-nhan', guiTinNhanController)
  * dụng xác định luồng. Đường này MỞ luồng chứ không chuyển đổi một luồng có sẵn.
  */
 hoiThoaiRoutes.post('/hoi-ntd', chuyenLimit, requireRole('STUDENT'), chuyenNTDController)
+hoiThoaiRoutes.post('/ntd-trao-doi', chuyenLimit, requireRole('EMPLOYER'), ntdChuDongTraoDoiController)
 hoiThoaiRoutes.post('/:id/huy-cho', requireRole('STUDENT'), huyChoController)
 hoiThoaiRoutes.post('/:id/tiep-nhan', requireRole('EMPLOYER'), tiepNhanController)
 hoiThoaiRoutes.post('/:id/tu-choi', requireRole('EMPLOYER'), tuChoiYeuCauController)
@@ -133,7 +138,14 @@ export const adminHoTroRoutes = Router()
 adminHoTroRoutes.use(requireAuth, requireRole('ADMIN'))
 adminHoTroRoutes.get('/', hangDoiHoTroController)
 adminHoTroRoutes.post('/:id/tiep-nhan', tiepNhanHoTroController)
+adminHoTroRoutes.post('/khach/:id/xu-ly', xuLyYeuCauKhachController)
 hopThuNTDRoutes.get('/', hopThuNTDController)
+hopThuNTDRoutes.post('/trao-doi', chuyenLimit, ntdChuDongTraoDoiController)
+
+/** Kênh liên hệ hỗ trợ riêng cho khách không đăng nhập được — mount ở /api/ho-tro/khach. */
+export const hoTroKhachRoutes = Router()
+hoTroKhachRoutes.post('/gui-otp', chuyenLimit, hoTroKhachGuiOtpController)
+hoTroKhachRoutes.post('/gui-yeu-cau', chuyenLimit, hoTroKhachGuiYeuCauController)
 
 /* ------------------------------------------------------------- trợ lý -- */
 
