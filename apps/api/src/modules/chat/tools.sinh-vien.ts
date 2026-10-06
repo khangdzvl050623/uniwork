@@ -9,6 +9,7 @@ import {
 import { z } from 'zod'
 import { AppError } from '../../lib/errors.js'
 import { getPublicJob, listPublicJobs, listSavedJobs } from '../jobs/jobs.service.js'
+import { conHanNop } from '../../lib/han-nop.js'
 import { getAvailability, getStudentProfile } from '../profile/profile.service.js'
 import { listStudentApplications } from '../applications/applications.service.js'
 import { listSkills } from '../skills/skills.service.js'
@@ -316,6 +317,18 @@ export function dungToolSinhVien(ctx: CtxSinhVien) {
           const tin = await getPublicJob(id, ctx.userId).catch(() => null)
           if (tin === null) {
             return { deNghi: null, lyDoTuChoi: 'Không tìm thấy tin này hoặc tin đã đóng' }
+          }
+          /*
+           * Cùng luật với `chuyenNhaTuyenDung`: quá hạn nộp là đã đóng. Đề nghị ở
+           * đây thì người chưa nộp đơn bấm vào chỉ nhận lỗi — nói luôn cho model
+           * biết lý do, kèm lối đi đúng cho người đã nộp đơn.
+           */
+          if (!conHanNop(new Date(tin.deadline))) {
+            return {
+              deNghi: null,
+              lyDoTuChoi:
+                'Tin đã hết hạn nhận hồ sơ. Ai đã nộp đơn thì trao đổi tiếp ở trang Đơn ứng tuyển của tôi.',
+            }
           }
           return {
             deNghi: { jobId: tin.id, tenTin: tin.title, congTy: tin.employer.companyName, lyDo },

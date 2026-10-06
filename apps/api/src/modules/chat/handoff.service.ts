@@ -1,5 +1,6 @@
 import type { Role } from '@prisma/client'
 import { prisma } from '../../lib/prisma.js'
+import { conHanNop } from '../../lib/han-nop.js'
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js'
 import { createNotification } from '../notifications/notifications.service.js'
 import { phongHopThuNTD, quyenTruyCapPhien } from './chat.access.js'
@@ -91,7 +92,8 @@ async function phienCuaChu(userId: string, sessionId: string) {
  *   Tin đang MỞ   → ai cũng hỏi được, CHƯA cần nộp đơn. Đây là việc chính của
  *                   nút này: hỏi ca, hỏi lương trước khi quyết định nộp — và
  *                   là thứ thẻ đề nghị của trợ lý mở ra [03, nhóm câu hỏi 2].
- *   Tin đã ĐÓNG   → chỉ người đã nộp đơn (chưa rút): không còn gì để hỏi
+ *   Tin đã ĐÓNG   → (kể cả QUÁ HẠN NỘP mà vẫn `OPEN`)
+ *                   chỉ người đã nộp đơn (chưa rút): không còn gì để hỏi
  *                   "trước khi ứng tuyển", nhưng trao đổi về đơn đã nộp phải
  *                   tiếp tục được (kế hoạch chat SV–NTD, mục 1).
  *   Tin bị GỠ     → không ai mở được, kể cả người đã nộp đơn: tin vi phạm
@@ -112,6 +114,7 @@ export async function chuyenNhaTuyenDung(
       id: true,
       title: true,
       status: true,
+      deadline: true,
       goBoiAdminId: true,
       employerProfileId: true,
       employerProfile: { select: { userId: true, verifiedAt: true, companyName: true } },
@@ -133,7 +136,13 @@ export async function chuyenNhaTuyenDung(
   })
   if (!hoSo) throw notFound('Chưa có hồ sơ sinh viên')
 
-  if (tin.status !== 'OPEN') {
+  /*
+   * Quá hạn nộp cũng là "đã đóng": không nhận hồ sơ nữa thì không còn gì để hỏi
+   * trước khi ứng tuyển. Tin vẫn `OPEN` vì không có gì tự đóng nó — xem
+   * `lib/han-nop.ts`.
+   */
+  const conNhanDon = tin.status === 'OPEN' && conHanNop(tin.deadline)
+  if (!conNhanDon) {
     const don = await prisma.application.findUnique({
       where: { jobId_studentProfileId: { jobId: tin.id, studentProfileId: hoSo.id } },
       select: { status: true },

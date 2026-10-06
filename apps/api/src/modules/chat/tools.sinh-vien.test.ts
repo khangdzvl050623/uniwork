@@ -92,7 +92,12 @@ const TIN_MAU: PublicJobSummary = {
   salaryUnit: 'HOUR',
   scheduleType: 'RECURRING',
   commitmentMonths: 3,
-  deadline: '2026-10-31T00:00:00.000Z',
+  /*
+   * Hạn TƯƠNG ĐỐI, không phải ngày cứng: `deNghiChuyenNhaTuyenDung` giờ từ chối
+   * tin quá hạn, nên một ngày cứng biến cả khối test thành quả bom hẹn giờ —
+   * xanh hôm nay, đỏ sau ngày đó mà không ai sửa gì.
+   */
+  deadline: new Date(Date.now() + 30 * 86_400_000).toISOString(),
   publishedAt: '2026-09-01T00:00:00.000Z',
   skills: [{ id: 'sk-1', name: 'Pha chế', slug: 'pha-che' }],
   shifts: [
@@ -333,7 +338,7 @@ describe('timViecLam', () => {
     expect(kq.tin[0]).toMatchObject({
       noiLam: 'Cầu Giấy, Hà Nội',
       luong: '25.000 - 30.000đ/giờ',
-      hanNop: '2026-10-31',
+      hanNop: TIN_MAU.deadline.slice(0, 10), // 'YYYY-MM-DD', bỏ phần giờ
     })
     expect(kq.tin[0]).not.toHaveProperty('description')
   })
@@ -507,6 +512,23 @@ describe('deNghiChuyenNhaTuyenDung — tool không làm gì cả', () => {
     }
     expect(kq.deNghi).toBeNull()
     expect(kq.lyDoTuChoi).toMatch(/Không tìm thấy/)
+  })
+
+  /*
+   * Tin quá hạn vẫn `OPEN` (không có gì tự đóng nó) nên `getPublicJob` vẫn trả
+   * về. Đề nghị ở đây thì người chưa nộp đơn bấm vào chỉ nhận lỗi.
+   */
+  it('tin đã quá hạn nộp thì không đề nghị, và nói lý do', async () => {
+    mockGetPublicJob.mockResolvedValue({
+      ...TIN_CHI_TIET_MAU,
+      deadline: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+    })
+    const kq = (await goi(bo().deNghiChuyenNhaTuyenDung, { jobId: JOB_ID, lyDo: 'x' })) as {
+      deNghi: null
+      lyDoTuChoi: string
+    }
+    expect(kq.deNghi).toBeNull()
+    expect(kq.lyDoTuChoi).toMatch(/hết hạn/)
   })
 })
 

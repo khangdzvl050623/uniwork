@@ -386,27 +386,37 @@ describe('POST /api/toi/don-ung-tuyen', () => {
     expect(res.body.error.message).not.toMatch(/CLOSED|DRAFT|PENDING/)
   })
 
-  it('quá hạn nộp → 409, nhưng CÒN NGUYÊN NGÀY hết hạn thì vẫn nộp được', async () => {
+  /*
+   * "Hạn 20/09" là HẾT ngày 20/09 THEO GIỜ VIỆT NAM. `deadline` lưu đúng như
+   * form gửi: ngày lịch, mã hoá thành 00:00 UTC.
+   *
+   * Đồng hồ giả, ghim đúng ranh giới — 17:00 UTC là nửa đêm ở Việt Nam. Bản cũ
+   * tính "đầu ngày hôm sau" theo múi giờ MÁY CHỦ: trên Render (UTC) nó vẫn cho
+   * nộp tới 7 giờ sáng 21/09, và ca thứ hai dưới đây bắt được đúng chỗ đó.
+   * Chỉ giả `Date` — giả cả bộ hẹn giờ thì supertest treo.
+   */
+  it('quá hạn nộp → 409, nhưng CÒN NGUYÊN NGÀY hết hạn (giờ Việt Nam) thì vẫn nộp được', async () => {
     svFindUnique.mockResolvedValue(hoSoSinhVien())
     donCreate.mockResolvedValue(hangDon())
+    jobFindUnique.mockResolvedValue(tinMo({ deadline: new Date('2026-09-20T00:00:00Z') }))
+    const nop = () =>
+      request(app)
+        .post('/api/toi/don-ung-tuyen')
+        .set('Authorization', `Bearer ${svToken}`)
+        .send({ jobId: 'job-1' })
 
-    // Hạn là hôm nay: người ta hiểu "hạn 20/09" là hết ngày 20/09.
-    jobFindUnique.mockResolvedValue(tinMo({ deadline: new Date() }))
-    const conHan = await request(app)
-      .post('/api/toi/don-ung-tuyen')
-      .set('Authorization', `Bearer ${svToken}`)
-      .send({ jobId: 'job-1' })
-    expect(conHan.status).toBe(201)
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(new Date('2026-09-20T16:59:00Z')) // 23:59 ngày 20/09 ở Việt Nam
+      expect((await nop()).status).toBe(201)
 
-    jobFindUnique.mockResolvedValue(
-      tinMo({ deadline: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000) }),
-    )
-    const hetHan = await request(app)
-      .post('/api/toi/don-ung-tuyen')
-      .set('Authorization', `Bearer ${svToken}`)
-      .send({ jobId: 'job-1' })
-    expect(hetHan.status).toBe(409)
-    expect(hetHan.body.error.message).toMatch(/quá hạn/i)
+      vi.setSystemTime(new Date('2026-09-20T17:00:00Z')) // 00:00 ngày 21/09 ở Việt Nam
+      const hetHan = await nop()
+      expect(hetHan.status).toBe(409)
+      expect(hetHan.body.error.message).toMatch(/quá hạn/i)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('nộp lần hai → 409, và chặn đến từ RÀNG BUỘC DATABASE', async () => {

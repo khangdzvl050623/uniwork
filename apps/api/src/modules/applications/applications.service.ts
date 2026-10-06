@@ -24,6 +24,7 @@ import type {
   WithdrawApplicationResponse,
 } from '@uniwork/shared'
 import { prisma } from '../../lib/prisma.js'
+import { conHanNop } from '../../lib/han-nop.js'
 import { conflict, forbidden, notFound } from '../../lib/errors.js'
 import { applicationNotificationEmail, sendMail } from '../../lib/mailer.js'
 import { logger } from '../../lib/logger.js'
@@ -172,13 +173,10 @@ export async function createApplication(
 
   /*
    * Quá hạn nộp. Tin vẫn `OPEN` vì không có tiến trình nào tự đóng nó — hạn nộp
-   * là mốc do NTD tự đặt và chỉ có ý nghĩa lúc ai đó định nộp.
-   *
-   * So với đầu ngày hôm sau chứ không so thẳng: `deadline` lưu lúc 00:00, so
-   * thẳng sẽ khoá tin ngay từ 00:01 CHÍNH NGÀY hết hạn — trong khi người ta hiểu
-   * "hạn 20/09" là "hết ngày 20/09".
+   * là mốc do NTD tự đặt. "Hạn 20/09" là HẾT ngày 20/09 theo giờ Việt Nam; mốc
+   * chung với danh sách việc nằm ở `lib/han-nop.ts`.
    */
-  if (job.deadline && Date.now() > ngayKeTiep(job.deadline).getTime()) {
+  if (job.deadline && !conHanNop(job.deadline)) {
     throw conflict('Tin này đã quá hạn nhận hồ sơ')
   }
 
@@ -271,14 +269,6 @@ export async function createApplication(
     }
     throw e
   }
-}
-
-/** Đầu ngày hôm sau của một mốc — dùng để so "hết ngày X". */
-function ngayKeTiep(d: Date): Date {
-  const r = new Date(d)
-  r.setHours(0, 0, 0, 0)
-  r.setDate(r.getDate() + 1)
-  return r
 }
 
 /* ==================================================================== */

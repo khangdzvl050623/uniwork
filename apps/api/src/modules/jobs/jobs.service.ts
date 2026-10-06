@@ -20,6 +20,7 @@ import type {
   UpdateJobData,
 } from '@uniwork/shared'
 import { prisma } from '../../lib/prisma.js'
+import { conHanNop, hanSomNhatConNhan } from '../../lib/han-nop.js'
 import { createNotification } from '../notifications/notifications.service.js'
 import { badRequest, conflict, forbidden, notFound, unauthorized } from '../../lib/errors.js'
 
@@ -1132,6 +1133,13 @@ function dungBoLoc(
     // Thứ duy nhất ngăn tin nháp và tin chờ duyệt lọt ra ngoài. Không bao giờ
     // để người gọi truyền `status` vào đây.
     status: 'OPEN',
+    /*
+     * Còn hạn nộp. Không có tiến trình nào tự đóng tin hết hạn, nên `OPEN` một
+     * mình vẫn để lọt tin quá hạn — danh sách hiện, trợ lý AI gợi ý (nó đọc
+     * chính danh sách này), sinh viên bấm nộp mới nhận 409. Cùng mốc với lúc
+     * ứng tuyển — xem `lib/han-nop.ts`.
+     */
+    deadline: { gte: hanSomNhatConNhan() },
     ...(query.city ? { city: query.city } : {}),
     ...(query.district ? { district: query.district } : {}),
     ...(query.scheduleType ? { scheduleType: query.scheduleType } : {}),
@@ -1490,7 +1498,8 @@ export async function listSavedJobs(userId: string): Promise<SavedJobListRespons
       ghepLich(toShiftItems(row.job.shifts), lichRanh, row.job.minShiftsPerWeek),
     ),
     savedAt: row.createdAt.toISOString(),
-    stillOpen: row.job.status === 'OPEN',
+    // Quá hạn cũng là "đã đóng" với người xem: không nộp được nữa.
+    stillOpen: row.job.status === 'OPEN' && conHanNop(row.job.deadline),
   }))
 
   return { savedJobs, total: savedJobs.length }

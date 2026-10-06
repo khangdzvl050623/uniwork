@@ -1493,6 +1493,30 @@ describe('GET /api/viec-lam — danh sách công khai', () => {
     expect(where.status).toBe('OPEN')
   })
 
+  /*
+   * Tin quá hạn vẫn `OPEN` — không có gì tự đóng nó. Thiếu điều kiện này thì
+   * danh sách, và trợ lý AI đọc chính danh sách này, gợi ý một tin mà bấm nộp
+   * chỉ nhận 409. Kiểm ở CHỖ QUYẾT ĐỊNH là mệnh đề `where`, với đồng hồ giả
+   * ghim ngay sau nửa đêm giờ Việt Nam (17:00 UTC): mốc phải là ngày MỚI.
+   */
+  it('chỉ trả tin CÒN HẠN nộp — mốc là ngày hôm nay theo giờ Việt Nam', async () => {
+    jobFindMany.mockResolvedValue([])
+    jobCount.mockResolvedValue(0)
+
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(new Date('2026-09-20T17:00:00Z')) // 00:00 ngày 21/09 ở Việt Nam
+      await request(createApp()).get('/api/viec-lam')
+    } finally {
+      vi.useRealTimers()
+    }
+
+    const where = jobFindMany.mock.calls[0][0].where as Record<string, unknown>
+    expect(where.deadline).toEqual({ gte: new Date('2026-09-21T00:00:00Z') })
+    // `count` phải cùng điều kiện, nếu không `total` đếm cả tin đã ẩn.
+    expect(jobCount.mock.calls[0][0].where).toEqual(where)
+  })
+
   it('người gọi KHÔNG ép được status khác qua query', async () => {
     // Nếu `status` lọt từ query vào `where`, mọi tin nháp của mọi NTD ra ngoài.
     jobFindMany.mockResolvedValue([])
@@ -1539,6 +1563,7 @@ describe('GET /api/viec-lam — danh sách công khai', () => {
 
     expect(jobFindMany.mock.calls[0][0].where).toEqual({
       status: 'OPEN',
+      deadline: { gte: expect.any(Date) },
       city: 'TP.HCM',
       district: 'Quận 1',
       scheduleType: 'SEASONAL',
@@ -1554,7 +1579,10 @@ describe('GET /api/viec-lam — danh sách công khai', () => {
 
     await request(createApp()).get('/api/viec-lam?city=&district=')
 
-    expect(jobFindMany.mock.calls[0][0].where).toEqual({ status: 'OPEN' })
+    expect(jobFindMany.mock.calls[0][0].where).toEqual({
+      status: 'OPEN',
+      deadline: { gte: expect.any(Date) },
+    })
   })
 
   it('trang 2 cắt đúng chỗ, page size không vượt quá 100, và total vẫn là số thật', async () => {
@@ -1885,6 +1913,37 @@ describe('Tin đã lưu — POST/DELETE/GET /api/toi/tin-da-luu', () => {
       .set('Authorization', `Bearer ${svToken}`)
 
     expect(res.body.data.savedJobs[0].stillOpen).toBe(false)
+  })
+
+  /*
+   * Tin quá hạn vẫn `OPEN` — không có gì tự đóng nó. Với sinh viên, "quá hạn"
+   * và "đã đóng" giống nhau: không nộp được nữa. Ca thứ hai canh ngược lại, để
+   * điều kiện không lỡ tay biến mọi tin thành "đã đóng".
+   */
+  it('tin OPEN nhưng QUÁ HẠN nộp cũng là stillOpen = false', async () => {
+    const homKia = new Date(Date.now() - 3 * 86_400_000)
+    savedFindMany.mockResolvedValue([
+      { createdAt: new Date('2026-08-20'), job: { ...HANG_JOB_PUBLIC, status: 'OPEN', deadline: homKia } },
+    ])
+
+    const res = await request(createApp())
+      .get('/api/toi/tin-da-luu')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.body.data.savedJobs[0].stillOpen).toBe(false)
+  })
+
+  it('tin OPEN còn hạn thì stillOpen = true', async () => {
+    const thangSau = new Date(Date.now() + 30 * 86_400_000)
+    savedFindMany.mockResolvedValue([
+      { createdAt: new Date('2026-08-20'), job: { ...HANG_JOB_PUBLIC, status: 'OPEN', deadline: thangSau } },
+    ])
+
+    const res = await request(createApp())
+      .get('/api/toi/tin-da-luu')
+      .set('Authorization', `Bearer ${svToken}`)
+
+    expect(res.body.data.savedJobs[0].stillOpen).toBe(true)
   })
 
   it('KHÔNG lộ status của tin ra ngoài, chỉ trả cờ stillOpen', async () => {

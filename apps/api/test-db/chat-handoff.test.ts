@@ -89,7 +89,17 @@ async function taoNTD(email: string, ten: string, daXacMinh: boolean) {
    */
   await prisma.job.update({
     where: { id: j.id },
-    data: { status: 'OPEN', goBoiAdminId: null, lyDoGo: null },
+    /*
+     * Cả HẠN NỘP: tin fixture tạo một lần rồi dùng lại mãi, nên "30 ngày kể từ
+     * lúc tạo" tới một ngày sẽ thành quá hạn — và từ hôm đó mọi ca hỏi nhà
+     * tuyển dụng đỏ mà code không đổi gì.
+     */
+    data: {
+      status: 'OPEN',
+      goBoiAdminId: null,
+      lyDoGo: null,
+      deadline: new Date(Date.now() + 30 * 86_400_000),
+    },
   })
   return { user: u, employerProfileId: hs.id, jobId: j.id }
 }
@@ -265,6 +275,27 @@ describe('mở luồng với nhà tuyển dụng', () => {
   it('tin đã đóng, chưa nộp đơn: không mở luồng được', async () => {
     await prisma.job.update({ where: { id: jobId }, data: { status: 'CLOSED' } })
     await expect(chuyen()).rejects.toMatchObject({ status: 404 })
+  })
+
+  /*
+   * Quá hạn nộp mà vẫn `OPEN` (không có gì tự đóng tin) — tính như đã đóng:
+   * không còn nhận hồ sơ thì không còn gì để hỏi trước khi ứng tuyển.
+   */
+  it('tin OPEN nhưng QUÁ HẠN nộp, chưa nộp đơn: không mở luồng được', async () => {
+    await prisma.job.update({
+      where: { id: jobId },
+      data: { deadline: new Date(Date.now() - 3 * 86_400_000) },
+    })
+    await expect(chuyen()).rejects.toMatchObject({ status: 404 })
+  })
+
+  it('tin OPEN nhưng QUÁ HẠN nộp, ĐÃ nộp đơn: vẫn trao đổi tiếp được', async () => {
+    await nopDon('VIEWED')
+    await prisma.job.update({
+      where: { id: jobId },
+      data: { deadline: new Date(Date.now() - 3 * 86_400_000) },
+    })
+    expect((await chuyen()).state).toBe('WAITING_EMPLOYER')
   })
 
   it('tin đã đóng, ĐÃ nộp đơn: vẫn trao đổi tiếp được về đơn đó', async () => {
