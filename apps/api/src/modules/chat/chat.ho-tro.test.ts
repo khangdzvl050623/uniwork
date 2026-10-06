@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest'
 import { DANH_MUC_HO_TRO_LABELS } from '@uniwork/shared'
 import { quyenTruyCapPhien } from './chat.access.js'
 import {
@@ -24,24 +24,7 @@ vi.mock('../../lib/prisma.js', () => ({
     chatMessage: {
       create: vi.fn(),
     },
-    $transaction: vi.fn(async (cb: (tx: unknown) => Promise<unknown>) => {
-      const txMock = {
-        chatSession: {
-          update: vi.fn().mockResolvedValue({ messageSeq: 2 }),
-          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
-        },
-        chatMessage: {
-          create: vi.fn().mockResolvedValue({
-            id: 'msg-test',
-            seq: 2,
-            senderType: 'SYSTEM',
-            body: 'Hệ thống',
-            createdAt: new Date(),
-          }),
-        },
-      }
-      return cb(txMock)
-    }),
+    $transaction: vi.fn(),
   },
 }))
 
@@ -63,11 +46,13 @@ vi.mock('./socket.gateway.js', () => ({
 
 import { prisma } from '../../lib/prisma.js'
 
+const transaction = prisma.$transaction as unknown as Mock
+
 describe('Tính năng 3: Hỗ trợ giữa người dùng và Admin (ChatKind.AI_SUPPORT)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     vi.mocked(prisma.chatSession.findMany).mockResolvedValue([])
-    vi.mocked(prisma.$transaction).mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
+    transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
       const txMock = {
         chatSession: {
           update: vi.fn().mockResolvedValue({ messageSeq: 2 }),
@@ -168,7 +153,7 @@ describe('Tính năng 3: Hỗ trợ giữa người dùng và Admin (ChatKind.AI
       } as unknown as never)
 
       let capturedSystemBody = ''
-      vi.mocked(prisma.$transaction).mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
+      transaction.mockImplementation(async (cb: (tx: unknown) => Promise<unknown>) => {
         const txMock = {
           chatSession: {
             update: vi.fn().mockResolvedValue({ messageSeq: 2 }),
