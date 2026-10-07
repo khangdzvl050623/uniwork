@@ -60,17 +60,17 @@ export function Earth({ className, children }: { className?: string; children?: 
         height: width * 2,
         phi,
         theta: 0.26,
-        dark: 1,
-        diffuse: 1.3,
+        dark: 0,
+        diffuse: 1.2,
         // Quả cầu ăn gần hết khung vẽ. Dưới 1 thì nó lọt thỏm giữa một vùng
         // trống lớn và trông như hình minh hoạ bị đặt nhầm chỗ.
         scale: 1.15,
         mapSamples: 22_000,
-        mapBrightness: 6.2,
-        baseColor: [0.07, 0.46, 0.42],
-        markerColor: [0.07, 0.46, 0.42],
-        glowColor: [0.09, 0.68, 0.61],
-        opacity: 1,
+        mapBrightness: 4,
+        baseColor: [0.92, 0.98, 0.96],
+        markerColor: [0.08, 0.6, 0.55],
+        glowColor: [0.82, 0.94, 0.92],
+        opacity: 0.95,
         offset: [0, 0],
         markers: [],
       })
@@ -103,15 +103,13 @@ export function Earth({ className, children }: { className?: string; children?: 
 
   return (
     <div className={cn('relative mx-auto w-full max-w-[620px]', className)}>
-      {/* Quầng sáng phía sau, tách quả cầu khỏi nền tối. Không có nó thì rìa quả
-          cầu chìm dần vào nền và cả khối trông như một vệt mờ. Đứng yên hoàn
-          toàn nên trình duyệt chỉ vẽ đúng một lần. */}
+      {/* Quầng sáng phía sau */}
       <div
         aria-hidden
         className="pointer-events-none absolute inset-0 -z-10 scale-125 rounded-full"
         style={{
           background:
-            'radial-gradient(circle at center, rgba(20,196,171,0.22) 0%, rgba(20,196,171,0.07) 42%, transparent 68%)',
+            'radial-gradient(circle at center, rgba(45,212,191,0.25) 0%, rgba(125,211,252,0.12) 42%, transparent 68%)',
         }}
       />
 

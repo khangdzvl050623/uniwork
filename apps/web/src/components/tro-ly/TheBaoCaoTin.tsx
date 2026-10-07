@@ -23,24 +23,26 @@ export function TheBaoCaoTin({
   onBo: () => void
 }) {
   return (
-    <div className="rounded-xl border border-rose-300 bg-rose-50/80 p-4">
+    <div className="rounded-2xl border border-rose-300/80 bg-gradient-to-br from-rose-50/90 to-red-50/40 p-4.5 shadow-2xs">
       <div className="flex items-start gap-3">
-        <ShieldAlert size={20} className="mt-0.5 shrink-0 text-rose-600" aria-hidden="true" />
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-700">
+          <ShieldAlert size={18} aria-hidden="true" />
+        </div>
 
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-slate-900">
+          <p className="text-sm font-bold text-slate-900">
             Biểu mẫu báo cáo tin xấu (Trợ lý AI đã soạn sẵn)
           </p>
 
-          <div className="mt-2 rounded-lg border border-rose-100 bg-white/80 p-2.5 text-xs text-slate-700">
+          <div className="mt-2.5 rounded-xl border border-rose-200/60 bg-white/90 p-3 text-xs text-slate-700 shadow-2xs space-y-1">
             <p>
-              <strong>Tin:</strong> {bieuMau.tenTin} · {bieuMau.congTy}
+              <strong className="text-slate-900">Tin:</strong> {bieuMau.tenTin} · {bieuMau.congTy}
             </p>
-            <p className="mt-1">
-              <strong>Lý do:</strong> {JOB_REPORT_REASON_LABELS[bieuMau.lyDo] ?? bieuMau.lyDo}
+            <p>
+              <strong className="text-slate-900">Lý do:</strong> {JOB_REPORT_REASON_LABELS[bieuMau.lyDo] ?? bieuMau.lyDo}
             </p>
-            <p className="mt-1">
-              <strong>Nội dung:</strong> {bieuMau.moTa}
+            <p>
+              <strong className="text-slate-900">Nội dung:</strong> {bieuMau.moTa}
             </p>
           </div>
         </div>
@@ -48,29 +50,29 @@ export function TheBaoCaoTin({
         <button
           type="button"
           onClick={onBo}
-          className="-m-2 shrink-0 rounded-lg p-2 text-slate-400 hover:bg-rose-100 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
+          className="-m-2 shrink-0 rounded-lg p-2 text-slate-400 hover:bg-rose-100/60 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-500"
           aria-label="Bỏ qua biểu mẫu này"
         >
           <X size={16} aria-hidden="true" />
         </button>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="mt-3.5 flex flex-wrap items-center gap-2">
         <Button
           variant="primary"
           size="sm"
           onClick={onXacNhan}
-          className="bg-rose-600 text-white hover:bg-rose-700"
+          className="rounded-xl bg-rose-600 text-white shadow-xs hover:bg-rose-700"
         >
           Xem lại & Xác nhận gửi
         </Button>
-        <Button variant="ghost" size="sm" onClick={onBo}>
+        <Button variant="ghost" size="sm" onClick={onBo} className="rounded-xl">
           Bỏ qua
         </Button>
       </div>
 
-      <p className="mt-2 text-xs text-slate-600">
-        AI chỉ hỗ trợ chuẩn bị thông tin. Báo cáo <strong className="font-medium">chưa được gửi đi</strong> cho
+      <p className="mt-2.5 text-xs text-slate-600">
+        AI chỉ hỗ trợ chuẩn bị thông tin. Báo cáo <strong className="font-semibold text-slate-800">chưa được gửi đi</strong> cho
         đến khi bạn xem lại và bấm xác nhận gửi tới Quản trị viên. Nhà tuyển dụng không biết ai báo cáo.
       </p>
     </div>

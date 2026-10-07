@@ -46,7 +46,7 @@ function RoleTabs({
   ]
 
   return (
-    <div className="mb-6 grid grid-cols-2 gap-2 rounded-lg bg-slate-100 p-1">
+    <div className="mb-6 grid grid-cols-2 gap-1.5 rounded-xl border border-slate-200/60 bg-slate-100/80 p-1.5">
       {tabs.map((tab) => (
         <button
           key={tab.key}
@@ -58,12 +58,12 @@ function RoleTabs({
           // hình nói rõ đang bật cái nào.
           aria-pressed={role === tab.key}
           className={cn(
-            'flex items-center justify-center gap-2 rounded-md py-2 text-sm font-medium',
-            'transition-[background-color,color,transform] duration-150 ease-out',
+            'flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold cursor-pointer',
+            'transition-[background-color,color,transform,box-shadow] duration-200 ease-out',
             'active:scale-[0.98] disabled:opacity-60',
             role === tab.key
-              ? 'bg-white text-brand-700 shadow-sm'
-              : 'text-slate-500 hover:text-slate-700',
+              ? 'bg-white text-brand-700 shadow-xs'
+              : 'text-slate-500 hover:text-slate-800',
           )}
         >
           <tab.icon size={16} />
@@ -84,15 +84,24 @@ function AuthShell({
   children: React.ReactNode
 }) {
   return (
-    <div className="mx-auto flex max-w-md flex-col justify-center px-4 py-12">
-      <Link to="/" className="mb-6 flex items-center justify-center gap-2">
-        <span className="text-xl font-bold text-slate-900">
+    <div className="relative mx-auto flex min-h-[calc(100vh-8rem)] max-w-md flex-col justify-center px-4 py-12">
+      {/* Vệt sáng trang trí dịu mắt */}
+      <div className="pointer-events-none absolute inset-0 -z-10 flex items-center justify-center overflow-hidden">
+        <div className="h-72 w-72 rounded-full bg-brand-100/60 blur-3xl" />
+        <div className="h-64 w-64 -translate-x-12 translate-y-12 rounded-full bg-cyan-100/50 blur-3xl" />
+      </div>
+
+      <Link to="/" className="group mb-6 flex items-center justify-center gap-2.5">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-400 to-teal-500 shadow-xs shadow-brand-400/25 transition-transform duration-200 group-hover:scale-105">
+          <span className="text-base font-black text-white">U</span>
+        </div>
+        <span className="text-2xl font-extrabold tracking-tight text-slate-900">
           Uni<span className="text-brand-600">Work</span>
         </span>
       </Link>
 
-      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-        <h1 className="mb-1 text-center text-xl font-bold text-slate-900">{title}</h1>
+      <div className="rounded-2xl border border-slate-200/80 bg-white/95 p-6 shadow-xl shadow-slate-200/50 backdrop-blur-md sm:p-8">
+        <h1 className="mb-1 text-center text-2xl font-bold tracking-tight text-slate-900">{title}</h1>
         <p className="mb-6 text-center text-sm text-slate-500">{subtitle}</p>
         {children}
       </div>

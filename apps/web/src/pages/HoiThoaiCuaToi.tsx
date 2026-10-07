@@ -91,15 +91,18 @@ export function HoiThoaiCuaToi() {
       )}
 
       {!isLoading && ds.length === 0 && (
-        <div className="rounded-xl border border-dashed border-slate-300 p-8 text-center">
-          <p className="text-sm font-medium text-slate-700">Chưa có hội thoại nào</p>
+        <div className="rounded-2xl border border-slate-200/80 bg-white p-10 text-center shadow-xs">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+            <MessagesSquare size={22} />
+          </div>
+          <p className="mt-3 text-base font-semibold text-slate-800">Chưa có hội thoại nào</p>
           <p className="mt-1 text-xs text-slate-500">
             Hỏi trợ lý một câu, hoặc bấm “Hỏi nhà tuyển dụng” ở trang một tin tuyển dụng.
           </p>
         </div>
       )}
 
-      <ul className="space-y-2">
+      <ul className="space-y-2.5">
         {ds.map((m) => (
           <MotHoiThoai key={m.sessionId} m={m} />
         ))}
@@ -129,13 +132,15 @@ function MotHoiThoai({ m }: { m: MucHoiThoaiCuaToi }) {
     <li>
       <Link
         to={duongDan}
-        className="block rounded-xl border border-slate-200 bg-white p-4 transition-colors hover:border-brand-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+        className="group block rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-md focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
       >
         <div className="flex items-start justify-between gap-3">
-          <div className="flex min-w-0 items-start gap-2.5">
-            <Icon size={17} className="mt-0.5 shrink-0 text-slate-400" aria-hidden="true" />
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600 transition-colors duration-200 group-hover:bg-brand-50 group-hover:text-brand-600">
+              <Icon size={18} aria-hidden="true" />
+            </div>
             <div className="min-w-0">
-              <p className="truncate font-medium text-slate-900">{tieuDe}</p>
+              <p className="truncate font-semibold text-slate-900 transition-colors group-hover:text-brand-700">{tieuDe}</p>
               {m.congTy && m.tenTin && (
                 <p className="truncate text-xs text-slate-500">{m.tenTin}</p>
               )}

@@ -48,7 +48,7 @@ export function Availability() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
-      <h1 className="text-2xl font-bold text-slate-900">Lịch rảnh của tôi</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Lịch rảnh của tôi</h1>
       <p className="mt-1 text-sm text-slate-500">
         Đánh dấu khung giờ bạn có thể đi làm. Hệ thống chỉ gợi ý những ca khớp với lịch này.
       </p>
@@ -69,15 +69,18 @@ export function Availability() {
 
           <div className="mt-5 flex flex-col gap-3 border-t border-slate-100 pt-4 sm:flex-row sm:items-center">
             <p className="flex-1 text-sm text-slate-500">
-              Đã chọn <strong className="tabular-nums text-slate-800">{slots.length}</strong> khung
-              giờ trong tuần
+              Đã chọn{' '}
+              <strong className="tabular-nums font-bold text-brand-700 bg-brand-50 px-2 py-0.5 rounded-md border border-brand-200/60">
+                {slots.length}
+              </strong>{' '}
+              khung giờ trong tuần
             </p>
 
             {/* `flex-wrap`: trên màn 320px, hai nút cộng nhãn "Đã lưu" vượt quá
                 bề ngang còn lại và đẩy cả trang cuộn ngang. */}
             <div className="flex flex-wrap items-center gap-2">
               {luu.isSuccess && !coThayDoi && !luu.isPending && (
-                <span className="animate-in fade-in mr-1 flex items-center gap-1 text-sm text-brand-600 duration-150">
+                <span className="animate-in fade-in mr-1 flex items-center gap-1 text-sm font-medium text-brand-600 duration-150">
                   <CheckCircle2 size={15} />
                   Đã lưu
                 </span>
@@ -106,10 +109,10 @@ export function Availability() {
         </div>
       </Card>
 
-      <div className="mt-4 flex items-start gap-3 rounded-xl border border-brand-200 bg-brand-50 p-4">
+      <div className="mt-5 flex items-start gap-3 rounded-2xl border border-brand-200/80 bg-linear-to-r from-brand-50/80 via-emerald-50/40 to-teal-50/30 p-4 shadow-2xs">
         <Info size={18} className="mt-0.5 shrink-0 text-brand-600" />
         <div className="text-sm text-brand-900">
-          <p className="font-medium">Lịch này áp dụng cho cả học kỳ</p>
+          <p className="font-semibold">Lịch này áp dụng cho cả học kỳ</p>
           <p className="mt-1 text-brand-800/80">
             Bận đột xuất một buổi thì chưa cần sửa ở đây — tính năng báo bận theo ngày nằm ở sprint
             sau. Sang học kỳ mới, cập nhật lại lưới này cho khớp thời khoá biểu mới.

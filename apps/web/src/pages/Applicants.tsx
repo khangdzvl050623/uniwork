@@ -92,11 +92,11 @@ export function Applicants() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
-      <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Ứng viên</h1>
+      <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-3xl">Ứng viên</h1>
       <p className="mt-1 text-sm text-slate-500">
         Tin: <strong className="text-slate-700">{jobTitle}</strong> · {tong} hồ sơ
         {dangXuLy > 0 && <> · {dangXuLy} đang chờ bạn xử lý</>} ·{' '}
-        <button onClick={() => setParams({})} className="text-brand-700 underline">
+        <button onClick={() => setParams({})} className="font-semibold text-brand-600 hover:text-brand-700 underline cursor-pointer">
           đổi tin
         </button>
       </p>
@@ -113,14 +113,14 @@ export function Applicants() {
               key={t.key}
               onClick={() => setTab(t.key)}
               className={cn(
-                'rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+                'rounded-full px-4 py-1.5 text-xs font-semibold shadow-2xs transition-all cursor-pointer active:scale-95',
                 tab === t.key
-                  ? 'bg-brand-600 text-white'
-                  : 'bg-white text-slate-600 hover:bg-slate-100',
+                  ? 'bg-teal-600 text-white shadow-xs'
+                  : 'border border-teal-100/80 bg-teal-50/50 text-slate-600 hover:bg-teal-100/60 hover:text-teal-900',
               )}
             >
               {t.label}
-              <span className={cn('ml-1.5', tab === t.key ? 'text-white/70' : 'text-slate-400')}>
+              <span className={cn('ml-1.5 font-bold', tab === t.key ? 'text-white/90' : 'text-slate-400')}>
                 {so}
               </span>
             </button>
@@ -128,15 +128,15 @@ export function Applicants() {
         })}
       </div>
 
-      <Card className="mt-4 overflow-hidden">
+      <Card className="mt-4 overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)]">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[860px] text-sm">
-            <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
+            <thead className="bg-slate-50/80 text-left text-xs uppercase tracking-wide text-slate-500 border-b border-slate-100">
               <tr>
-                <th className="px-5 py-3 font-medium">Ứng viên</th>
-                <th className="px-5 py-3 font-medium">Phù hợp</th>
-                <th className="px-5 py-3 font-medium">Ngày nộp</th>
-                <th className="px-5 py-3 font-medium">Trạng thái</th>
+                <th className="px-5 py-3 font-semibold">Ứng viên</th>
+                <th className="px-5 py-3 font-semibold">Phù hợp</th>
+                <th className="px-5 py-3 font-semibold">Ngày nộp</th>
+                <th className="px-5 py-3 font-semibold">Trạng thái</th>
                 <th className="px-5 py-3" />
               </tr>
             </thead>
@@ -155,15 +155,15 @@ export function Applicants() {
         )}
       </Card>
 
-      <p className="mt-3 flex items-start gap-2 text-xs text-slate-500">
-        <Lock size={13} className="mt-0.5 shrink-0" />
+      <div className="mt-4 flex items-start gap-2.5 rounded-[1.25rem] border border-slate-200/80 bg-slate-50/70 p-4 text-xs text-slate-600 shadow-2xs">
+        <Lock size={15} className="mt-0.5 shrink-0 text-slate-500" />
         <span>
           Số điện thoại và email chỉ mở khi bạn bấm <strong>Mời phỏng vấn</strong>. Từ đó việc tuyển
           diễn ra giữa bạn và ứng viên — UniWork không theo dõi buổi gặp hay kết quả. Chỉ khi bạn
           quyết định <strong>không</strong> chọn ai đó, hãy quay lại bấm Từ chối: rất nhiều nơi im
           lặng luôn, và sinh viên chờ mãi một câu trả lời không bao giờ tới.
         </span>
-      </p>
+      </div>
     </div>
   )
 }

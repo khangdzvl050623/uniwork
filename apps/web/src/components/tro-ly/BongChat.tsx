@@ -1,33 +1,18 @@
+import { Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { gioPhut } from '@/lib/gop-tin'
 import type { TinNhanUI } from '@/hooks/useTroLy'
 
-/**
- * Khu nào đang dựng bong bóng này.
- *
- * ===========================================================================
- * VÌ SAO PHẢI KHAI, KHÔNG TỰ ĐOÁN ĐƯỢC
- * ===========================================================================
- * Dự án có HAI bảng màu tách hẳn nhau (xem `index.css`): `slate-*`/`brand-*`
- * cho trang công khai, và `dash-*` cho khu quản trị — mà `dash-*` còn đổi theo
- * nút sáng/tối của riêng khu đó.
- *
- * Biến `--dash-*` chỉ tồn tại bên trong thẻ mang `data-dash-theme`. Dùng
- * `bg-dash-surface` ở trang công khai thì nó rơi về màu rỗng: bong bóng trong
- * suốt, chữ đen trên nền trắng, không lỗi nào bắn ra. Chiều ngược lại còn tệ
- * hơn — `bg-white` trong khu quản trị ở chế độ tối là một mảng trắng chói với
- * chữ trắng bên trong, không đọc được.
- */
 export type BienChat = 'sang' | 'quan-tri'
 
 const BONG_CUA_TOI: Record<BienChat, string> = {
-  sang: 'bg-brand-600 text-white',
-  'quan-tri': 'bg-dash-accent text-dash-accent-ink',
+  sang: 'bg-gradient-to-r from-brand-600 to-teal-600 text-white shadow-2xs rounded-br-xs',
+  'quan-tri': 'bg-dash-accent text-dash-accent-ink rounded-br-xs',
 }
 
 const BONG_CUA_HO: Record<BienChat, string> = {
-  sang: 'border border-slate-200 bg-white text-slate-800',
-  'quan-tri': 'border border-dash-line bg-dash-raised text-dash-text',
+  sang: 'border border-slate-200/90 bg-white text-slate-800 shadow-2xs rounded-bl-xs',
+  'quan-tri': 'border border-dash-line bg-dash-raised text-dash-text rounded-bl-xs',
 }
 
 const CHU_PHU: Record<BienChat, string> = {
@@ -89,7 +74,12 @@ export function BongChat({
 
   return (
     <div className={cn('flex flex-col', cuaToi ? 'items-end' : 'items-start')}>
-      {nhan && <span className={cn('mb-0.5 px-1 text-xs', CHU_PHU[bien])}>{nhan}</span>}
+      {nhan && (
+        <span className={cn('mb-1 flex items-center gap-1 px-1 text-xs font-medium', CHU_PHU[bien])}>
+          {tin.vai === 'ai' && <Sparkles size={11} className="text-brand-600" aria-hidden="true" />}
+          {nhan}
+        </span>
+      )}
       <div
         className={cn(
           'max-w-prose rounded-2xl px-4 py-2.5 text-sm leading-relaxed',

@@ -60,9 +60,9 @@ export function UserMenu() {
         onClick={() => setMo((v) => !v)}
         aria-expanded={mo}
         aria-haspopup="menu"
-        className="flex items-center gap-2 rounded-md py-1.5 pl-1.5 pr-2 text-sm font-medium text-white transition-colors hover:bg-white/10"
+        className="flex items-center gap-2 rounded-full py-1 pl-1.5 pr-2.5 text-sm font-medium text-slate-700 transition-colors hover:bg-teal-50 hover:text-slate-900 border border-transparent hover:border-teal-200/60"
       >
-        <span className="grid h-7 w-7 place-items-center rounded-full bg-brand-500 text-xs font-bold text-white">
+        <span className="grid h-7 w-7 place-items-center rounded-full bg-teal-600 text-xs font-bold text-white shadow-2xs">
           {chuDau(user.displayName)}
         </span>
         <span className="max-w-[10rem] truncate">{user.displayName}</span>

@@ -25,14 +25,14 @@ export function SavedJobs() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="text-2xl font-bold text-slate-900">Tin đã lưu</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Tin đã lưu</h1>
       <p className="mt-1 text-sm text-slate-500">
         {isLoading ? 'Đang tải…' : `${danhSach.length} tin`}
       </p>
 
       {isLoading && (
         <div className="flex min-h-[40vh] items-center justify-center">
-          <Loader2 size={26} className="animate-spin text-brand-600" />
+          <Loader2 size={28} className="animate-spin text-brand-600" />
         </div>
       )}
 
@@ -43,12 +43,15 @@ export function SavedJobs() {
       )}
 
       {!isLoading && !isError && danhSach.length === 0 && (
-        <div className="mt-6 rounded-xl border border-slate-200 bg-white px-6 py-16 text-center">
-          <BookmarkX size={28} className="mx-auto text-slate-300" />
-          <p className="mt-3 text-sm text-slate-600">Bạn chưa lưu tin nào.</p>
+        <div className="mt-8 rounded-2xl border border-slate-200/80 bg-white px-6 py-16 text-center shadow-2xs">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+            <BookmarkX size={28} />
+          </div>
+          <p className="mt-4 text-base font-semibold text-slate-800">Bạn chưa lưu tin nào.</p>
+          <p className="mt-1 text-sm text-slate-500">Lưu lại các việc làm yêu thích để xem và ứng tuyển khi cần.</p>
           <Link
             to="/viec-lam"
-            className="mt-2 inline-block text-sm font-medium text-brand-600 transition-colors hover:text-brand-700"
+            className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-2xs transition-all hover:bg-brand-700 hover:shadow-xs active:scale-95"
           >
             Xem việc làm đang tuyển →
           </Link>

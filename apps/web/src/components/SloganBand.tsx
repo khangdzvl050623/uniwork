@@ -45,15 +45,15 @@ export function SloganBand() {
   }, [])
 
   return (
-    <section className="bg-brand-deep relative overflow-hidden px-4 py-16">
-      <div className="pattern-hex absolute inset-0 opacity-60" />
+    <section className="relative overflow-hidden border-y border-teal-100/70 bg-gradient-to-br from-teal-50/70 via-emerald-50/40 to-sky-50/60 px-4 py-16">
+      <div className="pattern-hex absolute inset-0 opacity-40" />
 
       <div className="relative mx-auto max-w-[1180px]">
-        <span className="mx-auto flex w-fit items-center gap-1.5 rounded-full bg-white/10 px-3 py-1 text-xs font-semibold text-brand-100 ring-1 ring-white/20">
-          <Sparkles size={12} /> Vì sao sinh viên chọn UniWork
+        <span className="mx-auto flex w-fit items-center gap-1.5 rounded-full bg-teal-100/80 px-3.5 py-1 text-xs font-semibold text-teal-800 ring-1 ring-teal-200/80 shadow-2xs">
+          <Sparkles size={12} className="text-teal-600" /> Vì sao sinh viên chọn UniWork
         </span>
 
-        <h2 className="mt-5 text-center text-2xl leading-tight font-black text-white sm:text-4xl">
+        <h2 className="mt-5 text-center text-2xl leading-tight font-black text-slate-900 sm:text-4xl">
           Đi làm thêm mà không phải
           <br />
           {/* Khối bọc phải overflow-hidden và cao cố định: chữ mới trồi lên từ
@@ -63,37 +63,37 @@ export function SloganBand() {
             {/* key đổi theo index nên React dựng lại thẻ, animation chạy lại từ
                 đầu. Không có key thì React chỉ thay chữ tại chỗ, chữ đổi mà
                 không kèm chuyển động nào. */}
-            <span key={index} className="slogan-word text-gradient-fresh px-1">
+            <span key={index} className="slogan-word text-gradient-fresh px-1 font-black">
               {SWAPPED[index]}
             </span>
           </span>
         </h2>
 
-        <p className="mx-auto mt-5 max-w-xl text-center text-sm leading-relaxed text-brand-50/75 sm:text-base">
+        <p className="mx-auto mt-4 max-w-xl text-center text-sm leading-relaxed text-slate-600 sm:text-base">
           UniWork sinh ra từ một câu hỏi rất cụ thể: tại sao tìm việc bán thời gian lại khó đúng ở
           chỗ mà lẽ ra phải dễ nhất — khớp được giờ rảnh.
         </p>
 
-        <div className="mt-11 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="mt-11 grid gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
           {SLOGANS.map((s) => (
             <div
               key={s.title}
-              className="card-lift rounded-2xl bg-white/8 p-5 ring-1 ring-white/15 hover:ring-brand-300/40"
+              className="card-lift rounded-2xl border border-teal-100/80 bg-white/90 p-5 shadow-2xs transition-all hover:border-teal-300 hover:shadow-xs"
             >
-              <h3 className="text-base font-bold text-white">{s.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-brand-50/70">{s.body}</p>
+              <h3 className="text-base font-bold text-slate-900">{s.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-slate-600">{s.body}</p>
             </div>
           ))}
         </div>
 
         <div className="mt-10 text-center">
           <Link to="/dang-ky">
-            <Button variant="gradient" size="lg">
+            <Button variant="gradient" size="lg" className="rounded-xl shadow-xs">
               Tạo hồ sơ miễn phí
               <ArrowRight size={16} />
             </Button>
           </Link>
-          <p className="mt-3 text-xs text-brand-50/55">
+          <p className="mt-3 text-xs text-slate-500">
             Không phí ẩn, không gói nâng cấp. Miễn phí là miễn phí.
           </p>
         </div>

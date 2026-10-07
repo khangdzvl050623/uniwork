@@ -22,12 +22,12 @@ import { DialogHoiNTD } from '@/components/hoi-thoai/DialogHoiNTD'
 import { useMyApplications, useWithdrawApplication } from '@/hooks/useApplications'
 
 const statusTone: Record<ApplicationStatus, string> = {
-  PENDING: 'bg-slate-100 text-slate-700',
-  VIEWED: 'bg-blue-100 text-blue-700',
-  SHORTLISTED: 'bg-emerald-100 text-emerald-700',
-  ACCEPTED: 'bg-emerald-100 text-emerald-700',
-  REJECTED: 'bg-rose-100 text-rose-700',
-  WITHDRAWN: 'bg-slate-100 text-slate-600',
+  PENDING: 'bg-amber-50 text-amber-700 border border-amber-200/80',
+  VIEWED: 'bg-blue-50 text-blue-700 border border-blue-200/80',
+  SHORTLISTED: 'bg-teal-50 text-teal-700 border border-teal-200/80',
+  ACCEPTED: 'bg-emerald-50 text-emerald-700 border border-emerald-200/80',
+  REJECTED: 'bg-rose-50 text-rose-700 border border-rose-200/80',
+  WITHDRAWN: 'bg-slate-100 text-slate-600 border border-slate-200/80',
 }
 
 /** Cùng một luật với server — đọc chung `TRANG_THAI_KET_THUC`, không chép tay. */
@@ -40,10 +40,10 @@ function Timeline({ application }: { application: StudentApplicationItem }) {
     <ol className="mt-5 space-y-4 border-l border-slate-200 pl-5">
       {application.events.map((event, index) => (
         <li key={`${event.createdAt}-${index}`} className="relative">
-          <span className="absolute -left-[25px] top-1 h-2.5 w-2.5 rounded-full bg-brand-500 ring-4 ring-white" />
+          <span className="absolute -left-[25px] top-1 h-2.5 w-2.5 rounded-full bg-brand-500 ring-4 ring-brand-100 shadow-2xs" />
           <div className="flex flex-wrap items-center gap-2">
             <span
-              className={`rounded-full px-2 py-0.5 text-xs font-semibold ${statusTone[event.status]}`}
+              className={`rounded-full px-2.5 py-0.5 text-xs font-semibold shadow-2xs ${statusTone[event.status]}`}
             >
               {APPLICATION_STATUS_LABELS[event.status]}
             </span>
@@ -67,7 +67,7 @@ function ApplicationCard({ application }: { application: StudentApplicationItem 
   const [moHoiNTD, setMoHoiNTD] = useState(false)
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+    <article className="rounded-[1.75rem] border border-slate-200/80 bg-white p-5.5 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] transition-all duration-300 hover:border-slate-300/90 hover:shadow-[0_8px_24px_-6px_rgba(0,0,0,0.07)] sm:p-7">
       <div className="flex flex-col items-start justify-between gap-3 sm:flex-row sm:flex-wrap">
         <div>
           {/* `duongDanTin` để URL mang cả slug tiêu đề lẫn id, giống mọi thẻ tin
@@ -75,13 +75,13 @@ function ApplicationCard({ application }: { application: StudentApplicationItem 
               dùng chép link đi thì mất hết ngữ nghĩa. */}
           <Link
             to={`/viec-lam/${duongDanTin({ id: application.jobId, title: application.jobTitle })}`}
-            className="text-lg font-semibold text-slate-900 hover:text-brand-700"
+            className="text-lg font-bold text-slate-900 transition-colors hover:text-brand-600"
           >
             {application.jobTitle}
           </Link>
-          <p className="mt-1 text-sm text-slate-500">{application.companyName}</p>
+          <p className="mt-1 text-sm font-semibold text-slate-500">{application.companyName}</p>
           <span
-            className={`mt-3 inline-flex rounded-full px-2 py-0.5 text-xs font-semibold ${statusTone[application.status]}`}
+            className={`mt-3 inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold shadow-2xs ${statusTone[application.status]}`}
           >
             {APPLICATION_STATUS_LABELS[application.status]}
           </span>
@@ -93,7 +93,7 @@ function ApplicationCard({ application }: { application: StudentApplicationItem 
               variant="outline"
               size="sm"
               onClick={() => setMoHoiNTD(true)}
-              className="gap-1.5 text-slate-700"
+              className="gap-1.5 rounded-xl text-slate-700"
             >
               <MessagesSquare size={14} />
               Trao đổi về đơn ứng tuyển
@@ -106,7 +106,7 @@ function ApplicationCard({ application }: { application: StudentApplicationItem 
               size="sm"
               onClick={() => setMoXacNhan(true)}
               disabled={withdraw.isPending}
-              className="text-rose-600 hover:text-rose-700"
+              className="rounded-xl text-rose-600 hover:text-rose-700"
             >
               <RotateCcw size={14} />
               {withdraw.isPending ? 'Đang rút…' : 'Rút đơn'}
@@ -132,8 +132,8 @@ function ApplicationCard({ application }: { application: StudentApplicationItem 
       )}
       <Timeline application={application} />
 
-      <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-3.5 sm:p-4">
-        <p className="text-sm font-semibold text-slate-800">Liên hệ nhà tuyển dụng</p>
+      <div className="mt-5 rounded-2xl border border-slate-200/70 bg-gradient-to-br from-slate-50/80 to-slate-100/40 p-4.5 shadow-2xs sm:p-5">
+        <p className="text-sm font-bold text-slate-900">Liên hệ nhà tuyển dụng</p>
         {application.job.employer.contact ? (
           <div className="mt-2 space-y-2 text-sm text-slate-600">
             <p className="font-medium text-slate-800">Nhà tuyển dụng sẽ liên hệ với bạn</p>
@@ -221,7 +221,7 @@ export function MyApplications() {
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-6 sm:py-8">
-      <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Đơn của tôi</h1>
+      <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Đơn của tôi</h1>
       <p className="mt-1 text-sm text-slate-500">
         {isPending ? 'Đang tải…' : `${applications.length} đơn ứng tuyển`}
       </p>
@@ -237,10 +237,16 @@ export function MyApplications() {
         </p>
       )}
       {!isPending && !isError && applications.length === 0 && (
-        <div className="mt-8 rounded-2xl border border-slate-200 bg-white px-6 py-16 text-center">
-          <BriefcaseBusiness size={30} className="mx-auto text-slate-300" />
-          <p className="mt-3 text-sm text-slate-600">Bạn chưa nộp đơn nào.</p>
-          <Link to="/viec-lam" className="mt-2 inline-block text-sm font-medium text-brand-700">
+        <div className="mt-8 rounded-2xl border border-slate-200/80 bg-white px-6 py-16 text-center shadow-2xs">
+          <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+            <BriefcaseBusiness size={28} />
+          </div>
+          <p className="mt-4 text-base font-semibold text-slate-800">Bạn chưa nộp đơn nào.</p>
+          <p className="mt-1 text-sm text-slate-500">Khám phá các việc làm bán thời gian phù hợp với lịch học.</p>
+          <Link
+            to="/viec-lam"
+            className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-2xs transition-all hover:bg-brand-700 hover:shadow-xs active:scale-95"
+          >
             Tìm việc phù hợp →
           </Link>
         </div>

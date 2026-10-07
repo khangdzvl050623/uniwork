@@ -65,9 +65,11 @@ export function DangTraCuu({ tool }: { tool: string | null }) {
       role="status"
       aria-atomic="true"
       aria-busy="true"
-      className="flex items-center gap-3 rounded-xl border border-brand-100 bg-brand-50/60 px-4 py-3"
+      className="flex items-center gap-3.5 rounded-2xl border border-brand-200/90 bg-gradient-to-r from-brand-50/80 via-white/60 to-teal-50/50 p-3.5 shadow-2xs backdrop-blur-xs"
     >
-      <Search size={16} className="shrink-0 text-brand-600" aria-hidden="true" />
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-teal-600 text-white shadow-2xs">
+        <Search size={14} className="animate-pulse" aria-hidden="true" />
+      </div>
 
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-brand-800">

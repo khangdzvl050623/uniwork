@@ -96,16 +96,18 @@ export function HoTro() {
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-3xl flex-col px-4 py-8">
-      <header className="mb-6">
-        <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
-          <Headset size={22} className="text-brand-600" aria-hidden="true" />
+    <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-3xl flex-col px-4 py-6 sm:py-8">
+      <header className="mb-6 rounded-2xl border border-slate-200/80 bg-white/80 p-5 shadow-2xs backdrop-blur-xs">
+        <h1 className="flex items-center gap-2.5 text-2xl font-bold text-slate-900">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-teal-600 text-white shadow-2xs">
+            <Headset size={18} aria-hidden="true" />
+          </div>
           Liên hệ hỗ trợ
         </h1>
 
-        <div className="mt-3 flex items-start gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 text-sm text-emerald-900">
+        <div className="mt-3.5 flex items-start gap-2.5 rounded-xl border border-emerald-200/80 bg-emerald-50/70 p-3 text-sm text-emerald-900">
           <ShieldCheck size={18} className="mt-0.5 shrink-0 text-emerald-600" aria-hidden="true" />
-          <p>
+          <p className="leading-relaxed">
             Quản trị viên UniWork sẽ đọc <strong>toàn bộ</strong> hội thoại hỗ trợ này từ đầu. Họ
             không đọc được các cuộc trò chuyện của bạn với nhà tuyển dụng, cũng không đọc được lịch
             sử trợ lý AI.
@@ -127,34 +129,34 @@ export function HoTro() {
       */}
       {!dangMo && (trangThai === 'AI_ACTIVE' || trangThai === 'CLOSED') && (
         <div className="space-y-6">
-          <section className="rounded-xl border border-slate-200 bg-white p-5">
+          <section className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs">
             <h2 className="flex items-center gap-2 text-base font-semibold text-slate-900">
               <HelpCircle size={18} className="text-brand-600" aria-hidden="true" />
               Câu hỏi thường gặp
             </h2>
-            <ul className="mt-3 space-y-2">
+            <ul className="mt-3.5 space-y-2">
               {CAU_HOI_THUONG_GAP.map((c) => {
                 const mo = cauDangMo === c.id
                 return (
-                  <li key={c.id} className="overflow-hidden rounded-lg border border-slate-100">
+                  <li key={c.id} className="overflow-hidden rounded-xl border border-slate-200/70 bg-slate-50/40 transition-colors hover:border-slate-300">
                     <button
                       type="button"
                       aria-expanded={mo}
                       onClick={() => setCauDangMo(mo ? null : c.id)}
-                      className="flex w-full items-center justify-between gap-3 px-3.5 py-2.5 text-left text-sm font-medium text-slate-800 transition-colors hover:bg-slate-50"
+                      className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm font-medium text-slate-800 transition-colors hover:bg-slate-100/50"
                     >
                       <span>{c.hoi}</span>
                       <ChevronDown
                         size={16}
                         aria-hidden="true"
                         className={cn(
-                          'shrink-0 text-slate-400 transition-transform motion-reduce:transition-none',
+                          'shrink-0 text-slate-400 transition-transform motion-reduce:transition-none duration-200',
                           mo && 'rotate-180',
                         )}
                       />
                     </button>
                     {mo && (
-                      <div className="border-t border-slate-100 px-3.5 py-2.5 text-sm leading-relaxed text-slate-600">
+                      <div className="border-t border-slate-200/60 bg-white px-4 py-3 text-sm leading-relaxed text-slate-600">
                         {c.dap}
                       </div>
                     )}
@@ -164,8 +166,8 @@ export function HoTro() {
             </ul>
           </section>
 
-          <form onSubmit={gui} className="rounded-xl border border-slate-200 bg-white p-5">
-            <label htmlFor="mo-ta-ho-tro" className="font-medium text-slate-900">
+          <form onSubmit={gui} className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-2xs">
+            <label htmlFor="mo-ta-ho-tro" className="font-semibold text-slate-900">
               {trangThai === 'CLOSED' ? 'Cần hỗ trợ thêm việc gì?' : 'Bạn cần hỗ trợ việc gì?'}
             </label>
             <p className="mt-0.5 text-sm text-slate-500">
@@ -179,7 +181,7 @@ export function HoTro() {
               maxLength={TRAN_MO_TA}
               onChange={(e) => setMoTa(e.target.value)}
               placeholder="Ví dụ: em nộp đơn tin ABC từ thứ hai, trạng thái vẫn là “đã gửi” và không bấm rút được."
-              className="mt-3 w-full resize-none rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition-colors focus:border-brand-500"
+              className="mt-3.5 w-full resize-none rounded-xl border border-slate-200/90 bg-slate-50/40 px-4 py-3 text-sm outline-none transition-all focus:border-brand-500 focus:bg-white focus:ring-4 focus:ring-brand-500/10"
             />
             <div className="mt-3 flex items-center justify-between gap-3">
               <span className="text-xs text-slate-400">
@@ -201,7 +203,7 @@ export function HoTro() {
       )}
 
       {!dangMo && (trangThai === 'WAITING_ADMIN' || trangThai === 'HUMAN_ACTIVE') && (
-        <div className="flex min-h-[28rem] flex-col rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex min-h-[28rem] flex-col rounded-2xl border border-slate-200/80 bg-white p-4.5 shadow-2xs">
           <KhungChat
             kenh={kenh}
             bien="sang"

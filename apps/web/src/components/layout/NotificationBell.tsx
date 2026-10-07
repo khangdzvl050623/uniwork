@@ -21,7 +21,7 @@ export function NotificationBell({ enabled }: { enabled: boolean }) {
         aria-label="Thông báo"
         aria-expanded={open}
         onClick={() => setOpen((value) => !value)}
-        className="relative rounded-md p-2 text-white transition-colors hover:bg-white/10"
+        className="relative rounded-full p-2 text-slate-600 transition-colors hover:bg-teal-50 hover:text-slate-900"
       >
         <Bell size={18} />
         {!!data?.unreadCount && (

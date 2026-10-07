@@ -10,6 +10,7 @@ import { DialogBaoCao } from '@/components/bao-cao/DialogBaoCao'
 import { useLuotConLai, useTroLy } from '@/hooks/useTroLy'
 import { danhDauThoiGian } from '@/lib/gop-tin'
 import { useCuonDanhSach } from '@/hooks/useCuonDanhSach'
+import { cn } from '@/lib/utils'
 
 const TRAN_KY_TU = 2000
 
@@ -96,64 +97,76 @@ export function TroLy() {
   }
 
   return (
-    <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-3xl flex-col px-4 py-8">
-      <header>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h1 className="flex items-center gap-2 text-2xl font-bold text-slate-900">
-            <Sparkles size={22} className="text-brand-600" aria-hidden="true" />
-            Trợ lý UniWork
-          </h1>
+    <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-3xl flex-col px-4 py-6 sm:py-8">
+      <header className="rounded-[1.75rem] border border-slate-200/80 bg-white/80 p-5 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.04)] backdrop-blur-md">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-tr from-brand-500 via-teal-500 to-emerald-400 text-white shadow-md shadow-brand-500/25 ring-2 ring-white">
+              <Sparkles size={21} aria-hidden="true" />
+            </div>
+            <div>
+              <h1 className="text-xl font-extrabold tracking-tight text-slate-900">
+                Trợ lý UniWork
+              </h1>
+              <p className="text-xs font-medium text-slate-500">
+                AI hỗ trợ tìm việc, khớp lịch học & tư vấn hồ sơ thông minh
+              </p>
+            </div>
+          </div>
 
-          {/*
-           * Số lượt còn lại là `role="status"` với câu trọn nghĩa, không phải
-           * một con số trần: trình đọc màn hình đọc "2" thì không ai hiểu 2 cái
-           * gì.
-           */}
           <div className="flex items-center gap-2">
             {luot && (
               <p
                 role="status"
                 aria-atomic="true"
-                className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600"
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-slate-50/90 px-3.5 py-1 text-xs font-semibold text-slate-700 shadow-2xs"
               >
-                Còn {luot.conLai}/{luot.tong} lượt hỏi hôm nay
+                <span
+                  className={cn(
+                    'h-2 w-2 rounded-full',
+                    luot.conLai > 3 ? 'bg-emerald-500' : luot.conLai > 0 ? 'bg-amber-500' : 'bg-rose-500',
+                  )}
+                />
+                Còn <strong className="font-bold text-slate-900">{luot.conLai}</strong>/{luot.tong} lượt hôm nay
               </p>
             )}
-            {/*
-              Đường ra danh sách. Bắt buộc phải có ở ĐÂY: một sinh viên đang
-              nói với nhà tuyển dụng A mà muốn hỏi nơi B thì phải mở hội thoại
-              khác, và trang này là nơi họ đang đứng lúc nhận ra điều đó.
-            */}
             <Link
               to="/hoi-thoai"
-              className="inline-flex items-center gap-1.5 rounded-full border border-slate-300 px-3 py-1 text-xs font-medium text-slate-600 transition-colors hover:border-brand-400 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200/90 bg-white px-3.5 py-1 text-xs font-semibold text-slate-600 shadow-2xs transition-all hover:border-brand-400 hover:text-brand-700 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
             >
               <MessagesSquare size={13} aria-hidden="true" />
               Hội thoại của tôi
             </Link>
           </div>
         </div>
-
-        <p className="mt-1 text-sm text-slate-500">
-          Hỏi về việc làm, lịch rảnh, hồ sơ và đơn ứng tuyển của bạn. Trợ lý chỉ trả lời dựa trên dữ
-          liệu thật trên UniWork.
-        </p>
       </header>
 
-      <div className="mt-6 flex-1 space-y-3 overflow-y-auto">
+      <div className="mt-4 flex-1 space-y-4 overflow-y-auto rounded-[2rem] border border-slate-200/80 bg-gradient-to-b from-white/90 via-slate-50/40 to-white/90 p-5 sm:p-6 shadow-sm backdrop-blur-md">
         {tinNhan.length === 0 && !dangChay && (
-          <div className="rounded-xl border border-dashed border-slate-300 p-5">
-            <p className="text-sm text-slate-600">Chưa có câu hỏi nào. Thử một trong số này:</p>
-            <div className="mt-3 flex flex-wrap gap-2">
+          <div className="my-auto rounded-[1.75rem] border border-slate-200/80 bg-white/95 p-7 text-center shadow-sm sm:p-9">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-tr from-brand-400 via-teal-500 to-emerald-400 text-white shadow-xl shadow-brand-500/30 ring-4 ring-brand-50">
+              <Sparkles size={28} aria-hidden="true" />
+            </div>
+            <h2 className="mt-4 text-xl font-extrabold tracking-tight text-slate-900">
+              Xin chào! Bạn cần tìm hiểu gì hôm nay?
+            </h2>
+            <p className="mx-auto mt-1.5 max-w-md text-sm text-slate-500">
+              Hỏi bất kỳ điều gì về việc làm bán thời gian, khung giờ rảnh, hồ sơ hoặc tiến độ ứng tuyển của bạn.
+            </p>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2">
               {CAU_MOI.map((c) => (
                 <button
                   key={c}
                   type="button"
                   disabled={khoa}
                   onClick={() => hoi(c)}
-                  className="rounded-full border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition-colors hover:border-brand-400 hover:text-brand-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 disabled:opacity-50"
+                  className="group flex items-start gap-3 rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 text-left text-xs font-medium text-slate-700 transition-all duration-200 hover:-translate-y-0.5 hover:border-brand-300 hover:bg-white hover:text-brand-900 hover:shadow-sm focus-visible:outline-2 focus-visible:outline-brand-500 disabled:opacity-50"
                 >
-                  {c}
+                  <span className="mt-0.5 flex h-5.5 w-5.5 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 transition-colors group-hover:bg-brand-500 group-hover:text-white">
+                    <Sparkles size={12} />
+                  </span>
+                  <span className="leading-snug">{c}</span>
                 </button>
               ))}
             </div>
@@ -175,7 +188,7 @@ export function TroLy() {
                 ghiNeo(tinNhan[0]?.id)
                 void taiCu()
               }}
-              className="rounded-full border border-slate-200 px-3 py-1 text-xs text-slate-500 transition-colors hover:border-brand-300 hover:text-brand-700 disabled:opacity-50"
+              className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-500 shadow-2xs transition-colors hover:border-brand-300 hover:text-brand-700 disabled:opacity-50"
             >
               {dangTaiCu ? 'Đang tải…' : 'Tải tin cũ hơn'}
             </button>
@@ -184,7 +197,7 @@ export function TroLy() {
 
         {danhDauThoiGian(tinNhan).map(({ tin, moc, hienGio }) => (
           <div key={tin.id} data-tin-id={tin.id} className="space-y-3">
-            {moc && <p className="py-1 text-center text-xs tabular-nums text-slate-500">{moc}</p>}
+            {moc && <p className="py-1 text-center text-xs tabular-nums text-slate-400">{moc}</p>}
             <BongChat tin={tin} hienGio={hienGio} />
           </div>
         ))}
@@ -214,9 +227,9 @@ export function TroLy() {
         {loi && (
           <div
             role="alert"
-            className="flex flex-wrap items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3"
+            className="flex flex-wrap items-center gap-3 rounded-2xl border border-red-200 bg-red-50/90 px-4 py-3"
           >
-            <p className="min-w-0 flex-1 text-sm text-red-800">{loi}</p>
+            <p className="min-w-0 flex-1 text-sm font-medium text-red-800">{loi}</p>
             {coTheGuiLai && (
               <Button variant="outline" size="sm" onClick={() => void guiLai()}>
                 Gửi lại
@@ -238,35 +251,42 @@ export function TroLy() {
           </p>
         )}
 
-        <div className="flex items-end gap-2">
-          <div className="min-w-0 flex-1">
-            <label htmlFor="cau-hoi" className="sr-only">
-              Câu hỏi cho trợ lý
-            </label>
-            <textarea
-              id="cau-hoi"
-              rows={2}
-              value={noiDung}
-              maxLength={TRAN_KY_TU}
-              disabled={khoa}
-              onChange={(e) => setNoiDung(e.target.value)}
-              /* Enter gửi, Shift+Enter xuống dòng — nếp quen của mọi ô chat. */
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) guiDi(e)
-              }}
-              placeholder="Hỏi trợ lý về việc làm, lịch rảnh, hồ sơ…"
-              className="w-full resize-none rounded-xl border border-slate-300 px-4 py-3 text-sm outline-none transition-colors focus:border-brand-500 disabled:bg-slate-50 disabled:text-slate-400"
-            />
-          </div>
+        <div className="relative rounded-[2rem] bg-gradient-to-b from-slate-100 to-slate-200/60 p-1.5 ring-1 ring-slate-200/80 shadow-[0_12px_40px_-10px_rgba(0,0,0,0.12)]">
+          <div className="flex items-end gap-2 rounded-[1.65rem] bg-white p-2 shadow-inner transition-all focus-within:ring-2 focus-within:ring-brand-500/30">
+            <div className="min-w-0 flex-1">
+              <label htmlFor="cau-hoi" className="sr-only">
+                Câu hỏi cho trợ lý
+              </label>
+              <textarea
+                id="cau-hoi"
+                rows={2}
+                value={noiDung}
+                maxLength={TRAN_KY_TU}
+                disabled={khoa}
+                onChange={(e) => setNoiDung(e.target.value)}
+                /* Enter gửi, Shift+Enter xuống dòng — nếp quen của mọi ô chat. */
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) guiDi(e)
+                }}
+                placeholder="Hỏi trợ lý về việc làm, lịch rảnh, hồ sơ…"
+                className="max-h-32 min-h-[46px] w-full resize-none bg-transparent px-3.5 py-2 text-sm text-slate-800 outline-none placeholder:text-slate-400 disabled:text-slate-400"
+              />
+            </div>
 
-          <Button type="submit" size="icon" disabled={khoa || noiDung.trim() === ''}>
-            {dangChay ? (
-              <Loader2 size={18} className="animate-spin motion-reduce:animate-none" />
-            ) : (
-              <SendHorizontal size={18} />
-            )}
-            <span className="sr-only">Gửi câu hỏi</span>
-          </Button>
+            <Button
+              type="submit"
+              size="icon"
+              disabled={khoa || noiDung.trim() === ''}
+              className="h-11 w-11 shrink-0 rounded-2xl bg-gradient-to-r from-teal-500 via-brand-600 to-emerald-600 text-white shadow-md shadow-brand-600/30 transition-all duration-200 hover:scale-105 hover:shadow-lg hover:shadow-brand-600/40 active:scale-95 disabled:opacity-40"
+            >
+              {dangChay ? (
+                <Loader2 size={18} className="animate-spin motion-reduce:animate-none" />
+              ) : (
+                <SendHorizontal size={18} />
+              )}
+              <span className="sr-only">Gửi câu hỏi</span>
+            </Button>
+          </div>
         </div>
       </form>
 

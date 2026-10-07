@@ -184,12 +184,14 @@ export function FilterSidebar({ gaTri, onDoi, kyNang, dungDuocLichRanh }: Props)
   const khoangLuong = gaTri.salaryUnit ? KHOANG_LUONG[gaTri.salaryUnit] : null
 
   return (
-    <aside className="overflow-hidden rounded-xl border border-slate-200 bg-white">
-      <div className="flex items-center justify-between gap-2 px-5 py-4">
-        <h2 className="font-semibold text-slate-900">
-          Bộ lọc
+    <aside className="overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-white shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)]">
+      <div className="flex items-center justify-between gap-2 px-5 py-4 border-b border-slate-100/90 bg-slate-50/50">
+        <h2 className="font-bold text-slate-900 flex items-center gap-2">
+          Bộ lọc tìm kiếm
           {soBoLocDangBat > 0 && (
-            <span className="ml-1.5 text-sm font-normal text-slate-500">({soBoLocDangBat})</span>
+            <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 text-[11px] font-extrabold text-brand-700 bg-brand-100/80 rounded-full">
+              {soBoLocDangBat}
+            </span>
           )}
         </h2>
 
@@ -198,8 +200,8 @@ export function FilterSidebar({ gaTri, onDoi, kyNang, dungDuocLichRanh }: Props)
             type="button"
             onClick={() => onDoi({})}
             className={cn(
-              'rounded-md px-1.5 py-1 text-xs font-medium text-brand-600',
-              'transition-colors duration-150 ease-out hover:text-brand-700 hover:bg-brand-50',
+              'rounded-lg px-2.5 py-1 text-xs font-semibold text-brand-600 cursor-pointer',
+              'transition-all duration-150 ease-out hover:text-brand-700 hover:bg-brand-50 active:scale-95',
               'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500',
             )}
           >
@@ -214,7 +216,7 @@ export function FilterSidebar({ gaTri, onDoi, kyNang, dungDuocLichRanh }: Props)
         NGOÀI danh sách nhóm thu gọn và có nền riêng, vì đây là lý do chính để
         sinh viên dùng trang này thay vì một trang đăng tin thường.
       */}
-      <div className="mx-3 mb-1 rounded-lg border border-brand-100 bg-brand-50/50 p-3">
+      <div className="mx-3.5 my-3 rounded-xl border border-brand-200/80 bg-linear-to-br from-brand-50/70 to-teal-50/30 p-3.5 shadow-2xs">
         <label
           className={cn(
             'flex items-start gap-2.5',
@@ -469,13 +471,13 @@ function ChipSo({ nhan, chon, onChon }: { nhan: string; chon: boolean; onChon: (
       onClick={onChon}
       aria-pressed={chon}
       className={cn(
-        'rounded-lg border px-2.5 py-1 text-xs font-medium',
-        'transition-colors duration-150 ease-out',
+        'rounded-lg border px-2.5 py-1 text-xs font-medium cursor-pointer shadow-2xs',
+        'transition-all duration-150 ease-out',
         'active:scale-[0.97] motion-reduce:active:scale-100',
         'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500',
         chon
-          ? 'border-brand-600 bg-brand-600 text-white'
-          : 'border-slate-200 text-slate-600 hover:border-brand-300 hover:bg-brand-50',
+          ? 'border-brand-600 bg-brand-600 text-white shadow-xs'
+          : 'border-slate-200/90 bg-white text-slate-600 hover:border-brand-300 hover:bg-brand-50/50',
       )}
     >
       {nhan}

@@ -48,13 +48,11 @@ function mauTheoTen(ten: string) {
 
 export function JobCard({ job }: { job: PublicJobSummary }) {
   return (
-    // card-lift lo phần nâng thẻ và đổ bóng, đồng thời tự tắt khi người dùng bật
-    // giảm chuyển động (khai ở index.css).
-    <article className="card-lift group relative rounded-xl border border-slate-200 bg-white p-4 hover:border-brand-300">
-      <div className="flex gap-3">
+    <article className="card-lift group relative rounded-[1.25rem] border border-slate-200/80 bg-white p-4.5 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.04),0_1px_3px_-1px_rgba(0,0,0,0.02)] transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-1 hover:border-brand-300/80 hover:shadow-[0_12px_24px_-8px_rgba(0,133,122,0.12),0_4px_12px_-4px_rgba(0,0,0,0.04)]">
+      <div className="flex gap-3.5">
         <div
           className={cn(
-            'grid h-12 w-12 shrink-0 place-items-center rounded-lg text-lg font-bold text-white',
+            'grid h-12 w-12 shrink-0 place-items-center rounded-2xl text-lg font-bold text-white shadow-xs ring-2 ring-white/80 transition-transform duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] group-hover:scale-105',
             mauTheoTen(job.employer.companyName),
           )}
         >
@@ -63,7 +61,7 @@ export function JobCard({ job }: { job: PublicJobSummary }) {
 
         <div className="min-w-0 flex-1">
           <div className="flex items-start gap-2">
-            <h3 className="min-w-0 flex-1 font-semibold text-slate-900 group-hover:text-brand-700">
+            <h3 className="min-w-0 flex-1 font-semibold text-slate-900 transition-colors duration-200 group-hover:text-brand-700">
               {/* Đường dẫn mang cả slug tiêu đề lẫn id — xem `duongDanTin`.
                   Phần chữ chỉ để người đọc và máy tìm kiếm hiểu tin nói về gì;
                   id ở cuối mới là thứ tra cứu. */}
@@ -83,19 +81,19 @@ export function JobCard({ job }: { job: PublicJobSummary }) {
             {job.employer.verified && <BadgeCheck size={14} className="text-brand-500" />}
           </p>
 
-          <div className="mt-2.5 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-slate-600">
-            <span className="flex items-center gap-1">
-              <Wallet size={14} className="text-slate-400" />
-              <strong className="font-semibold text-emerald-600">
+          <div className="mt-2.5 flex flex-wrap items-center gap-x-3.5 gap-y-1.5 text-xs text-slate-600">
+            <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 font-medium text-emerald-800 ring-1 ring-inset ring-emerald-200/70 shadow-2xs">
+              <Wallet size={12} className="text-emerald-600" />
+              <strong className="font-semibold text-emerald-700">
                 {formatSalary(job.salaryMin, job.salaryMax, job.salaryUnit, job.salaryNegotiable)}
               </strong>
             </span>
-            <span className="flex items-center gap-1">
-              <MapPin size={14} className="text-slate-400" />
+            <span className="flex items-center gap-1 text-slate-500">
+              <MapPin size={13} className="text-slate-400" />
               {job.district}
             </span>
-            <span className="flex items-center gap-1">
-              <Clock size={14} className="text-slate-400" />
+            <span className="flex items-center gap-1 text-slate-500">
+              <Clock size={13} className="text-slate-400" />
               {tomTatCa(job)}
             </span>
           </div>

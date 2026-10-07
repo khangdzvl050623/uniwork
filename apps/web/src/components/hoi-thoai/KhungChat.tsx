@@ -89,17 +89,17 @@ export function KhungChat({
     bien === 'sang'
       ? {
           vien: 'border-slate-300',
-          vienNhe: 'border-slate-200',
+          vienNhe: 'border-slate-100',
           chuPhu: 'text-slate-500',
-          oNhap: 'border-slate-300 focus:border-brand-500 disabled:bg-slate-50',
-          nut: 'bg-brand-600 text-white hover:bg-brand-700',
+          oNhap: 'border-slate-200/90 bg-white focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 shadow-2xs disabled:bg-slate-50',
+          nut: 'bg-brand-600 text-white hover:bg-brand-700 shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer transition-all',
         }
       : {
           vien: 'border-dash-line',
           vienNhe: 'border-dash-line',
           chuPhu: 'text-dash-muted',
           oNhap: 'border-dash-line bg-dash-surface text-dash-text focus:border-dash-accent',
-          nut: 'bg-dash-accent text-dash-accent-ink hover:opacity-90',
+          nut: 'bg-dash-accent text-dash-accent-ink hover:opacity-90 active:scale-95 cursor-pointer transition-all',
         }
 
   return (
@@ -127,8 +127,7 @@ export function KhungChat({
               onClick={taiTinCu}
               disabled={kenh.dangTaiCu}
               className={cn(
-                'rounded-full border px-3 py-1 text-xs transition-colors disabled:opacity-50',
-                mau.vienNhe,
+                'rounded-full border border-slate-200/80 bg-white px-3.5 py-1 text-xs font-medium shadow-2xs transition-all hover:bg-slate-50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed',
                 mau.chuPhu,
               )}
             >
@@ -198,7 +197,7 @@ export function KhungChat({
              * hơn thế là nút bấm ba lần mới trúng.
              */
             className={cn(
-              'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-opacity disabled:opacity-40',
+              'flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100',
               mau.nut,
             )}
           >

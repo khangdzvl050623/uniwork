@@ -53,7 +53,7 @@ import { cn } from '@/lib/utils'
  */
 
 const inputClass =
-  'h-11 w-full rounded-lg border border-slate-200 px-3 text-sm outline-none transition-colors placeholder:text-slate-400 focus:border-brand-500'
+  'h-11 w-full rounded-xl border border-slate-200/90 bg-white px-3.5 text-sm text-slate-800 shadow-2xs outline-none transition-[border-color,box-shadow] placeholder:text-slate-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10'
 
 function Row({
   label,
@@ -284,7 +284,7 @@ export function PostJob() {
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-8">
-      <h1 className="text-2xl font-bold text-slate-900">
+      <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
         {dangSua ? 'Sửa tin tuyển dụng' : 'Đăng tin tuyển dụng'}
       </h1>
       <p className="mt-1 text-sm text-slate-500">
@@ -294,7 +294,7 @@ export function PostJob() {
       </p>
 
       {dangSua && tinCu?.rejectionReason && (
-        <div className="mt-4 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4">
+        <div className="mt-4 flex items-start gap-3 rounded-2xl border border-red-200/80 bg-red-50 p-4 shadow-2xs">
           <ShieldAlert size={18} className="mt-0.5 shrink-0 text-red-600" />
           <div className="text-sm text-red-900">
             <p className="font-semibold">Tin đã bị từ chối</p>
@@ -327,7 +327,7 @@ export function PostJob() {
                 rows={5}
                 value={form.values.description}
                 onChange={(e) => setValue('description', e.target.value)}
-                className="w-full rounded-lg border border-slate-200 p-3 text-sm outline-none transition-colors placeholder:text-slate-400 focus:border-brand-500"
+                className="w-full rounded-xl border border-slate-200/90 bg-white p-3.5 text-sm text-slate-800 shadow-2xs outline-none transition-[border-color,box-shadow] placeholder:text-slate-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10"
                 placeholder="Mô tả công việc cụ thể, môi trường làm việc, có đào tạo hay không..."
               />
             </Row>
@@ -380,14 +380,14 @@ export function PostJob() {
                     type="button"
                     onClick={() => doiLoaiThoiGian(key)}
                     className={cn(
-                      'rounded-lg border px-3 py-2.5 text-left',
-                      'transition-[background-color,border-color,transform] duration-150 ease-out active:scale-[0.98]',
+                      'rounded-xl border p-3 text-left shadow-2xs cursor-pointer',
+                      'transition-all duration-150 ease-out active:scale-[0.98]',
                       loaiHienTai === key
-                        ? 'border-brand-600 bg-brand-50 text-brand-700'
-                        : 'border-slate-200 text-slate-600 hover:border-slate-300',
+                        ? 'border-brand-600 bg-brand-50/80 text-brand-800 shadow-xs'
+                        : 'border-slate-200/90 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50',
                     )}
                   >
-                    <span className="block text-sm font-medium">{SCHEDULE_TYPE_LABELS[key]}</span>
+                    <span className="block text-sm font-semibold">{SCHEDULE_TYPE_LABELS[key]}</span>
                     <span className="mt-0.5 block text-xs text-slate-400">
                       {SCHEDULE_TYPE_HINTS[key]}
                     </span>
@@ -586,11 +586,11 @@ export function PostJob() {
                         )
                       }
                       className={cn(
-                        'rounded-md border px-2.5 py-1.5 text-xs font-medium',
-                        'transition-[background-color,border-color,transform] duration-150 ease-out active:scale-[0.96]',
+                        'rounded-lg border px-3 py-1.5 text-xs font-semibold shadow-2xs cursor-pointer',
+                        'transition-all duration-150 ease-out active:scale-[0.96]',
                         chon
-                          ? 'border-brand-600 bg-brand-600 text-white'
-                          : 'border-slate-200 text-slate-600 hover:border-brand-400',
+                          ? 'border-brand-600 bg-brand-600 text-white shadow-xs'
+                          : 'border-slate-200/90 bg-white text-slate-600 hover:border-brand-400 hover:bg-brand-50/50',
                       )}
                     >
                       {s.name}

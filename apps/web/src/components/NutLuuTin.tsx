@@ -63,13 +63,13 @@ export function NutLuuTin({ job, coChu }: Props) {
       aria-label={`Lưu tin ${job.title}`}
       title={dangLuu ? 'Bỏ lưu tin này' : 'Lưu tin này'}
       className={cn(
-        'relative z-10 flex shrink-0 items-center gap-1.5 rounded-lg transition-colors',
+        'relative z-10 flex shrink-0 items-center gap-1.5 rounded-xl transition-all duration-150',
         'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500',
         coChu
-          ? 'w-full justify-center border px-4 py-2.5 text-sm font-medium'
+          ? 'w-full justify-center border px-4 py-2.5 text-sm font-semibold'
           : 'h-9 w-9 justify-center',
         dangLuu
-          ? 'border-brand-200 bg-brand-50 text-brand-700 hover:bg-brand-100'
+          ? 'border-brand-200 bg-brand-50 text-brand-700 shadow-2xs hover:bg-brand-100'
           : 'border-slate-200 text-slate-400 hover:bg-slate-100 hover:text-slate-600',
       )}
     >

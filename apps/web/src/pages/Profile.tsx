@@ -28,7 +28,7 @@ function The({
   children: React.ReactNode
 }) {
   return (
-    <section className="rounded-xl border border-slate-200 bg-white p-5">
+    <section className="rounded-[1.75rem] border border-slate-200/80 bg-white p-6 shadow-[0_2px_12px_-4px_rgba(0,0,0,0.04)] sm:p-7">
       <h2 className="text-base font-bold text-slate-900">{title}</h2>
       {description && <p className="mt-0.5 mb-4 text-sm text-slate-500">{description}</p>}
       <div className={description ? '' : 'mt-4'}>{children}</div>
@@ -38,13 +38,13 @@ function The({
 
 function NhacXacThuc() {
   return (
-    <div className="mb-5 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
+    <div className="mb-5 flex items-start gap-3 rounded-2xl border border-amber-300/80 bg-gradient-to-br from-amber-50/90 to-orange-50/40 p-4.5 shadow-2xs">
       <AlertTriangle size={18} className="mt-0.5 shrink-0 text-amber-600" />
       <div className="flex-1">
-        <p className="text-sm font-medium text-amber-900">Email chưa được xác thực</p>
-        <p className="mt-0.5 text-sm text-amber-700">
+        <p className="text-sm font-bold text-amber-950">Email chưa được xác thực</p>
+        <p className="mt-0.5 text-sm text-amber-800">
           Hồ sơ chưa xác thực sẽ không hiện với nhà tuyển dụng.{' '}
-          <Link to="/xac-thuc-email" className="font-medium underline">
+          <Link to="/xac-thuc-email" className="font-bold underline text-amber-900">
             Xác thực ngay
           </Link>
         </p>
@@ -121,13 +121,13 @@ export function Profile() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:py-8">
       <header className="mb-6">
-        <h1 className="text-xl font-bold text-slate-900 sm:text-2xl">Hồ sơ của tôi</h1>
+        <h1 className="text-xl font-bold tracking-tight text-slate-900 sm:text-2xl">Hồ sơ của tôi</h1>
         <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-slate-500">
-          <span>{hoSo.fullName}</span>
+          <span className="font-medium text-slate-700">{hoSo.fullName}</span>
           <span aria-hidden>·</span>
           <span>{me.email}</span>
           {me.emailVerifiedAt && (
-            <span className="inline-flex items-center gap-1 text-brand-600">
+            <span className="inline-flex items-center gap-1 font-medium text-brand-600">
               <CheckCircle2 size={14} />
               Đã xác thực
             </span>
@@ -260,7 +260,7 @@ export function Profile() {
                 value={String(form.values.bio ?? '')}
                 onChange={(e) => form.setValue('bio', e.target.value)}
                 disabled={luuHoSo.isPending}
-                className="w-full resize-y rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-slate-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 disabled:bg-slate-50"
+                className="w-full resize-y rounded-xl border border-slate-200/90 bg-white px-3.5 py-2.5 text-sm text-slate-900 shadow-2xs outline-none transition-[border-color,box-shadow] duration-150 ease-out placeholder:text-slate-400 focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 disabled:bg-slate-50"
               />
               {form.errors.bio && (
                 <p role="alert" className="mt-1.5 text-xs text-red-600">

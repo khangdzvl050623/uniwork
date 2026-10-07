@@ -21,38 +21,34 @@ import { cn } from '@/lib/utils'
 const BLOBS = [
   {
     box: 'left-[-18%] top-[-32%] h-[46rem] w-[46rem]',
-    color: 'rgba(20,196,171,0.52)',
+    color: 'rgba(153,246,228,0.55)',
     motion: 'blob-drift-a 26s ease-in-out infinite alternate',
   },
   {
     box: 'right-[-14%] top-[4%] h-[40rem] w-[40rem]',
-    color: 'rgba(34,211,238,0.42)',
+    color: 'rgba(186,230,253,0.55)',
     motion: 'blob-drift-b 31s ease-in-out infinite alternate',
   },
   {
     box: 'left-[10%] bottom-[-42%] h-[42rem] w-[42rem]',
-    color: 'rgba(139,92,246,0.52)',
+    color: 'rgba(233,213,255,0.50)',
     motion: 'blob-drift-c 24s ease-in-out infinite alternate',
   },
-  // Hai vệt cuối là lớp phụ, chỉ bật từ màn hình tablet trở lên. Mỗi vệt là một
-  // lớp GPU cỡ vài trăm pixel vuông; trên điện thoại, ba vệt đầu đã đủ màu mà
-  // tiết kiệm được kha khá bộ nhớ đồ hoạ.
+  // Hai vệt cuối là lớp phụ, chỉ bật từ màn hình tablet trở lên.
   {
     box: 'hidden sm:block right-[4%] bottom-[-34%] h-[32rem] w-[32rem]',
-    color: 'rgba(244,114,182,0.34)',
+    color: 'rgba(254,205,211,0.45)',
     motion: 'blob-drift-b 29s ease-in-out infinite alternate-reverse',
   },
   {
     box: 'hidden sm:block right-[24%] top-[-18%] h-[22rem] w-[22rem]',
-    color: 'rgba(251,191,36,0.30)',
+    color: 'rgba(254,240,138,0.45)',
     motion: 'blob-drift-a 21s ease-in-out infinite alternate-reverse',
   },
 ]
 
 /**
- * Hạt sáng nhỏ. Toạ độ ghi cứng chứ không random: random thì mỗi lần React vẽ
- * lại là hạt nhảy sang chỗ khác, còn ghi cứng thì bố cục ổn định và cũng dễ
- * chỉnh tay khi thấy chỗ nào dày quá.
+ * Hạt sáng nhỏ pastel. Toạ độ ghi cứng để bố cục ổn định.
  */
 const PARTICLES = [
   { left: '8%', top: '22%', size: 3, delay: 0, duration: 3.4 },
@@ -91,14 +87,13 @@ export function HeroAurora() {
         />
       ))}
 
-      {/* Lưới chấm mờ dần ra rìa — đủ để mắt bám được chiều sâu, chưa đủ để đọc
-          thành hoạ tiết và làm rối chữ. */}
+      {/* Lưới chấm mờ dần ra rìa */}
       <div className="pattern-dots absolute inset-0" />
 
       {SHAPES.map((s, i) => (
         <span
           key={s.box}
-          className={cn('floaty absolute text-white/25', s.box)}
+          className={cn('floaty absolute text-teal-600/20', s.box)}
           style={{ animationDuration: `${s.duration}s`, animationDelay: `${s.delay}s` }}
         >
           {i === 0 && (
@@ -147,7 +142,7 @@ export function HeroAurora() {
       {PARTICLES.map((p) => (
         <span
           key={`${p.left}-${p.top}`}
-          className="twinkle absolute rounded-full bg-white"
+          className="twinkle absolute rounded-full bg-teal-500/35"
           style={{
             left: p.left,
             top: p.top,

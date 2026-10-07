@@ -48,7 +48,7 @@ export function LuongHoiThoai() {
           <span className="sr-only">Đang mở hội thoại</span>
         </div>
       ) : (
-        <div className="flex min-h-[28rem] flex-1 flex-col rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex min-h-[28rem] flex-1 flex-col rounded-2xl border border-slate-200/80 bg-white p-4 shadow-2xs sm:p-5">
           <KhungChat
             kenh={kenh}
             bien="sang"

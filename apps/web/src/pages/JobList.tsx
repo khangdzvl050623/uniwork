@@ -191,12 +191,14 @@ export function JobList() {
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      <h1 className="text-2xl font-bold text-slate-900">Việc làm bán thời gian</h1>
-      <p className="mt-1 text-sm text-slate-500">
-        {isLoading
-          ? 'Đang tải…'
-          : `Tìm thấy ${total} tin${total > jobs.length ? ` · đang hiện ${jobs.length}` : ''}`}
-      </p>
+      <div className="mb-2">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">Việc làm bán thời gian</h1>
+        <p className="mt-1 text-sm text-slate-500">
+          {isLoading
+            ? 'Đang tìm việc làm phù hợp…'
+            : `Tìm thấy ${total} tin${total > jobs.length ? ` · đang hiện ${jobs.length}` : ''}`}
+        </p>
+      </div>
 
       {/*
         Lời mời khai lịch rảnh xuất hiện ĐÚNG MỘT LẦN ở đây, không lặp trên
@@ -207,16 +209,16 @@ export function JobList() {
         làm là đăng ký (đã có nút ở header), còn nhà tuyển dụng thì không liên quan.
       */}
       {laSinhVien && !daKhaiLich && (
-        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-xl border border-brand-200 bg-brand-50/60 px-4 py-3">
-          <CalendarPlus size={18} className="shrink-0 text-brand-600" />
+        <div className="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border border-brand-200/80 bg-linear-to-r from-brand-50/80 via-emerald-50/50 to-teal-50/30 p-4 shadow-2xs">
+          <CalendarPlus size={20} className="shrink-0 text-brand-600" />
           <p className="min-w-0 flex-1 text-sm text-slate-700">
             Khai lịch rảnh một lần để xem tin nào khớp giờ của bạn, và lọc theo nó.
           </p>
           <Link
             to="/lich-ranh"
             className={cn(
-              'shrink-0 rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-medium text-white',
-              'transition-colors duration-150 ease-out hover:bg-brand-700',
+              'shrink-0 rounded-xl bg-brand-600 px-3.5 py-1.5 text-sm font-semibold text-white shadow-2xs',
+              'transition-all duration-150 ease-out hover:bg-brand-700 hover:shadow-xs',
               'active:scale-[0.97] motion-reduce:active:scale-100',
               'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500',
             )}
@@ -240,22 +242,22 @@ export function JobList() {
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center">
             <div className="relative flex-1">
               <Search
-                size={16}
-                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                size={17}
+                className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"
               />
               <input
                 type="search"
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                placeholder="Tìm tên công việc hoặc mô tả"
-                className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-9 text-sm text-slate-700 placeholder:text-slate-400 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                placeholder="Tìm tên công việc hoặc mô tả…"
+                className="w-full rounded-[1.25rem] border border-slate-200/90 bg-white py-2.5 pl-10 pr-9 text-sm text-slate-800 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.04)] placeholder:text-slate-400 transition-all duration-200 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/10"
                 aria-label="Tìm việc làm"
               />
               {q && (
                 <button
                   type="button"
                   onClick={() => setQ('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
                   aria-label="Xoá tìm kiếm"
                 >
                   <X size={14} />
@@ -267,7 +269,7 @@ export function JobList() {
               <Button
                 variant="outline"
                 size="sm"
-                className="lg:hidden"
+                className="rounded-xl lg:hidden"
                 onClick={() => setHienLocDiDong((v) => !v)}
               >
                 <SlidersHorizontal size={16} />
@@ -277,16 +279,8 @@ export function JobList() {
           </div>
 
           <div className="mb-4 flex items-center gap-3">
-            {/*
-              Sắp xếp nằm TRÊN danh sách chứ không nằm trong cột lọc: nó không
-              thu hẹp kết quả, nó chỉ đổi thứ tự — trộn vào bộ lọc là để người
-              dùng đi tìm nó ở sai chỗ.
-
-              "Phù hợp lịch nhất" chỉ bật được khi đã khai lịch rảnh; không có
-              lịch thì mọi tin đều chưa đo được điểm và thứ tự thành ngẫu nhiên.
-            */}
-            <div className="ml-auto flex items-center gap-1.5">
-              <span className="hidden text-xs text-slate-500 sm:inline">Sắp xếp</span>
+            <div className="ml-auto flex items-center gap-1.5 rounded-full border border-slate-200/70 bg-slate-100/70 p-1">
+              <span className="hidden px-2 text-xs font-medium text-slate-500 sm:inline">Sắp xếp:</span>
               {PUBLIC_JOB_SORTS.map((s) => {
                 const khoa = s === 'match' && !dungDuocLichRanh
                 return (
@@ -298,12 +292,14 @@ export function JobList() {
                     aria-pressed={sort === s}
                     title={khoa ? 'Khai lịch rảnh để sắp xếp theo độ phù hợp' : undefined}
                     className={cn(
-                      'rounded-lg px-2.5 py-1.5 text-xs font-medium',
-                      'transition-colors duration-150 ease-out',
+                      'rounded-full px-3 py-1 text-xs font-semibold',
+                      'transition-all duration-150 ease-out cursor-pointer',
                       'active:scale-[0.97] motion-reduce:active:scale-100',
                       'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-500',
                       'disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100',
-                      sort === s ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100',
+                      sort === s
+                        ? 'bg-white text-slate-900 shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900',
                     )}
                   >
                     {PUBLIC_JOB_SORT_LABELS[s]}
@@ -315,7 +311,7 @@ export function JobList() {
 
           {isLoading && (
             <div className="flex min-h-[40vh] items-center justify-center">
-              <Loader2 size={26} className="animate-spin text-brand-600" />
+              <Loader2 size={28} className="animate-spin text-brand-600" />
             </div>
           )}
 
@@ -330,8 +326,8 @@ export function JobList() {
           )}
 
           {!isLoading && !isError && jobs.length === 0 && (
-            <div className="rounded-xl border border-slate-200 bg-white px-6 py-16 text-center">
-              <p className="text-sm text-slate-600">
+            <div className="rounded-2xl border border-slate-200/80 bg-white px-6 py-16 text-center shadow-2xs">
+              <p className="text-sm font-medium text-slate-600">
                 {coBoLoc
                   ? 'Không có tin nào khớp bộ lọc hiện tại.'
                   : 'Chưa có tin tuyển dụng nào được đăng.'}
@@ -340,7 +336,7 @@ export function JobList() {
                 <button
                   type="button"
                   onClick={xoaHetBoLoc}
-                  className="mt-2 text-sm font-medium text-brand-600 transition-colors duration-150 hover:text-brand-700"
+                  className="mt-2.5 text-sm font-semibold text-brand-600 transition-colors duration-150 hover:text-brand-700 cursor-pointer"
                 >
                   Xoá bộ lọc
                 </button>
@@ -355,15 +351,15 @@ export function JobList() {
           </div>
 
           {hasNextPage && (
-            <div className="mt-6 flex justify-center">
+            <div className="mt-8 flex justify-center">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => fetchNextPage()}
                 disabled={isFetchingNextPage}
-                className="min-w-36"
+                className="min-w-40 rounded-xl shadow-2xs hover:shadow-xs"
               >
-                {isFetchingNextPage ? 'Đang tải…' : 'Tải thêm'}
+                {isFetchingNextPage ? 'Đang tải…' : 'Tải thêm tin khác'}
               </Button>
             </div>
           )}
